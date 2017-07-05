@@ -211,7 +211,7 @@
 #define THERMAL_PROTECTION_COOLER_HYSTERESIS 2
 #define WATCH_TEMP_COOLER_PERIOD 60          // Seconds
 #define WATCH_TEMP_COOLER_DECREASE 1         // Degree Celsius
-#define PREVENT_COLD_EXTRUSION
+//#define PREVENT_COLD_EXTRUSION
 #define EXTRUDE_MINTEMP 170
 //#define PREVENT_LENGTHY_EXTRUDE
 #define EXTRUDE_MAXLENGTH 400
@@ -304,15 +304,15 @@
 //#define DISABLE_INACTIVE_EXTRUDER
 #define X_MAX_POS 380
 #define X_MIN_POS 0
-#define Y_MAX_POS 435
+#define Y_MAX_POS 405
 #define Y_MIN_POS 0
 #define Z_MAX_POS 300
 #define Z_MIN_POS 0
 #define E_MIN_POS 0
 #define AXIS_RELATIVE_MODES {false, false, false, false}
 #define Z_SAFE_HOMING
-#define Z_SAFE_HOMING_X_POINT 100
-#define Z_SAFE_HOMING_Y_POINT 100
+#define Z_SAFE_HOMING_X_POINT 200
+#define Z_SAFE_HOMING_Y_POINT 0
 #define MESH_BED_LEVELING
 //#define AUTO_BED_LEVELING_LINEAR
 //#define AUTO_BED_LEVELING_BILINEAR
@@ -344,9 +344,9 @@
 #define ENABLE_LEVELING_FADE_HEIGHT
 //#define BED_CENTER_AT_0_0
 //#define MANUAL_X_HOME_POS 0
-//#define MANUAL_Y_HOME_POS 0
+//#define MANUAL_Y_HOME_POS -20
 //#define MANUAL_Z_HOME_POS 0
-#define DEFAULT_AXIS_STEPS_PER_UNIT {160,160,4000,625,625,625,625,625,625}
+#define DEFAULT_AXIS_STEPS_PER_UNIT {160,160,5120,625,625,625,625,625,625}
 #define DEFAULT_MAX_FEEDRATE {300,300,2,100,100,100,100,100,100}
 #define MANUAL_FEEDRATE {100*60,100*60,2*60,10*60}
 #define DEFAULT_MINIMUMFEEDRATE       0.0
@@ -557,8 +557,8 @@
 #define SDSUPPORT
 //#define SDSLOW              // Use slower SD transfer mode (not normally needed - uncomment if you're getting volume init error)
 //#define SDEXTRASLOW         // Use even slower SD transfer mode (not normally needed - uncomment if you're getting volume init error)
-//#define SD_CHECK_AND_RETRY  // Use CRC checks and retries on the SD communication
-//#define SD_EXTENDED_DIR     // Show extended directory including file length. Don't use this with Pronterface
+#define SD_CHECK_AND_RETRY  // Use CRC checks and retries on the SD communication
+#define SD_EXTENDED_DIR     // Show extended directory including file length. Don't use this with Pronterface
 //#define SD_DISABLED_DETECT
 //#define SD_DETECT_INVERTED
 #define SD_FINISHED_STEPPERRELEASE true  //if sd support and the file is finished: disable steppers?
@@ -582,8 +582,8 @@
 #define USE_BIG_EDIT_FONT
 #define USE_SMALL_INFOFONT
 //#define DOGM_SPI_DELAY_US 5
-//#define ENCODER_PULSES_PER_STEP 1
-//#define ENCODER_STEPS_PER_MENU_ITEM 5
+#define ENCODER_PULSES_PER_STEP 2
+#define ENCODER_STEPS_PER_MENU_ITEM 3
 //#define LCD_SCREEN_ROT_90    // Rotate screen orientation for graphics display by 90 degree clockwise
 //#define LCD_SCREEN_ROT_180   // Rotate screen orientation for graphics display by 180 degree clockwise
 //#define LCD_SCREEN_ROT_270   // Rotate screen orientation for graphics display by 270 degree clockwise
