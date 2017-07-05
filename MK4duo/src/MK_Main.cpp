@@ -503,12 +503,6 @@ bool enqueue_and_echo_command(const char* cmd, bool say_ok/*=false*/) {
   return false;
 }
 
-void setup_killpin() {
-  #if HAS_KILL
-    SET_INPUT_PULLUP(KILL_PIN);
-  #endif
-  }
-
 #if HAS_FIL_RUNOUT
   void setup_filrunoutpin() {
     #if ENABLED(ENDSTOPPULLUP_FIL_RUNOUT)
@@ -518,18 +512,6 @@ void setup_killpin() {
     #endif
   }
 #endif
-
-void setup_homepin(void) {
-  #if HAS_HOME
-    SET_INPUT_PULLUP(HOME_PIN);
-  #endif
-}
-
-void setup_photpin() {
-  #if HAS_PHOTOGRAPH
-    OUT_WRITE(PHOTOGRAPH_PIN, LOW);
-  #endif
-}
 
 void setup_powerhold() {
   #if HAS_SUICIDE
@@ -2302,11 +2284,15 @@ inline void gcode_G0_G1(
 
     #if ENABLED(LASER) && ENABLED(LASER_FIRE_G1)
       if (lfire) {
-        if (parser.seen('S')) laser.intensity = parser.value_float();
+        #if ENABLED(INTENSITY_IN_BYTE)
+          if (parser.seenval('S')) laser.intensity = ((float)parser.value_byte() / 255.0) * 100.0;
+        #else
+          if (parser.seenval('S')) laser.intensity = parser.value_float();
+        #endif
         if (parser.seen('L')) laser.duration = parser.value_ulong();
         if (parser.seen('P')) laser.ppm = parser.value_float();
         if (parser.seen('D')) laser.diagnostics = parser.value_bool();
-        if (parser.seen('B')) laser_set_mode(parser.value_int());
+        if (parser.seen('B')) laser.set_mode(parser.value_int());
 
         laser.status = LASER_ON;
       }
@@ -2365,11 +2351,15 @@ inline void gcode_G0_G1(
       gcode_get_destination();
 
       #if ENABLED(LASER) && ENABLED(LASER_FIRE_G1)
-        if (parser.seenval('S')) laser.intensity = parser.value_float();
+        #if ENABLED(INTENSITY_IN_BYTE)
+          if (parser.seenval('S')) laser.intensity = ((float)parser.value_byte() / 255.0) * 100.0;
+        #else
+          if (parser.seenval('S')) laser.intensity = parser.value_float();
+        #endif
         if (parser.seenval('L')) laser.duration = parser.value_ulong();
         if (parser.seenval('P')) laser.ppm = parser.value_float();
         if (parser.seenval('D')) laser.diagnostics = parser.value_bool();
-        if (parser.seenval('B')) laser_set_mode(parser.value_int());
+        if (parser.seenval('B')) laser.set_mode(parser.value_int());
 
         laser.status = LASER_ON;
       #endif
@@ -2497,7 +2487,7 @@ inline void gcode_G4() {
           case 1:
           case 4:
             mechanics.destination[Y_AXIS] = mechanics.current_position[Y_AXIS] + (laser.raster_mm_per_pulse * laser.raster_aspect_ratio); // increment Y axis
-          break;	  
+          break;
           case 2:
           case 3:
           case 5:
@@ -2785,10 +2775,6 @@ inline void gcode_G28(const bool always_home_all) {
   // Cancel the active G29 session
   #if ENABLED(PROBE_MANUALLY)
     g29_in_progress = false;
-    #if ENABLED(DELTA_AUTO_CALIBRATION_1)
-      // Cancel the active G30 session
-      g33_in_progress = false;
-    #endif
     #if HAS_NEXTION_MANUAL_BED
       LcdBedLevelOff();
     #endif
@@ -2896,54 +2882,6 @@ void home_all_axes() { gcode_G28(true); }
   }
 #endif
 
-#if ENABLED(MESH_BED_LEVELING) || ENABLED(PROBE_MANUALLY)
-
-  #if ENABLED(PROBE_MANUALLY) && ENABLED(LCD_BED_LEVELING)
-    extern bool lcd_wait_for_move;
-  #endif
-
-  inline void _manual_goto_xy(const float &x, const float &y) {
-    const float old_feedrate_mm_s = mechanics.feedrate_mm_s;
-
-    #if MANUAL_PROBE_HEIGHT > 0
-      mechanics.feedrate_mm_s = mechanics.homing_feedrate_mm_s[Z_AXIS];
-      mechanics.current_position[Z_AXIS] = LOGICAL_Z_POSITION(Z_MIN_POS) + MANUAL_PROBE_HEIGHT;
-      #if MECH(DELTA)
-        mechanics.do_blocking_move_to_z(mechanics.current_position[Z_AXIS], mechanics.feedrate_mm_s);
-      #else
-        mechanics.line_to_current_position();
-      #endif
-    #endif
-
-    mechanics.feedrate_mm_s = MMM_TO_MMS(XY_PROBE_SPEED);
-    mechanics.current_position[X_AXIS] = LOGICAL_X_POSITION(x);
-    mechanics.current_position[Y_AXIS] = LOGICAL_Y_POSITION(y);
-    #if MECH(DELTA)
-      mechanics.do_blocking_move_to_xy(mechanics.current_position[X_AXIS], mechanics.current_position[Y_AXIS], mechanics.feedrate_mm_s);
-    #else
-      mechanics.line_to_current_position();
-    #endif
-
-    #if MANUAL_PROBE_HEIGHT > 0
-      mechanics.feedrate_mm_s = mechanics.homing_feedrate_mm_s[Z_AXIS];
-      mechanics.current_position[Z_AXIS] = LOGICAL_Z_POSITION(Z_MIN_POS); // just slightly over the bed
-      #if MECH(DELTA)
-        mechanics.do_blocking_move_to_z(mechanics.current_position[Z_AXIS], mechanics.feedrate_mm_s);
-      #else
-        mechanics.line_to_current_position();
-      #endif
-    #endif
-
-    mechanics.feedrate_mm_s = old_feedrate_mm_s;
-    stepper.synchronize();
-
-    #if ENABLED(PROBE_MANUALLY) && ENABLED(LCD_BED_LEVELING)
-      lcd_wait_for_move = false;
-    #endif
-  }
-
-#endif // ENABLED(MESH_BED_LEVELING) || ENABLED(PROBE_MANUALLY)
-
 #if ENABLED(MESH_BED_LEVELING)
 
   // Save 130 bytes with non-duplication of PSTR
@@ -3023,7 +2961,7 @@ void home_all_axes() { gcode_G28(true); }
         // If there's another point to sample, move there with optional lift.
         if (mbl_probe_index < GRID_MAX_POINTS) {
           mbl.zigzag(mbl_probe_index, px, py);
-          _manual_goto_xy(mbl.index_to_xpos[px], mbl.index_to_ypos[py]);
+          mechanics.manual_goto_xy(mbl.index_to_xpos[px], mbl.index_to_ypos[py]);
 
           #if HAS_SOFTWARE_ENDSTOPS
             // Disable software endstops to allow manual adjustment
@@ -3207,7 +3145,7 @@ void home_all_axes() { gcode_G28(true); }
     #endif
 
     #if ENABLED(DEBUG_LEVELING_FEATURE) && DISABLED(PROBE_MANUALLY)
-      const bool faux = parser.seen('C') && parser.value_bool();
+      const bool faux = parser.boolval('C');
     #elif ENABLED(PROBE_MANUALLY)
       const bool faux = no_action;
     #else
@@ -3530,7 +3468,7 @@ void home_all_axes() { gcode_G28(true); }
         #endif
         bedlevel.abl_enabled = abl_should_enable;
         g29_in_progress = false;
-        #if ENABLED(LCD_BED_LEVELING)
+        #if ENABLED(LCD_BED_LEVELING) && ENABLED(ULTRA_LCD)
           lcd_wait_for_move = false;
         #endif
       }
@@ -3621,7 +3559,7 @@ void home_all_axes() { gcode_G28(true); }
 
         // Is there a next point to move to?
         if (abl_probe_index < abl2) {
-          _manual_goto_xy(xProbe, yProbe); // Can be used here too!
+          mechanics.manual_goto_xy(xProbe, yProbe); // Can be used here too!
           #if HAS_SOFTWARE_ENDSTOPS
             // Disable software endstops to allow manual adjustment
             // If G29 is not completed, they will not be re-enabled
@@ -3809,7 +3747,7 @@ void home_all_axes() { gcode_G28(true); }
 
     #if ENABLED(PROBE_MANUALLY)
       g29_in_progress = false;
-      #if ENABLED(LCD_BED_LEVELING)
+      #if ENABLED(LCD_BED_LEVELING) && ENABLED(ULTRA_LCD)
         lcd_wait_for_move = false;
       #endif
     #endif
@@ -4478,7 +4416,7 @@ inline void gcode_G92() {
   mechanics.report_current_position();
 }
 
-#if HAS(RESUME_CONTINUE)
+#if HAS_RESUME_CONTINUE
 
   /**
    * M0: Unconditional stop - Wait for user button press on LCD
@@ -4561,11 +4499,15 @@ inline void gcode_G92() {
       #if ENABLED(LASER) && ENABLED(LASER_FIRE_SPINDLE)
         case PRINTER_MODE_LASER: {
           if (IsRunning()) {
-            if (parser.seenval('S')) laser.intensity = parser.value_float();
+            #if ENABLED(INTENSITY_IN_BYTE)
+              if (parser.seenval('S')) laser.intensity = (float)(parser.value_byte() / 255) * 100.0;
+            #else
+              if (parser.seenval('S')) laser.intensity = parser.value_float();
+            #endif
             if (parser.seenval('L')) laser.duration = parser.value_ulong();
             if (parser.seenval('P')) laser.ppm = parser.value_float();
             if (parser.seenval('D')) laser.diagnostics = parser.value_bool();
-            if (parser.seenval('B')) laser_set_mode(parser.value_int());
+            if (parser.seenval('B')) laser.set_mode(parser.value_int());
           }
           laser.status = LASER_ON;
         }
@@ -5428,8 +5370,8 @@ inline void gcode_M78() {
     LCD_MESSAGEPGM(WELCOME_MSG);
 
     #if ENABLED(LASER) && ENABLED(LASER_PERIPHERALS)
-      laser_peripherals_on();
-      laser_wait_for_peripherals();
+      laser.peripherals_on();
+      laser.wait_for_peripherals();
     #endif
   }
 #endif // HAS_POWER_SWITCH
@@ -5452,9 +5394,9 @@ inline void gcode_M81() {
   #endif
 
   #if ENABLED(LASER)
-    laser_extinguish();
+    laser.extinguish();
     #if ENABLED(LASER_PERIPHERALS)
-      laser_peripherals_off();
+      laser.peripherals_off();
     #endif
   #endif
 
@@ -5855,6 +5797,9 @@ inline void gcode_M115() {
 
     // PROGRESS (M530 S L, M531 <file>, M532 X L)
     SERIAL_LM(CAP, "PROGRESS:1");
+
+    // Print Job timer M75, M76, M77
+    SERIAL_LM(CAP, "PRINT_JOB:1");
 
     // AUTOLEVEL (G29)
     #if HAS_ABL
@@ -6971,9 +6916,10 @@ inline void gcode_M226() {
     pinMode(CASE_LIGHT_PIN, OUTPUT);
     uint8_t case_light_bright = (uint8_t)case_light_brightness;
     if (case_light_on) {
-      WRITE(CASE_LIGHT_PIN, INVERT_CASE_LIGHT ? HIGH : LOW);
-      analogWrite(CASE_LIGHT_PIN, INVERT_CASE_LIGHT ? 255 - case_light_brightness : case_light_brightness );
+      HAL::analogWrite(CASE_LIGHT_PIN, INVERT_CASE_LIGHT ? 255 - case_light_brightness : case_light_brightness );
+      WRITE(CASE_LIGHT_PIN, INVERT_CASE_LIGHT ? LOW : HIGH);
     }
+    else WRITE(CASE_LIGHT_PIN, INVERT_CASE_LIGHT ? HIGH : LOW);
   }
 
   /**
@@ -7925,7 +7871,7 @@ inline void gcode_M532() {
     if (IsRunning()) {
       if (parser.seen('L')) laser.duration = parser.value_ulong();
       if (parser.seen('P')) laser.ppm = parser.value_float();
-      if (parser.seen('B')) laser_set_mode(parser.value_int());
+      if (parser.seen('B')) laser.set_mode(parser.value_int());
       if (parser.seen('R')) laser.raster_mm_per_pulse = (parser.value_float());
     }
 
@@ -8160,6 +8106,7 @@ inline void gcode_M532() {
    *    Y = Beta  (Tower 2) Endstop Adjust
    *    Z = Gamma (Tower 3) Endstop Adjust
    *    O = Print radius
+   *    Q = Probe radius
    *    P = Z probe offset
    *    H = Z Height
    */
@@ -8172,7 +8119,7 @@ inline void gcode_M532() {
     }
 
     if (parser.seen('D')) mechanics.delta_diagonal_rod              = parser.value_linear_units();
-    if (parser.seen('R')) mechanics.delta_radius              = parser.value_linear_units();
+    if (parser.seen('R')) mechanics.delta_radius                    = parser.value_linear_units();
     if (parser.seen('S')) mechanics.delta_segments_per_second       = parser.value_float();
     if (parser.seen('A')) mechanics.delta_diagonal_rod_adj[A_AXIS]  = parser.value_linear_units();
     if (parser.seen('B')) mechanics.delta_diagonal_rod_adj[B_AXIS]  = parser.value_linear_units();
@@ -8184,6 +8131,7 @@ inline void gcode_M532() {
     if (parser.seen('V')) mechanics.delta_tower_pos_adj[B_AXIS]     = parser.value_linear_units();
     if (parser.seen('W')) mechanics.delta_tower_pos_adj[C_AXIS]     = parser.value_linear_units();
     if (parser.seen('O')) mechanics.delta_print_radius              = parser.value_linear_units();
+    if (parser.seen('Q')) mechanics.delta_probe_radius              = parser.value_linear_units();
 
     mechanics.recalc_delta_settings();
 
@@ -8252,6 +8200,7 @@ inline void gcode_M532() {
       SERIAL_LMV(CFG, "D (Diagonal Rod Length): ",              mechanics.delta_diagonal_rod, 4);
       SERIAL_LMV(CFG, "S (Delta Segments per second): ",        mechanics.delta_segments_per_second);
       SERIAL_LMV(CFG, "O (Delta Print Radius): ",               mechanics.delta_print_radius);
+      SERIAL_LMV(CFG, "Q (Delta Probe Radius): ",               mechanics.delta_probe_radius);
       SERIAL_LMV(CFG, "H (Z-Height): ",                         mechanics.delta_height, 3);
     }
   }
@@ -11187,9 +11136,9 @@ void manage_inactivity(bool ignore_stepper_queue/*=false*/) {
         laser.lifetime += laser.time / 60000; // convert to minutes
         laser.time = 0;
       }
-      laser_extinguish();
+      laser.extinguish();
       #if ENABLED(LASER_PERIPHERALS)
-        laser_peripherals_off();
+        laser.peripherals_off();
       #endif
     #endif
   }
@@ -11469,9 +11418,9 @@ void kill(const char* lcd_msg) {
   thermalManager.disable_all_heaters(); // Turn off heaters again
 
   #if ENABLED(LASER)
-    laser_init();
+    laser.Init();
     #if ENABLED(LASER_PERIPHERALS)
-      laser_peripherals_off();
+      laser.peripherals_off();
     #endif
   #endif
 
@@ -11508,9 +11457,9 @@ void Stop() {
 
   #if ENABLED(LASER)
     if (laser.diagnostics) SERIAL_EM("Laser set to off, Stop() called");
-    laser_extinguish();
+    laser.extinguish();
     #if ENABLED(LASER_PERIPHERALS)
-      laser_peripherals_off();
+      laser.peripherals_off();
     #endif
   #endif
 
@@ -11557,7 +11506,9 @@ void setup() {
     setup_filrunoutpin();
   #endif
 
-  setup_killpin();
+  #if HAS_KILL
+    SET_INPUT_PULLUP(KILL_PIN);
+  #endif
 
   setup_powerhold();
 
@@ -11667,7 +11618,9 @@ void setup() {
     OUT_WRITE(SLED_PIN, LOW); // turn it off
   #endif
 
-  setup_homepin();
+  #if HAS_HOME
+    SET_INPUT_PULLUP(HOME_PIN);
+  #endif
 
   #if PIN_EXISTS(STAT_LED_RED_PIN)
     OUT_WRITE(STAT_LED_RED_PIN, LOW); // turn it off
@@ -11687,7 +11640,7 @@ void setup() {
   #endif
 
   #if ENABLED(LASER)
-    laser_init();
+    laser.Init();
   #endif
 
   #if ENABLED(FLOWMETER_SENSOR)
