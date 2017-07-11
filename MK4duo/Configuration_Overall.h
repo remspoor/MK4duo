@@ -346,7 +346,7 @@
 //#define MANUAL_X_HOME_POS 0
 //#define MANUAL_Y_HOME_POS -20
 //#define MANUAL_Z_HOME_POS 0
-#define DEFAULT_AXIS_STEPS_PER_UNIT {160,160,5120,625,625,625,625,625,625}
+#define DEFAULT_AXIS_STEPS_PER_UNIT {160,160,5120,950,950,625,625,625,625}
 #define DEFAULT_MAX_FEEDRATE {300,300,2,100,100,100,100,100,100}
 #define MANUAL_FEEDRATE {100*60,100*60,2*60,10*60}
 #define DEFAULT_MINIMUMFEEDRATE       0.0
@@ -375,7 +375,7 @@
  * Configuration_Feature *
  *************************/
 #define FAN_PWM_SPEED 2
-#define FAN_KICKSTART_TIME 5000
+#define FAN_KICKSTART_TIME 2000
 #define FAN_MIN_PWM 64
 //#define CONTROLLERFAN
 #define CONTROLLERFAN_SECS       60   // How many seconds, after all motors were disabled, the fan should run
