@@ -34,12 +34,14 @@
   #define EXTRUDER_IDX  0
 #else
   #define HOTEND_INDEX  h
-  #define EXTRUDER_IDX  active_extruder
+  #define EXTRUDER_IDX  printer.active_extruder
 #endif
 
 class Temperature {
 
   public:
+
+    static volatile bool  wait_for_heatup;
 
     #if HAS_TEMP_HOTEND
       static float      current_temperature[HOTENDS];
@@ -104,6 +106,10 @@ class Temperature {
       static float coolerKp, coolerKi, coolerKd;
     #endif
 
+    #if HAS(AUTO_FAN)
+      static uint8_t autoFanSpeeds[HOTENDS];
+    #endif
+
     #if ENABLED(BABYSTEPPING)
       static volatile int babystepsTodo[3];
     #endif
@@ -139,6 +145,11 @@ class Temperature {
       }
     #else
       static bool tooColdToExtrude(uint8_t h) { UNUSED(h); return false; }
+    #endif
+
+    #if ENABLED(AUTO_REPORT_TEMPERATURES) && (HAS_TEMP_HOTEND || HAS_TEMP_BED)
+      static uint8_t auto_report_temp_interval;
+      static millis_t next_temp_report_ms;
     #endif
 
   private:
@@ -251,7 +262,11 @@ class Temperature {
       static millis_t next_auto_fan_check_ms;
     #endif
 
-    #if ENABLED(ADVANCED_PAUSE_FEATURE)
+    #if ENABLED(PROBING_HEATERS_OFF)
+      static bool paused;
+    #endif
+
+    #if HEATER_IDLE_HANDLER
       static millis_t heater_idle_timeout_ms[HOTENDS];
       static bool heater_idle_timeout_exceeded[HOTENDS];
       #if HAS_TEMP_BED
@@ -612,7 +627,12 @@ class Temperature {
 
     #endif // BABYSTEPPING
 
-    #if ENABLED(ADVANCED_PAUSE_FEATURE)
+    #if ENABLED(PROBING_HEATERS_OFF)
+      static void pause(const bool p);
+      static bool is_paused() { return paused; }
+    #endif
+
+    #if HEATER_IDLE_HANDLER
       static void start_heater_idle_timer(uint8_t h, millis_t timeout_ms) {
         #if HOTENDS == 1
           UNUSED(h);
@@ -657,6 +677,26 @@ class Temperature {
           return bed_idle_timeout_exceeded;
         }
       #endif
+    #endif
+
+    #if ENABLED(AUTO_REPORT_TEMPERATURES) && (HAS_TEMP_HOTEND || HAS_TEMP_BED)
+      static void auto_report_temperatures();
+    #endif
+
+    #if HAS_TEMP_HOTEND || HAS_TEMP_BED
+      static void print_heaterstates();
+    #endif
+
+    #if HAS_TEMP_CHAMBER
+      static void print_chamberstate();
+    #endif
+
+    #if HAS_TEMP_COOLER
+      static void print_coolerstate();
+    #endif
+
+    #if ENABLED(ARDUINO_ARCH_SAM)&& !MB(RADDS)
+      static void print_MCUstate();
     #endif
 
   private:
@@ -719,6 +759,16 @@ class Temperature {
       int current_raw_powconsumption;
       static unsigned long raw_powconsumption_value;
     #endif
+
+    #if HAS_TEMP_HOTEND || HAS_TEMP_BED
+      static void print_heater_state(const float &c, const int16_t &t,
+        #if ENABLED(SHOW_TEMP_ADC_VALUES)
+          const int16_t r,
+        #endif
+        const int8_t e=-2
+      );
+    #endif
+
 };
 
 extern Temperature thermalManager;

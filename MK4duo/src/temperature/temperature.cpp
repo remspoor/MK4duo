@@ -37,6 +37,8 @@
 Temperature thermalManager;
 
 // public:
+volatile bool Temperature::wait_for_heatup = true;
+
 #if HAS_TEMP_HOTEND
   float   Temperature::current_temperature[HOTENDS]     = { 0.0 };
   int16_t Temperature::current_temperature_raw[HOTENDS] = { 0 },
@@ -111,6 +113,10 @@ Temperature thermalManager;
         Temperature::coolerKd = DEFAULT_coolerKd;
 #endif
 
+#if HAS(AUTO_FAN)
+  uint8_t Temperature::autoFanSpeeds[HOTENDS] = { 0 };
+#endif
+
 #if ENABLED(BABYSTEPPING)
   volatile int Temperature::babystepsTodo[XYZ] = { 0 };
 #endif
@@ -136,14 +142,19 @@ Temperature thermalManager;
 #endif
 
 #if HAS_TEMP_HOTEND && ENABLED(PREVENT_COLD_EXTRUSION)
-  bool Temperature::allow_cold_extrude = false;
+  bool    Temperature::allow_cold_extrude = false;
   int16_t Temperature::extrude_min_temp = EXTRUDE_MINTEMP;
+#endif
+
+#if ENABLED(AUTO_REPORT_TEMPERATURES) && (HAS_TEMP_HOTEND || HAS_TEMP_BED)
+  uint8_t   Temperature::auto_report_temp_interval = 0;
+  millis_t  Temperature::next_temp_report_ms = 0;
 #endif
 
 // private:
 
 #if ENABLED(TEMP_SENSOR_1_AS_REDUNDANT)
-  int Temperature::redundant_temperature_raw = 0;
+  int   Temperature::redundant_temperature_raw = 0;
   float Temperature::redundant_temperature = 0.0;
 #endif
 
@@ -252,7 +263,11 @@ int16_t Temperature::minttemp_raw[HOTENDS] = ARRAY_BY_HOTENDS_N(HEATER_0_RAW_LO_
   millis_t Temperature::next_auto_fan_check_ms = 0;
 #endif
 
-#if ENABLED(ADVANCED_PAUSE_FEATURE)
+#if ENABLED(PROBING_HEATERS_OFF)
+  bool Temperature::paused;
+#endif
+
+#if HEATER_IDLE_HANDLER
   millis_t Temperature::heater_idle_timeout_ms[HOTENDS] = { 0 };
   bool Temperature::heater_idle_timeout_exceeded[HOTENDS] = { false };
   #if HAS_TEMP_BED
@@ -643,7 +658,7 @@ void Temperature::updatePID() {
 //
 void Temperature::_temp_error(const int8_t tc, const char * const serial_msg, const char * const lcd_msg) {
   static bool killed = false;
-  if (IsRunning()) {
+  if (printer.IsRunning()) {
     SERIAL_ST(ER, serial_msg);
     SERIAL_MSG(MSG_STOPPED_HEATER);
     if (tc >= 0)
@@ -664,9 +679,9 @@ void Temperature::_temp_error(const int8_t tc, const char * const serial_msg, co
 
   #if DISABLED(BOGUS_TEMPERATURE_FAILSAFE_OVERRIDE)
     if (!killed) {
-      Running = false;
+      printer.setRunning(false);
       killed = true;
-      kill(lcd_msg);
+      printer.kill(lcd_msg);
     }
     else {
       disable_all_heaters();
@@ -703,7 +718,7 @@ uint8_t Temperature::get_pid_output(const int8_t h) {
     UNUSED(h);
     #define _HOTEND_TEST  true
   #else
-    #define _HOTEND_TEST  h == active_extruder
+    #define _HOTEND_TEST  h == printer.active_extruder
   #endif
 
   uint8_t pid_output = 0;
@@ -713,7 +728,7 @@ uint8_t Temperature::get_pid_output(const int8_t h) {
       temp_dState[HOTEND_INDEX][pid_pointer[HOTEND_INDEX]++] = current_temperature[HOTEND_INDEX];
       pid_pointer[HOTEND_INDEX] &= 3;
       float error = target_temperature[HOTEND_INDEX] - current_temperature[HOTEND_INDEX];
-      #if ENABLED(ADVANCED_PAUSE_FEATURE)
+      #if HEATER_IDLE_HANDLER
         if (heater_idle_timeout_exceeded[HOTEND_INDEX]) {
           pid_output = 0;
           temp_iState[HOTEND_INDEX] = 0;
@@ -723,7 +738,11 @@ uint8_t Temperature::get_pid_output(const int8_t h) {
       if (error > PID_FUNCTIONAL_RANGE) {
         pid_output = PID_MAX;
       }
-      else if (error < -(PID_FUNCTIONAL_RANGE) || target_temperature[HOTEND_INDEX] == 0) {
+      else if (error < -(PID_FUNCTIONAL_RANGE) || target_temperature[HOTEND_INDEX] == 0 
+        #if HEATER_IDLE_HANDLER
+          || heater_idle_timeout_exceeded[HOTEND_INDEX]
+        #endif
+      ) {
         pid_output = 0;
       }
       else {
@@ -764,7 +783,7 @@ uint8_t Temperature::get_pid_output(const int8_t h) {
     #endif // PID_DEBUG
 
   #elif HAS_TEMP_HOTEND /* PID off and have Hotend*/
-    #if ENABLED(ADVANCED_PAUSE_FEATURE)
+    #if HEATER_IDLE_HANDLER
       if (heater_idle_timeout_exceeded[HOTEND_INDEX])
         pid_output = 0;
       else
@@ -916,7 +935,7 @@ void Temperature::manage_temp_controller() {
     if (current_temperature[0] < max(HEATER_0_MINTEMP, MAX6675_TMIN + .01)) min_temp_error(0);
   #endif
 
-  #if WATCH_HOTENDS || WATCH_THE_BED || WATCH_THE_CHAMBER || WATCH_THE_COOLER || DISABLED(PIDTEMPBED) || DISABLED(PIDTEMPCHAMBER) || DISABLED(PIDTEMPCOOLER) || HAS_AUTO_FAN
+  #if WATCH_HOTENDS || WATCH_THE_BED || WATCH_THE_CHAMBER || WATCH_THE_COOLER || DISABLED(PIDTEMPBED) || DISABLED(PIDTEMPCHAMBER) || DISABLED(PIDTEMPCOOLER) || HAS_AUTO_FAN || HEATER_IDLE_HANDLER
     millis_t ms = millis();
   #endif
 
@@ -924,7 +943,7 @@ void Temperature::manage_temp_controller() {
 
     LOOP_HOTEND() {
 
-      #if ENABLED(ADVANCED_PAUSE_FEATURE)
+      #if HEATER_IDLE_HANDLER
         if (!heater_idle_timeout_exceeded[h] && heater_idle_timeout_ms[h] && ELAPSED(ms, heater_idle_timeout_ms[h]))
           heater_idle_timeout_exceeded[h] = true;
       #endif
@@ -974,7 +993,7 @@ void Temperature::manage_temp_controller() {
       // Get the delayed info and add 100 to reconstitute to a percent of
       // the nominal filament diameter then square it to get an area
       const float vmroot = measurement_delay[meas_shift_index] * 0.01 + 1.0;
-      volumetric_multiplier[FILAMENT_SENSOR_EXTRUDER_NUM] = vmroot <= 0.1 ? 0.01 : sq(vmroot);
+      printer.volumetric_multiplier[FILAMENT_SENSOR_EXTRUDER_NUM] = vmroot <= 0.1 ? 0.01 : sq(vmroot);
     }
   #endif // FILAMENT_SENSOR
 
@@ -1005,7 +1024,7 @@ void Temperature::manage_temp_controller() {
 
   #if HAS_TEMP_BED
 
-    #if ENABLED(ADVANCED_PAUSE_FEATURE)
+    #if HEATER_IDLE_HANDLER
       if (!bed_idle_timeout_exceeded && bed_idle_timeout_ms && ELAPSED(ms, bed_idle_timeout_ms))
         bed_idle_timeout_exceeded = true;
     #endif
@@ -1014,7 +1033,7 @@ void Temperature::manage_temp_controller() {
       thermal_runaway_protection(&thermal_runaway_bed_state_machine, &thermal_runaway_bed_timer, current_temperature_bed, target_temperature_bed, -1, THERMAL_PROTECTION_BED_PERIOD, THERMAL_PROTECTION_BED_HYSTERESIS);
     #endif
 
-    #if ENABLED(ADVANCED_PAUSE_FEATURE)
+    #if HEATER_IDLE_HANDLER
       if (bed_idle_timeout_exceeded) {
         soft_pwm_bed = 0;
 
@@ -1134,7 +1153,7 @@ void Temperature::manage_temp_controller() {
       {
         SERIAL_SV(ER, (int)h);
         SERIAL_EM(MSG_INVALID_EXTRUDER_NUM);
-        kill(PSTR(MSG_KILLED));
+        printer.kill(PSTR(MSG_KILLED));
         return 0.0;
       }
 
@@ -1278,6 +1297,151 @@ void Temperature::manage_temp_controller() {
   }
 
 #endif
+
+#if HAS_TEMP_HOTEND || HAS_TEMP_BED
+
+  void Temperature::print_heater_state(const float &c, const int16_t &t,
+    #if ENABLED(SHOW_TEMP_ADC_VALUES)
+      const int16_t r,
+    #endif
+    const int8_t e/*=-2*/
+  ) {
+    SERIAL_CHR(' ');
+    SERIAL_CHR(
+      #if HAS_TEMP_BED && HAS_TEMP_HOTEND
+        e == -1 ? 'B' : 'T'
+      #elif HAS_TEMP_HOTEND
+        'T'
+      #else
+        'B'
+      #endif
+    );
+    #if HOTENDS > 1
+      if (e >= 0) SERIAL_CHR('0' + e);
+    #endif
+    SERIAL_CHR(':');
+    SERIAL_VAL(c, 1);
+    SERIAL_MV(" /" , t);
+    #if ENABLED(SHOW_TEMP_ADC_VALUES)
+      SERIAL_MV(" (", r);
+      SERIAL_CHR(')');
+    #endif
+  }
+
+  void Temperature::print_heaterstates() {
+    #if HAS_TEMP_HOTEND
+      print_heater_state(degHotend(printer.target_extruder), degTargetHotend(printer.target_extruder)
+        #if ENABLED(SHOW_TEMP_ADC_VALUES)
+          , rawHotendTemp(printer.target_extruder)
+        #endif
+      );
+    #endif
+    #if HAS_TEMP_BED
+      print_heater_state(degBed(), degTargetBed()
+        #if ENABLED(SHOW_TEMP_ADC_VALUES)
+          , rawBedTemp()
+          SERIAL_CHR(')');
+        #endif
+        , -1 // BED
+      );
+    #endif
+    #if HOTENDS > 1
+      LOOP_HOTEND() print_heater_state(degHotend(h), degTargetHotend(h)
+        #if ENABLED(SHOW_TEMP_ADC_VALUES)
+          , rawHotendTemp(h)
+        #endif
+        , h
+      );
+    #endif
+    SERIAL_MV(MSG_AT ":", getHeaterPower(printer.target_extruder));
+    #if HAS_TEMP_BED
+      SERIAL_MV(MSG_BAT, getBedPower());
+    #endif
+    #if HOTENDS > 1
+      LOOP_HOTEND() {
+        SERIAL_MV(MSG_AT, h);
+        SERIAL_CHR(':');
+        SERIAL_VAL(getHeaterPower(h));
+      }
+    #endif
+  }
+
+#endif
+
+#if HAS_TEMP_CHAMBER
+
+  void Temperature::print_chamberstate() {
+    SERIAL_MSG(" CHAMBER:");
+    SERIAL_MV(MSG_C, degChamber(), 1);
+    SERIAL_MV(" /", degTargetChamber());
+    SERIAL_MSG(MSG_CAT);
+    #if ENABLED(CHAMBER_WATTS)
+      SERIAL_VAL(((CHAMBER_WATTS) * getChamberPower()) / 127.0);
+      SERIAL_MSG("W");
+    #else
+      SERIAL_VAL(getChamberPower());
+    #endif
+    #if ENABLED(SHOW_TEMP_ADC_VALUES)
+      SERIAL_MV(" ADC C:", degChamber(), 1);
+      SERIAL_MV(" C->", rawChamberTemp());
+    #endif
+  }
+
+#endif // HAS_TEMP_CHAMBER
+
+#if HAS_TEMP_COOLER
+
+  void Temperature::print_coolerstate() {
+    SERIAL_MSG(" COOL:");
+    SERIAL_MV(MSG_C, degCooler(), 1);
+    SERIAL_MV(" /", degTargetCooler());
+    SERIAL_MSG(MSG_CAT);
+    #if ENABLED(COOLER_WATTS)
+      SERIAL_VAL(((COOLER_WATTS) * getCoolerPower()) / 127.0);
+      SERIAL_MSG("W");
+    #else
+      SERIAL_VAL(getCoolerPower());
+    #endif
+    #if ENABLED(SHOW_TEMP_ADC_VALUES)
+      SERIAL_MV(" ADC C:", degCooler(), 1);
+      SERIAL_MV(" C->", rawCoolerTemp());
+    #endif
+  }
+
+#endif // HAS_TEMP_COOLER
+
+#if ENABLED(ARDUINO_ARCH_SAM)&& !MB(RADDS)
+
+  void Temperature::print_MCUstate() {
+    SERIAL_MSG(" MCU: min");
+    SERIAL_MV(MSG_C, lowest_temperature_mcu, 1);
+    SERIAL_MSG(", current");
+    SERIAL_MV(MSG_C, current_temperature_mcu, 1);
+    SERIAL_MSG(", max");
+    SERIAL_MV(MSG_C, highest_temperature_mcu, 1);
+    #if ENABLED(SHOW_TEMP_ADC_VALUES)
+      SERIAL_MV(" C->", rawMCUTemp());
+    #endif
+  }
+
+#endif
+
+#if ENABLED(AUTO_REPORT_TEMPERATURES) && (HAS_TEMP_HOTEND || HAS_TEMP_BED)
+
+  void Temperature::auto_report_temperatures() {
+    if (auto_report_temp_interval && ELAPSED(millis(), next_temp_report_ms)) {
+      next_temp_report_ms = millis() + 1000UL * auto_report_temp_interval;
+      print_heaterstates();
+
+      #if ENABLED(ARDUINO_ARCH_SAM) && !MB(RADDS)
+        print_MCUstate();
+      #endif
+
+      SERIAL_EOL();
+    }
+  }
+
+#endif // AUTO_REPORT_TEMPERATURES
 
 /**
  * Get the raw values into the actual temperatures.
@@ -1600,6 +1764,10 @@ void Temperature::init() {
       #endif
     }
   #endif // COOLER_MAXTEMP
+
+  #if ENABLED(PROBING_HEATERS_OFF)
+    paused = false;
+  #endif
 }
 
 #if WATCH_HOTENDS
@@ -1715,7 +1883,7 @@ void Temperature::init() {
     else
       temp_controller_index = HOTENDS + 2; // COOLER
 
-    #if ENABLED(ADVANCED_PAUSE_FEATURE)
+    #if HEATER_IDLE_HANDLER
       // If the heater idle timeout expires, restart
       if (temp_controller_id >= 0 && heater_idle_timeout_exceeded[temp_controller_id]) {
         *state = TRInactive;
@@ -1773,8 +1941,13 @@ void Temperature::disable_all_heaters() {
     setTargetChamber(0);
   #endif
 
+  // Unpause and reset everything
+  #if ENABLED(PROBING_HEATERS_OFF)
+    pause(false);
+  #endif
+
   // If all heaters go down then for sure our print job has stopped
-  print_job_counter.stop();
+  printer.print_job_counter.stop();
 
   #define DISABLE_HEATER(NR) { \
     setTargetHotend(0, NR); \
@@ -1824,7 +1997,7 @@ void Temperature::disable_all_heaters() {
     setTargetCooler(0);
 
     // if cooler go down the print job is stopped 
-    print_job_counter.stop();
+    printer.print_job_counter.stop();
 
     #if ENABLED(LASER)
       // No laser firing with no coolers running! (paranoia)
@@ -1840,6 +2013,28 @@ void Temperature::disable_all_heaters() {
     #endif
   }
 #endif
+
+#if ENABLED(PROBING_HEATERS_OFF)
+
+  void Temperature::pause(const bool p) {
+    if (p != paused) {
+      paused = p;
+      if (p) {
+        LOOP_HOTEND() start_heater_idle_timer(h, 0); // timeout immediately
+        #if HAS_TEMP_BED
+          start_bed_idle_timer(0); // timeout immediately
+        #endif
+      }
+      else {
+        LOOP_HOTEND() reset_heater_idle_timer(h);
+        #if HAS_TEMP_BED
+          reset_bed_idle_timer();
+        #endif
+      }
+    }
+  }
+
+#endif // PROBING_HEATERS_OFF
 
 #if ENABLED(HEATER_0_USES_MAX6675)
 

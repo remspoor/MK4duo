@@ -95,6 +95,8 @@
        */
       void do_blocking_move_to(const float &lx, const float &ly, const float &lz, const float &fr_mm_s=0.0) override;
 
+      void manual_goto_xy(const float &x, const float &y) override;
+
       /**
        * Delta function
        */
@@ -125,19 +127,14 @@
       bool position_is_reachable_raw_xy(const float &rx, const float &ry) override;
       bool position_is_reachable_by_probe_raw_xy(const float &rx, const float &ry) override;
 
-      #if ENABLED(PROBE_MANUALLY)
-        void manual_goto_xy(const float &x, const float &y) override;
-      #endif
-
       #if HAS_DELTA_AUTO_CALIBRATION
         void auto_calibration();
       #endif
 
-      #if ENABLED(DELTA_AUTO_CALIBRATION_1)
-        float ComputeDerivative(unsigned int deriv, float ha, float hb, float hc);
-        void Adjust(const uint8_t numFactors, const float v[]);
-        void Convert_endstop_adj();
-      #endif
+      /**
+       * Report current position to host
+       */
+      void report_current_position_detail() override;
 
     private: /** Private Parameters */
 
@@ -169,9 +166,16 @@
        */
       void Set_clip_start_height();
 
-      #if ENABLED(DELTA_AUTO_CALIBRATION_1)
-        void NormaliseEndstopAdjustments();
-      #endif
+      void Adjust(const uint8_t numFactors, const float v[]);
+      void Convert_endstop_adj();
+      void NormaliseEndstopAdjustments();
+      float ComputeDerivative(unsigned int deriv, float ha, float hb, float hc);
+
+      /**
+       * Print data
+       */
+      void print_signed_float(const char * const prefix, const float &f);
+      void print_G33_settings(const bool end_stops, const bool tower_angles);
 
       #if ENABLED(DELTA_FAST_SQRT) && DISABLED(MATH_USE_HAL)
         float Q_rsqrt(float number);

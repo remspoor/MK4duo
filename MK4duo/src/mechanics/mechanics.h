@@ -249,6 +249,11 @@ class Mechanics {
             void do_blocking_move_to_xy(const float &lx, const float &ly, const float &fr_mm_s=0.0);
 
     /**
+     * Manual goto xy for Mesh Bed level or Probe Manually
+     */
+    virtual void manual_goto_xy(const float &x, const float &y);
+
+    /**
      * sync_plan_position
      *
      * Set the planner/stepper positions directly from current_position with
@@ -275,7 +280,10 @@ class Mechanics {
     /**
      * Report current position to host
      */
-    void report_current_position();
+            void report_current_position();
+    virtual void report_current_position_detail();
+
+    FORCE_INLINE void report_xyz(const float pos[XYZ]) { report_xyze(pos, 3); }
 
     //float get_homing_bump_feedrate(const AxisEnum axis);
 
@@ -286,11 +294,17 @@ class Mechanics {
             bool position_is_reachable_by_probe_xy(const float &lx, const float &ly);
             bool position_is_reachable_xy(const float &lx, const float &ly);
 
-    #if ENABLED(MESH_BED_LEVELING) || ENABLED(PROBE_MANUALLY)
-      /**
-       * Manual goto xy for Mesh Bed levelo or Probe Manually
-       */
-      virtual void manual_goto_xy(const float &x, const float &y);
+    /**
+     * Plan an arc in 2 dimensions
+     *
+     * The arc is approximated by generating many small linear segments.
+     * The length of each segment is configured in MM_PER_ARC_SEGMENT (Default 1mm)
+     * Arcs should only be made relatively large (over 5mm), as larger arcs with
+     * larger segments will tend to be more efficient. Your slicer should have
+     * options for G2/G3 arc generation. In future these options may be GCode tunable.
+     */
+    #if ENABLED(ARC_SUPPORT)
+      void plan_arc(float target[NUM_AXIS], float* offset, uint8_t clockwise);
     #endif
 
     #if ENABLED(DEBUG_LEVELING_FEATURE)
@@ -304,6 +318,8 @@ class Mechanics {
   private: /** Private Function */
 
   protected: /** Protected Function */
+
+    void report_xyze(const float pos[XYZE], const uint8_t n=4, const uint8_t precision=3);
 
     float get_homing_bump_feedrate(const AxisEnum axis);
 
