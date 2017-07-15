@@ -30,7 +30,6 @@
 #define _PRINTER_H_
 
 extern const char axis_codes[NUM_AXIS];
-extern void home_all_axes();
 
 #if HAS_EXT_ENCODER
   #if HAS_SDSUPPORT
@@ -88,6 +87,12 @@ class Printer {
     static MK4duoInterruptEvent interruptEvent;
     static PrinterMode          mode;
     static PrintCounter         print_job_counter;
+
+    #if ENABLED(PROBE_MANUALLY)
+      static bool g29_in_progress;
+    #else
+      static const bool g29_in_progress;
+    #endif
 
     #if HAS_SDSUPPORT
       static bool sd_print_paused;
@@ -171,19 +176,6 @@ class Printer {
 
     #if ENABLED(SDSUPPORT)
       static void stopSDPrint(const bool store_location);
-    #endif
-
-    #if HAS_TEMP_HOTEND
-      static void wait_heater(bool no_wait_for_cooling=true);
-    #endif
-    #if HAS_TEMP_BED
-      static void wait_bed(bool no_wait_for_cooling=true);
-    #endif
-    #if HAS_TEMP_CHAMBER
-      static void wait_chamber(bool no_wait_for_heating=true);
-    #endif
-    #if HAS_TEMP_COOLER
-      static void wait_cooler(bool no_wait_for_heating=true);
     #endif
 
     #if ENABLED(ADVANCED_PAUSE_FEATURE)
