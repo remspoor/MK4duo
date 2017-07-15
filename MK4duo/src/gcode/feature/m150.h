@@ -21,39 +21,38 @@
  */
 
 /**
- * gcode.h
+ * mcode
  *
  * Copyright (C) 2017 Alberto Cotronei @MagoKimbra
  */
 
-#if ENABLED(G5_BEZIER)
+#if HAS_COLOR_LEDS
 
-  #define CODE_G5
-
-  /**
-   * Parameters interpreted according to:
-   * http://linuxcnc.org/docs/2.6/html/gcode/gcode.html#sec:G5-Cubic-Spline
-   * However I, J omission is not supported at this point; all
-   * parameters can be omitted and default to zero.
-   */
+  #define CODE_M150
 
   /**
-   * G5: Cubic B-spline
+   * M150: Set Status LED Color - Use R-U-B-W for R-G-B-W
+   *
+   * Always sets all 3 or 4 components. If a component is left out, set to 0.
+   *
+   * Examples:
+   *
+   *   M150 R255       ; Turn LED red
+   *   M150 R255 U127  ; Turn LED orange (PWM only)
+   *   M150            ; Turn LED off
+   *   M150 R U B      ; Turn LED white
+   *   M150 W          ; Turn LED white using a white LED
+   *
    */
-  inline void gcode_G5(void) {
-    if (printer.IsRunning()) {
-
-      printer.get_destination_from_command();
-
-      const float offset[] = {
-        parser.linearval('I'),
-        parser.linearval('J'),
-        parser.linearval('P'),
-        parser.linearval('Q')
-      };
-
-      plan_cubic_move(offset);
-    }
+  inline void gcode_M150(void) {
+    printer.set_led_color(
+      parser.byteval('R'),
+      parser.byteval('U'),
+      parser.byteval('B')
+      #if ENABLED(RGBW_LED)
+        , parser.byteval('W')
+      #endif
+    );
   }
 
-#endif
+#endif // HAS_COLOR_LEDS

@@ -21,39 +21,22 @@
  */
 
 /**
- * gcode.h
+ * mcode
  *
  * Copyright (C) 2017 Alberto Cotronei @MagoKimbra
  */
 
-#if ENABLED(G5_BEZIER)
+#if ENABLED(TEMPERATURE_UNITS_SUPPORT)
 
-  #define CODE_G5
-
-  /**
-   * Parameters interpreted according to:
-   * http://linuxcnc.org/docs/2.6/html/gcode/gcode.html#sec:G5-Cubic-Spline
-   * However I, J omission is not supported at this point; all
-   * parameters can be omitted and default to zero.
-   */
+  #define CODE_M149
 
   /**
-   * G5: Cubic B-spline
+   * M149: Set temperature units
    */
-  inline void gcode_G5(void) {
-    if (printer.IsRunning()) {
-
-      printer.get_destination_from_command();
-
-      const float offset[] = {
-        parser.linearval('I'),
-        parser.linearval('J'),
-        parser.linearval('P'),
-        parser.linearval('Q')
-      };
-
-      plan_cubic_move(offset);
-    }
+  inline void gcode_M149(void) {
+         if (parser.seenval('C')) parser.set_input_temp_units(TEMPUNIT_C);
+    else if (parser.seenval('K')) parser.set_input_temp_units(TEMPUNIT_K);
+    else if (parser.seenval('F')) parser.set_input_temp_units(TEMPUNIT_F);
   }
 
 #endif

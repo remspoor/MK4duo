@@ -21,39 +21,28 @@
  */
 
 /**
- * gcode.h
+ * mcode
  *
  * Copyright (C) 2017 Alberto Cotronei @MagoKimbra
  */
 
-#if ENABLED(G5_BEZIER)
+#define CODE_M201
 
-  #define CODE_G5
+/**
+ * M201: Set max acceleration in units/s^2 for print moves (M201 X1000 Y1000)
+ *
+ *       With multiple extruders use T to specify which one.
+ */
+inline void gcode_M201(void) {
 
-  /**
-   * Parameters interpreted according to:
-   * http://linuxcnc.org/docs/2.6/html/gcode/gcode.html#sec:G5-Cubic-Spline
-   * However I, J omission is not supported at this point; all
-   * parameters can be omitted and default to zero.
-   */
+  GET_TARGET_EXTRUDER(201);
 
-  /**
-   * G5: Cubic B-spline
-   */
-  inline void gcode_G5(void) {
-    if (printer.IsRunning()) {
-
-      printer.get_destination_from_command();
-
-      const float offset[] = {
-        parser.linearval('I'),
-        parser.linearval('J'),
-        parser.linearval('P'),
-        parser.linearval('Q')
-      };
-
-      plan_cubic_move(offset);
+  LOOP_XYZE(i) {
+    if (parser.seen(axis_codes[i])) {
+      const uint8_t a = i + (i == E_AXIS ? TARGET_EXTRUDER : 0);
+      mechanics.max_acceleration_mm_per_s2[a] = parser.value_axis_units((AxisEnum)a);
     }
   }
-
-#endif
+  // steps per sq second need to be updated to agree with the units per sq second (as they are what is used in the planner)
+  mechanics.reset_acceleration_rates();
+}

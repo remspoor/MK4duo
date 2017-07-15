@@ -21,39 +21,21 @@
  */
 
 /**
- * gcode.h
+ * mcode
  *
  * Copyright (C) 2017 Alberto Cotronei @MagoKimbra
  */
 
-#if ENABLED(G5_BEZIER)
+#if HAS_TEMP_COOLER
 
-  #define CODE_G5
-
-  /**
-   * Parameters interpreted according to:
-   * http://linuxcnc.org/docs/2.6/html/gcode/gcode.html#sec:G5-Cubic-Spline
-   * However I, J omission is not supported at this point; all
-   * parameters can be omitted and default to zero.
-   */
+  #define CODE_M142
 
   /**
-   * G5: Cubic B-spline
+   * M142: Set Cooler temperature
    */
-  inline void gcode_G5(void) {
-    if (printer.IsRunning()) {
-
-      printer.get_destination_from_command();
-
-      const float offset[] = {
-        parser.linearval('I'),
-        parser.linearval('J'),
-        parser.linearval('P'),
-        parser.linearval('Q')
-      };
-
-      plan_cubic_move(offset);
-    }
+  inline void gcode_M142(void) {
+    if (DEBUGGING(DRYRUN)) return;
+    if (parser.seenval('S')) thermalManager.setTargetCooler(parser.value_celsius());
   }
 
 #endif

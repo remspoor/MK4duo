@@ -26,34 +26,19 @@
  * Copyright (C) 2017 Alberto Cotronei @MagoKimbra
  */
 
-#if ENABLED(G5_BEZIER)
+#if ENABLED(INCH_MODE_SUPPORT)
 
-  #define CODE_G5
-
-  /**
-   * Parameters interpreted according to:
-   * http://linuxcnc.org/docs/2.6/html/gcode/gcode.html#sec:G5-Cubic-Spline
-   * However I, J omission is not supported at this point; all
-   * parameters can be omitted and default to zero.
-   */
+  #define CODE_G20
+  #define CODE_G21
 
   /**
-   * G5: Cubic B-spline
+   * G20: Set input mode to inches
    */
-  inline void gcode_G5(void) {
-    if (printer.IsRunning()) {
+  inline void gcode_G20(void) { parser.set_input_linear_units(LINEARUNIT_INCH); }
 
-      printer.get_destination_from_command();
-
-      const float offset[] = {
-        parser.linearval('I'),
-        parser.linearval('J'),
-        parser.linearval('P'),
-        parser.linearval('Q')
-      };
-
-      plan_cubic_move(offset);
-    }
-  }
+  /**
+   * G21: Set input mode to millimeters
+   */
+  inline void gcode_G21(void) { parser.set_input_linear_units(LINEARUNIT_MM); }
 
 #endif

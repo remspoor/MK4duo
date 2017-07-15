@@ -26,34 +26,24 @@
  * Copyright (C) 2017 Alberto Cotronei @MagoKimbra
  */
 
-#if ENABLED(G5_BEZIER)
+#if ENABLED(CNC_WORKSPACE_PLANES)
 
-  #define CODE_G5
+  #define CODE_G17
+  #define CODE_G18
+  #define CODE_G19
 
-  /**
-   * Parameters interpreted according to:
-   * http://linuxcnc.org/docs/2.6/html/gcode/gcode.html#sec:G5-Cubic-Spline
-   * However I, J omission is not supported at this point; all
-   * parameters can be omitted and default to zero.
-   */
-
-  /**
-   * G5: Cubic B-spline
-   */
-  inline void gcode_G5(void) {
-    if (printer.IsRunning()) {
-
-      printer.get_destination_from_command();
-
-      const float offset[] = {
-        parser.linearval('I'),
-        parser.linearval('J'),
-        parser.linearval('P'),
-        parser.linearval('Q')
-      };
-
-      plan_cubic_move(offset);
-    }
+  void report_workspace_plane() {
+    SERIAL_SM(ECHO, "Workspace Plane ");
+    SERIAL_PS(workspace_plane == PLANE_YZ ? PSTR("YZ\n") : workspace_plane == PLANE_ZX ? PSTR("ZX\n") : PSTR("XY\n"));
   }
 
-#endif
+  /**
+   * G17: Select Plane XY
+   * G18: Select Plane ZX
+   * G19: Select Plane YZ
+   */
+  inline void gcode_G17(void) { workspace_plane = PLANE_XY; }
+  inline void gcode_G18(void) { workspace_plane = PLANE_ZX; }
+  inline void gcode_G19(void) { workspace_plane = PLANE_YZ; }
+
+#endif // CNC_WORKSPACE_PLANES

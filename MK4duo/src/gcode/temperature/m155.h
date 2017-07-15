@@ -21,39 +21,24 @@
  */
 
 /**
- * gcode.h
+ * mcode
  *
  * Copyright (C) 2017 Alberto Cotronei @MagoKimbra
  */
 
-#if ENABLED(G5_BEZIER)
+#if ENABLED(AUTO_REPORT_TEMPERATURES) && (HAS_TEMP_HOTEND || HAS_TEMP_BED)
 
-  #define CODE_G5
-
-  /**
-   * Parameters interpreted according to:
-   * http://linuxcnc.org/docs/2.6/html/gcode/gcode.html#sec:G5-Cubic-Spline
-   * However I, J omission is not supported at this point; all
-   * parameters can be omitted and default to zero.
-   */
+  #define CODE_M155
 
   /**
-   * G5: Cubic B-spline
+   * M155: Set temperature auto-report interval. M155 S<seconds>
    */
-  inline void gcode_G5(void) {
-    if (printer.IsRunning()) {
-
-      printer.get_destination_from_command();
-
-      const float offset[] = {
-        parser.linearval('I'),
-        parser.linearval('J'),
-        parser.linearval('P'),
-        parser.linearval('Q')
-      };
-
-      plan_cubic_move(offset);
+  inline void gcode_M155(void) {
+    if (parser.seenval('S')) {
+      thermalManager.auto_report_temp_interval = parser.value_byte();
+      NOMORE(thermalManager.auto_report_temp_interval, 60);
+      thermalManager.next_temp_report_ms = millis() + 1000UL * thermalManager.auto_report_temp_interval;
     }
   }
 
-#endif
+#endif // AUTO_REPORT_TEMPERATURES

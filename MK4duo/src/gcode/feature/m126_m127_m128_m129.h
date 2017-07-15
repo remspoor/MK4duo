@@ -21,39 +21,47 @@
  */
 
 /**
- * gcode.h
+ * mcode
  *
  * Copyright (C) 2017 Alberto Cotronei @MagoKimbra
  */
 
-#if ENABLED(G5_BEZIER)
+#if ENABLED(BARICUDA)
 
-  #define CODE_G5
+  #if HAS_HEATER_1
 
-  /**
-   * Parameters interpreted according to:
-   * http://linuxcnc.org/docs/2.6/html/gcode/gcode.html#sec:G5-Cubic-Spline
-   * However I, J omission is not supported at this point; all
-   * parameters can be omitted and default to zero.
-   */
+    #define CODE_M126
 
-  /**
-   * G5: Cubic B-spline
-   */
-  inline void gcode_G5(void) {
-    if (printer.IsRunning()) {
+    /**
+     * M126: Heater 1 valve open
+     */
+    inline void gcode_M126(void) { printer.baricuda_valve_pressure = parser.byteval('S', 255); }
 
-      printer.get_destination_from_command();
+    #define CODE_M127
 
-      const float offset[] = {
-        parser.linearval('I'),
-        parser.linearval('J'),
-        parser.linearval('P'),
-        parser.linearval('Q')
-      };
+    /**
+     * M127: Heater 1 valve close
+     */
+    inline void gcode_M127(void) { printer.baricuda_valve_pressure = 0; }
 
-      plan_cubic_move(offset);
-    }
-  }
+  #endif
 
-#endif
+  #if HAS_HEATER_2
+
+    #define CODE_M128
+
+    /**
+     * M128: Heater 2 valve open
+     */
+    inline void gcode_M128(void) { printer.baricuda_e_to_p_pressure = parser.byteval('S', 255); }
+
+    #define CODE_M129
+
+    /**
+     * M129: Heater 2 valve close
+     */
+    inline void gcode_M129(void) { printer.baricuda_e_to_p_pressure = 0; }
+
+  #endif
+
+#endif // BARICUDA

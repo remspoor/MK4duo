@@ -21,39 +21,30 @@
  */
 
 /**
- * gcode.h
+ * mcode
  *
  * Copyright (C) 2017 Alberto Cotronei @MagoKimbra
  */
 
-#if ENABLED(G5_BEZIER)
+#if ENABLED(PARK_HEAD_ON_PAUSE)
 
-  #define CODE_G5
-
-  /**
-   * Parameters interpreted according to:
-   * http://linuxcnc.org/docs/2.6/html/gcode/gcode.html#sec:G5-Cubic-Spline
-   * However I, J omission is not supported at this point; all
-   * parameters can be omitted and default to zero.
-   */
+  #define CODE_M125
 
   /**
-   * G5: Cubic B-spline
+   * M125: Store current position and move to pause park position.
+   *       Called on pause (by M25) to prevent material leaking onto the
+   *       object. On resume (M24) the head will be moved back and the
+   *       print will resume.
+   *
+   *       If MK4duo is compiled without SD Card support, M125 can be
+   *       used directly to pause the print and move to park position,
+   *       resuming with a button click or M108.
+   *
+   *    L = override retract length
+   *    X = override X
+   *    Y = override Y
+   *    Z = override Z raise
    */
-  inline void gcode_G5(void) {
-    if (printer.IsRunning()) {
-
-      printer.get_destination_from_command();
-
-      const float offset[] = {
-        parser.linearval('I'),
-        parser.linearval('J'),
-        parser.linearval('P'),
-        parser.linearval('Q')
-      };
-
-      plan_cubic_move(offset);
-    }
-  }
+  inline void gcode_M125(void) { park_head_on_pause(); }
 
 #endif

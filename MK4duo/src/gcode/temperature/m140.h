@@ -21,24 +21,21 @@
  */
 
 /**
- * gcode.h
+ * mcode
  *
  * Copyright (C) 2017 Alberto Cotronei @MagoKimbra
  */
 
-#if ENABLED(INCH_MODE_SUPPORT)
+#if HAS_TEMP_BED
 
-  #define G20
-  #define G21
-
-  /**
-   * G20: Set input mode to inches
-   */
-  inline void gcode_G20(void) { parser.set_input_linear_units(LINEARUNIT_INCH); }
+  #define CODE_M140
 
   /**
-   * G21: Set input mode to millimeters
+   * M140: Set Bed temperature
    */
-  inline void gcode_G21(void) { parser.set_input_linear_units(LINEARUNIT_MM); }
+  inline void gcode_M140(void) {
+    if (DEBUGGING(DRYRUN)) return;
+    if (parser.seenval('S')) thermalManager.setTargetBed(parser.value_celsius());
+  }
 
 #endif

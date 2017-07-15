@@ -21,29 +21,26 @@
  */
 
 /**
- * gcode.h
+ * mcode
  *
  * Copyright (C) 2017 Alberto Cotronei @MagoKimbra
  */
 
-#if ENABLED(CNC_WORKSPACE_PLANES)
+#define CODE_M203
 
-  #define G17
-  #define G18
-  #define G19
+/**
+ * M203: Set maximum feedrate that your machine can sustain (M203 X200 Y200 Z300 E10000) in units/sec
+ *
+ *       With multiple extruders use T to specify which one.
+ */
+inline void gcode_M203(void) {
 
-  void report_workspace_plane() {
-    SERIAL_SM(ECHO, "Workspace Plane ");
-    SERIAL_PS(workspace_plane == PLANE_YZ ? PSTR("YZ\n") : workspace_plane == PLANE_ZX ? PSTR("ZX\n") : PSTR("XY\n"));
+  GET_TARGET_EXTRUDER(203);
+
+  LOOP_XYZE(i) {
+    if (parser.seen(axis_codes[i])) {
+      const uint8_t a = i + (i == E_AXIS ? TARGET_EXTRUDER : 0);
+      mechanics.max_feedrate_mm_s[a] = parser.value_axis_units((AxisEnum)a);
+    }
   }
-
-  /**
-   * G17: Select Plane XY
-   * G18: Select Plane ZX
-   * G19: Select Plane YZ
-   */
-  inline void gcode_G17(void) { workspace_plane = PLANE_XY; }
-  inline void gcode_G18(void) { workspace_plane = PLANE_ZX; }
-  inline void gcode_G19(void) { workspace_plane = PLANE_YZ; }
-
-#endif // CNC_WORKSPACE_PLANES
+}

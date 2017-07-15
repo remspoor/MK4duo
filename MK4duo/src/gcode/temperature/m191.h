@@ -21,39 +21,27 @@
  */
 
 /**
- * gcode.h
+ * mcode
  *
  * Copyright (C) 2017 Alberto Cotronei @MagoKimbra
  */
 
-#if ENABLED(G5_BEZIER)
+#if HAS_TEMP_CHAMBER
 
-  #define CODE_G5
-
-  /**
-   * Parameters interpreted according to:
-   * http://linuxcnc.org/docs/2.6/html/gcode/gcode.html#sec:G5-Cubic-Spline
-   * However I, J omission is not supported at this point; all
-   * parameters can be omitted and default to zero.
-   */
+  #define CODE_M191
 
   /**
-   * G5: Cubic B-spline
+   * M191: Sxxx Wait for chamber current temp to reach target temp. Waits only when heating
+   *       Rxxx Wait for chamber current temp to reach target temp. Waits when heating and cooling
    */
-  inline void gcode_G5(void) {
-    if (printer.IsRunning()) {
+  inline void gcode_M191(void) {
+    if (DEBUGGING(DRYRUN)) return;
 
-      printer.get_destination_from_command();
+    LCD_MESSAGEPGM(MSG_CHAMBER_HEATING);
+    bool no_wait_for_cooling = parser.seen('S');
+    if (no_wait_for_cooling || parser.seen('R')) thermalManager.setTargetChamber(parser.value_celsius());
 
-      const float offset[] = {
-        parser.linearval('I'),
-        parser.linearval('J'),
-        parser.linearval('P'),
-        parser.linearval('Q')
-      };
-
-      plan_cubic_move(offset);
-    }
+    printer.wait_chamber(no_wait_for_cooling);
   }
 
-#endif
+#endif // HAS_TEMP_CHAMBER

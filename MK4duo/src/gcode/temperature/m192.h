@@ -21,39 +21,27 @@
  */
 
 /**
- * gcode.h
+ * mcode
  *
  * Copyright (C) 2017 Alberto Cotronei @MagoKimbra
  */
 
-#if ENABLED(G5_BEZIER)
+#if HAS_TEMP_COOLER
 
-  #define CODE_G5
-
-  /**
-   * Parameters interpreted according to:
-   * http://linuxcnc.org/docs/2.6/html/gcode/gcode.html#sec:G5-Cubic-Spline
-   * However I, J omission is not supported at this point; all
-   * parameters can be omitted and default to zero.
-   */
+  #define CODE_M192
 
   /**
-   * G5: Cubic B-spline
+   * M192: Sxxx Wait for cooler current temp to reach target temp. Waits only when heating
+   *       Rxxx Wait for cooler current temp to reach target temp. Waits when heating and cooling
    */
-  inline void gcode_G5(void) {
-    if (printer.IsRunning()) {
+  inline void gcode_M192(void) {
+    if (DEBUGGING(DRYRUN)) return;
 
-      printer.get_destination_from_command();
+    LCD_MESSAGEPGM(MSG_COOLER_COOLING);
+    bool no_wait_for_heating = parser.seen('S');
+    if (no_wait_for_heating || parser.seen('R')) thermalManager.setTargetCooler(parser.value_celsius());
 
-      const float offset[] = {
-        parser.linearval('I'),
-        parser.linearval('J'),
-        parser.linearval('P'),
-        parser.linearval('Q')
-      };
-
-      plan_cubic_move(offset);
-    }
+    printer.wait_cooler(no_wait_for_heating);
   }
 
-#endif
+#endif // HAS_TEMP_COOLER
