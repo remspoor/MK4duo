@@ -144,7 +144,7 @@
 #define SDPOWER -1
 #define SD_DETECT_PIN 60
 #define SDSS 59
-#define KILL_PIN -1
+//#define KILL_PIN -1
 #define DEBUG_PIN -1
 #define SUICIDE_PIN -1
 
@@ -183,7 +183,7 @@
   #define LCD_PINS_RS         62  // CS chip select / SS chip slave select
   #define LCD_PINS_ENABLE     75  // SID (MOSI)
   #define LCD_PINS_D4         76  // SCK (CLK) clock
-  #define ORIG_BEEPER_PIN     -1
+//  #define ORIG_BEEPER_PIN     -1
 
   #define BTN_EN1             20
   #define BTN_EN2             21
