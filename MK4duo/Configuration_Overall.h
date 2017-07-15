@@ -3,8 +3,6 @@
  * Here you can define all your custom settings and they will overwrite configurations in the main configuration files.
  */
 
-<<<<<<< Updated upstream
-=======
 #define CONFIGURATION_OVERALL
 
 
@@ -43,6 +41,40 @@
   //#define ORIG_BEEPER_PIN     27
 
 #endif
+
+
+// M303 H0 S200 C8 U1
+// Recv: bias: 106 d: 106 min: 198.600006 max: 201.500000 Ku: 46.539199 Tu: 22.624000
+// Recv: Classic PID
+// Recv: Kp: 27.923519 Ki: 2.468486 Kd: 78.967712
+// Recv: PID Autotune finished! Put the last Kp, Ki and Kd constants from above into Configuration.h or send command M500 for save in EEPROM the new value!
+// Recv: Kp: 27.923519 Ki: 2.468486 Kd: 78.967712
+
+
+// M303 H-1 S90 C8 U1
+// Recv: bias: 69 d: 69 min: 88.333335 max: 90.500000 Ku: 40.547828 Tu: 9.293001
+// Recv: Classic PID
+// Recv: Kp: 24.328697 Ki: 5.235919 Kd: 28.260824
+// Recv: PID Autotune finished! Put the last Kp, Ki and Kd constants from above into Configuration.h or send command M500 for save in EEPROM the new value!
+// Recv: #define DEFAULT_bedKp 24.328697
+// Recv: #define DEFAULT_bedKi 5.235919
+// Recv: #define DEFAULT_bedKd 28.260824
+
+
+
+
+
+//
+// M303 E0 S200 C8
+// Recv: PID Autotune finished! Put the last Kp, Ki and Kd constants from above into Configuration.h or send command M500 for save in EEPROM the new value!
+// Recv: Kp: 28.186948 Ki: 2.516242 Kd: 78.937545
+//
+
+// 
+// M303 E-1 C3 S90
+// Recv: PID Autotune finished! Put the last Kp, Ki and Kd constants from above into Configuration.h or send command M500 for save in EEPROM the new value!
+// Recv: Kp: 30.557748 Ki: 2.812753 Kd: 82.994850
+// 
 
 
 // Get temp
@@ -154,19 +186,19 @@
 #define PID_FUNCTIONAL_RANGE 10
 //#define PID_ADD_EXTRUSION_RATE
 #define LPQ_MAX_LEN 50
-#define DEFAULT_Kp {40,40,40,40}
-#define DEFAULT_Ki {7,7,7,7}
-#define DEFAULT_Kd {60,60,60,60}
-#define DEFAULT_Kc {100,100,100,100}
-//#define PIDTEMPBED
+#define DEFAULT_Kp {27.923519, 40, 40, 40}
+#define DEFAULT_Ki {2.468486,   7,  7,  7}
+#define DEFAULT_Kd {78.967712, 60, 60, 60}
+#define DEFAULT_Kc {100, 100, 100, 100}
+#define PIDTEMPBED
 //#define BED_LIMIT_SWITCHING
 #define BED_HYSTERESIS        2 // Only disable heating if T>target+BED_HYSTERESIS and enable heating if T>target-BED_HYSTERESIS (works only if BED_LIMIT_SWITCHING is enabled)
 #define BED_CHECK_INTERVAL 5000 // ms between checks in bang-bang control
 #define MIN_BED_POWER   0 // Limits duty cycle to bed;   0 = no current
 #define MAX_BED_POWER 255
-#define DEFAULT_bedKp 10
-#define DEFAULT_bedKi 1
-#define DEFAULT_bedKd 305
+#define DEFAULT_bedKp 24.328697
+#define DEFAULT_bedKi 5.235919
+#define DEFAULT_bedKd 28.260824
 //#define PID_BED_DEBUG // Sends debug data to the serial port.
 //#define PIDTEMPCHAMBER
 //#define CHAMBER_LIMIT_SWITCHING
@@ -306,14 +338,14 @@
 //#define DISABLE_INACTIVE_EXTRUDER
 #define X_MAX_POS 380
 #define X_MIN_POS 0
-#define Y_MAX_POS 405
+#define Y_MAX_POS 415
 #define Y_MIN_POS 0
 #define Z_MAX_POS 300
 #define Z_MIN_POS 0
 #define E_MIN_POS 0
 #define AXIS_RELATIVE_MODES {false, false, false, false}
 #define Z_SAFE_HOMING
-#define Z_SAFE_HOMING_X_POINT 200
+#define Z_SAFE_HOMING_X_POINT 0
 #define Z_SAFE_HOMING_Y_POINT 0
 #define MESH_BED_LEVELING
 //#define AUTO_BED_LEVELING_LINEAR
@@ -348,7 +380,7 @@
 //#define MANUAL_X_HOME_POS 0
 //#define MANUAL_Y_HOME_POS -20
 //#define MANUAL_Z_HOME_POS 0
-#define DEFAULT_AXIS_STEPS_PER_UNIT {160,160,5120,950,950,625,625,625,625}
+#define DEFAULT_AXIS_STEPS_PER_UNIT {160,160,5120,190.5,190.5,190.5,625,625,625}
 #define DEFAULT_MAX_FEEDRATE {300,300,2,100,100,100,100,100,100}
 #define MANUAL_FEEDRATE {100*60,100*60,2*60,10*60}
 #define DEFAULT_MINIMUMFEEDRATE       0.0
@@ -727,5 +759,3 @@
 #define USER_GCODE_4 "M140 S" STRINGIFY(PREHEAT_2_TEMP_BED) "\nG28\nG29"
 #define USER_DESC_5 "Home & Info"
 #define USER_GCODE_5 "G28\nM503"
-
->>>>>>> Stashed changes
