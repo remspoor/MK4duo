@@ -108,6 +108,29 @@ PrinterMode Printer::mode =
 // Print Job Timer
 PrintCounter Printer::print_job_counter = PrintCounter();
 
+#if ENABLED(FWRETRACT)
+
+  bool  Printer::autoretract_enabled            = false,
+        Printer::retracted[EXTRUDERS]           = { false },
+        Printer::retracted_swap[EXTRUDERS]      = { false };
+
+  float Printer::retract_length                 = RETRACT_LENGTH,
+        Printer::retract_length_swap            = RETRACT_LENGTH_SWAP,
+        Printer::retract_feedrate_mm_s          = RETRACT_FEEDRATE,
+        Printer::retract_zlift                  = RETRACT_ZLIFT,
+        Printer::retract_recover_length         = RETRACT_RECOVER_LENGTH,
+        Printer::retract_recover_length_swap    = RETRACT_RECOVER_LENGTH_SWAP,
+        Printer::retract_recover_feedrate_mm_s  = RETRACT_RECOVER_FEEDRATE;
+
+#endif // FWRETRACT
+
+#if ENABLED(COLOR_MIXING_EXTRUDER)
+  float Printer::mixing_factor[MIXING_STEPPERS]; // Reciprocal of mix proportion. 0.0 = off, otherwise >= 1.0
+  #if MIXING_VIRTUAL_TOOLS  > 1
+    float Printer::mixing_virtual_tool_mix[MIXING_VIRTUAL_TOOLS][MIXING_STEPPERS];
+  #endif
+#endif
+
 #if ENABLED(PROBE_MANUALLY)
   bool Printer::g29_in_progress = false;
 #else
@@ -132,6 +155,10 @@ PrintCounter Printer::print_job_counter = PrintCounter();
   uint8_t Printer::fanKickstart;
 #endif
 
+#if ENABLED(HOST_KEEPALIVE_FEATURE)
+  MK4duoBusyState Printer::busy_state = NOT_BUSY;
+#endif
+
 #if ENABLED(ADVANCED_PAUSE_FEATURE)
   AdvancedPauseMenuResponse Printer::advanced_pause_menu_response;
 #endif
@@ -153,6 +180,13 @@ PrintCounter Printer::print_job_counter = PrintCounter();
   int8_t  Printer::filwidth_delay_index[2] = { 0, -1 };                     // Indexes into ring buffer
 #endif
 
+#if ENABLED(RFID_MODULE)
+  uint32_t  Printer::Spool_ID[EXTRUDERS] = ARRAY_BY_EXTRUDERS(0);
+  bool      Printer::RFID_ON = false,
+            Printer::Spool_must_read[EXTRUDERS]  = ARRAY_BY_EXTRUDERS(false),
+            Printer::Spool_must_write[EXTRUDERS] = ARRAY_BY_EXTRUDERS(false);
+#endif
+
 #if HAS_CASE_LIGHT
   int   Printer::case_light_brightness;
   bool  Printer::case_light_on;
@@ -166,9 +200,28 @@ PrintCounter Printer::print_job_counter = PrintCounter();
           Printer::encErrorSteps[EXTRUDERS]           = ARRAY_BY_EXTRUDERS(ENC_ERROR_STEPS);
 #endif
 
+#if ENABLED(NPR2)
+  uint8_t Printer::old_color = 99;
+#endif
+
+#if ENABLED(G38_PROBE_TARGET)
+  bool  Printer::G38_move         = false,
+        Printer::G38_endstop_hit  = false;
+#endif
+
 #if ENABLED(BARICUDA)
   int Printer::baricuda_valve_pressure  = 0,
       Printer::baricuda_e_to_p_pressure = 0;
+#endif
+
+#if ENABLED(EASY_LOAD)
+  bool Printer::allow_lengthy_extrude_once = false; // for load/unload
+#endif
+
+#if ENABLED(IDLE_OOZING_PREVENT)
+  millis_t  Printer::axis_last_activity   = 0;
+  bool      Printer::IDLE_OOZING_enabled  = true,
+            Printer::IDLE_OOZING_retracted[EXTRUDERS] = ARRAY_BY_EXTRUDERS(false);
 #endif
 
 /**
@@ -346,13 +399,13 @@ void Printer::setup() {
 
   #if ENABLED(FLOWMETER_SENSOR)
     #if ENABLED(MINFLOW_PROTECTION)
-      flow_firstread = false;
+      flowmeter.flow_firstread = false;
     #endif
-    flow_init();
+    flowmeter.flow_init();
   #endif
 
   #if ENABLED(RFID_MODULE)
-    RFID_ON = RFID522.init();
+    RFID_ON = rfid522.init();
     if (RFID_ON)
       SERIAL_EM("RFID CONNECT");
   #endif
@@ -471,7 +524,7 @@ void Printer::get_destination_from_command() {
 
   #if ENABLED(RFID_MODULE)
     if(!DEBUGGING(DRYRUN))
-      RFID522.RfidData[active_extruder].data.lenght -= (mechanics.destination[E_AXIS] - mechanics.current_position[E_AXIS]);
+      rfid522.RfidData[active_extruder].data.lenght -= (mechanics.destination[E_AXIS] - mechanics.current_position[E_AXIS]);
   #endif
 
   #if ENABLED(NEXTION) && ENABLED(NEXTION_GFX)
@@ -525,7 +578,7 @@ void Printer::kill(const char* lcd_msg) {
     HAL::resetHardware();
   #endif
   #if ENABLED(FLOWMETER_SENSOR) && ENABLED(MINFLOW_PROTECTION)
-    flow_firstread = false;
+    flowmeter.flow_firstread = false;
   #endif
 
   #if ENABLED(ULTRA_LCD)
@@ -572,7 +625,7 @@ void Printer::kill(const char* lcd_msg) {
  */
 void Printer::Stop() {
   #if ENABLED(FLOWMETER_SENSOR) && ENABLED(MINFLOW_PROTECTION)
-    flow_firstread = false;
+    flowmeter.flow_firstread = false;
   #endif
 
   thermalManager.disable_all_heaters();
@@ -637,7 +690,7 @@ void Printer::idle(bool no_stepper_sleep/*=false*/) {
   #endif
 
   #if ENABLED(FLOWMETER_SENSOR)
-    flowrate_manage();
+    flowmeter.flowrate_manage();
   #endif
 
   #if ENABLED(CNCROUTER)
@@ -717,8 +770,8 @@ void Printer::manage_inactivity(bool ignore_stepper_queue/*=false*/) {
   #endif
 
   #if ENABLED(FLOWMETER_SENSOR) && ENABLED(MINFLOW_PROTECTION)
-    if (flow_firstread && print_job_counter.isRunning() && (get_flowrate() < (float)MINFLOW_PROTECTION)) {
-      flow_firstread = false;
+    if (flowmeter.flow_firstread && print_job_counter.isRunning() && (flowmeter.flowrate < (float)MINFLOW_PROTECTION)) {
+      flowmeter.flow_firstread = false;
       kill(PSTR(MSG_KILLED));
     }
   #endif
@@ -893,28 +946,28 @@ void Printer::manage_inactivity(bool ignore_stepper_queue/*=false*/) {
   #if ENABLED(RFID_MODULE)
     for (uint8_t e = 0; e < EXTRUDERS; e++) {
       if (Spool_must_read[e]) {
-        if (RFID522.getID(e)) {
-          Spool_ID[e] = RFID522.RfidDataID[e].Spool_ID;
+        if (rfid522.getID(e)) {
+          Spool_ID[e] = rfid522.RfidDataID[e].Spool_ID;
           HAL::delayMilliseconds(200);
-          if (RFID522.readBlock(e)) {
+          if (rfid522.readBlock(e)) {
             Spool_must_read[e] = false;
-            density_percentage[e] = RFID522.RfidData[e].data.density;
-            filament_size[e] = RFID522.RfidData[e].data.size;
+            density_percentage[e] = rfid522.RfidData[e].data.density;
+            filament_size[e] = rfid522.RfidData[e].data.size;
             calculate_volumetric_multipliers();
-            RFID522.printInfo(e);
+            rfid522.printInfo(e);
           }
         }
       }
 
       if (Spool_must_write[e]) {
-        if (RFID522.getID(e)) {
-          if (Spool_ID[e] == RFID522.RfidDataID[e].Spool_ID) {
+        if (rfid522.getID(e)) {
+          if (Spool_ID[e] == rfid522.RfidDataID[e].Spool_ID) {
             HAL::delayMilliseconds(200);
-            if (RFID522.writeBlock(e)) {
+            if (rfid522.writeBlock(e)) {
               Spool_must_write[e] = false;
               SERIAL_SMV(INFO, "Spool on E", e);
               SERIAL_EM(" writed!");
-              RFID522.printInfo(e);
+              rfid522.printInfo(e);
             }
           }
         }
@@ -982,8 +1035,15 @@ void Printer::handle_Interrupt_Event() {
           filament_ran_out = true;
           stepper.synchronize();
           #if HAS_SDSUPPORT
-            if (card.cardOK && card.isFileOpen() && IS_SD_PRINTING)
-              gcode_M25();
+            if (card.cardOK && card.isFileOpen() && IS_SD_PRINTING) {
+              card.pauseSDPrint();
+              print_job_counter.pause();
+              SERIAL_LM(REQUEST_PAUSE, "SD pause");
+
+              #if ENABLED(PARK_HEAD_ON_PAUSE)
+                park_head_on_pause();
+              #endif
+            }
             else
           #endif
           if (print_job_counter.isRunning()) {
@@ -1331,6 +1391,9 @@ void Printer::handle_Interrupt_Event() {
 
   void Printer::MK_multi_tool_change(const uint8_t &e) {
 
+    const float color_position[] = COLOR_STEP,
+                color_step_moltiplicator = (DRIVER_MICROSTEP / MOTOR_ANGLE) * CARTER_MOLTIPLICATOR;
+
     if (e != old_color) {
       long csteps;
       stepper.synchronize(); // Finish all movement
@@ -1652,6 +1715,61 @@ void Printer::handle_Interrupt_Event() {
   }
 
 #endif // HAS_SDSUPPORT
+
+#if ENABLED(FWRETRACT)
+
+  void Printer::retract(const bool retracting, const bool swapping/*=false*/) {
+
+    static float hop_height;
+
+    if (retracting == retracted[active_extruder]) return;
+
+    const float old_feedrate_mm_s = mechanics.feedrate_mm_s;
+
+    mechanics.set_destination_to_current();
+
+    if (retracting) {
+
+      mechanics.feedrate_mm_s = retract_feedrate_mm_s;
+      mechanics.current_position[E_AXIS] += (swapping ? retract_length_swap : retract_length) / volumetric_multiplier[active_extruder];
+      mechanics.sync_plan_position_e();
+      mechanics.prepare_move_to_destination();
+
+      if (retract_zlift > 0.01) {
+        hop_height = mechanics.current_position[Z_AXIS];
+        // Pretend current position is lower
+        mechanics.current_position[Z_AXIS] -= retract_zlift;
+        mechanics.sync_plan_position();
+        // Raise up to the old current_position
+        mechanics.prepare_move_to_destination();
+      }
+    }
+    else {
+
+      // If the height hasn't been lowered, undo the Z hop
+      if (retract_zlift > 0.01 && hop_height <= mechanics.current_position[Z_AXIS]) {
+        // Pretend current position is higher. Z will lower on the next move
+        mechanics.current_position[Z_AXIS] += retract_zlift;
+        mechanics.sync_plan_position();
+        // Lower Z
+        mechanics.prepare_move_to_destination();
+      }
+
+      mechanics.feedrate_mm_s = retract_recover_feedrate_mm_s;
+      const float move_e = swapping ? retract_length_swap + retract_recover_length_swap : retract_length + retract_recover_length;
+      mechanics.current_position[E_AXIS] -= move_e / volumetric_multiplier[active_extruder];
+      mechanics.sync_plan_position_e();
+
+      // Recover E
+      mechanics.prepare_move_to_destination();
+    }
+
+    mechanics.feedrate_mm_s = old_feedrate_mm_s;
+    retracted[active_extruder] = retracting;
+
+  } // retract()
+
+#endif // FWRETRACT
 
 #if ENABLED(ADVANCED_PAUSE_FEATURE)
 
@@ -2257,6 +2375,19 @@ void Printer::invalid_extruder_error(const uint8_t e) {
   SERIAL_EM(" " MSG_INVALID_EXTRUDER);
 }
 
+#if HAS_DONDOLO
+
+  void Printer::move_extruder_servo(const uint8_t e) {
+    const int angles[2] = { DONDOLO_SERVOPOS_E0, DONDOLO_SERVOPOS_E1 };
+    MOVE_SERVO(DONDOLO_SERVO_INDEX, angles[e]);
+
+    #if (DONDOLO_SERVO_DELAY > 0)
+      printer.safe_delay(DONDOLO_SERVO_DELAY);
+    #endif
+  }
+
+#endif
+
 #if ENABLED(IDLE_OOZING_PREVENT)
 
   void Printer::IDLE_OOZING_retract(bool retracting) {
@@ -2288,7 +2419,6 @@ void Printer::invalid_extruder_error(const uint8_t e) {
 
 #if ENABLED(HOST_KEEPALIVE_FEATURE)
 
-  MK4duoBusyState busy_state = NOT_BUSY;
   static millis_t next_busy_signal_ms = 0;
 
   /**

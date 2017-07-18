@@ -60,7 +60,7 @@
  *  M205  Z               mechanics.max_jerk[Z_AXIS]            (float)
  *  M205  E   E0 ...      mechanics.max_jerk[E_AXIS * EXTRDURES](float x6)
  *  M206  XYZ             mechanics.home_offset                 (float x3)
- *  M218  T   XY          printer.hotend_offset                         (float x6)
+ *  M218  T   XY          printer.hotend_offset                 (float x6)
  *
  * Global Leveling:
  *                        z_fade_height                         (float)
@@ -110,7 +110,7 @@
  *  M301  E1  PIDC        Kp[1], Ki[1], Kd[1], Kc[1]            (float x4)
  *  M301  E2  PIDC        Kp[2], Ki[2], Kd[2], Kc[2]            (float x4)
  *  M301  E3  PIDC        Kp[3], Ki[3], Kd[3], Kc[3]            (float x4)
- *  M301  L               lpq_len
+ *  M301  L               thermalManager.lpq_len
  *
  * PIDTEMPBED:
  *  M304      PID         bedKp, bedKi, bedKd                   (float x3)
@@ -123,20 +123,20 @@
  *  M250  C               lcd_contrast                          (uint16_t)
  *
  * FWRETRACT:
- *  M209  S               autoretract_enabled                   (bool)
- *  M207  S               retract_length                        (float)
- *  M207  W               retract_length_swap                   (float)
- *  M207  F               retract_feedrate                      (float)
- *  M207  Z               retract_zlift                         (float)
- *  M208  S               retract_recover_length                (float)
- *  M208  W               retract_recover_length_swap           (float)
- *  M208  F               retract_recover_feedrate              (float)
+ *  M209  S               printer.autoretract_enabled           (bool)
+ *  M207  S               printer.retract_length                (float)
+ *  M207  W               printer.retract_length_swap           (float)
+ *  M207  F               printer.retract_feedrate_mm_s         (float)
+ *  M207  Z               printer.retract_zlift                 (float)
+ *  M208  S               printer.retract_recover_length        (float)
+ *  M208  W               printer.retract_recover_length_swap   (float)
+ *  M208  F               printer.retract_recover_feedrate_mm_s (float)
  *
  * Volumetric Extrusion:
  *  M200  D               printer.volumetric_enabled            (bool)
- *  M200  T D             printer.filament_size                         (float x6)
+ *  M200  T D             printer.filament_size                 (float x6)
  *
- *  M???  S               IDLE_OOZING_enabled
+ *  M???  S               printer.IDLE_OOZING_enabled
  *
  * ALLIGATOR:
  *  M906  XYZ T0-4 E      Motor current                         (float x7)
@@ -156,8 +156,8 @@
  *  M906  E5              stepperE5 current                     (uint16_t)
  *
  * LIN_ADVANCE:
- *  M900  K               extruder_advance_k                    (float)
- *  M900  WHD             advance_ed_ratio                      (float)
+ *  M900  K               planner.extruder_advance_k            (float)
+ *  M900  WHD             planner.advance_ed_ratio              (float)
  *
  */
 
@@ -373,8 +373,8 @@ void EEPROM::Postprocess() {
     #endif
 
     #if HEATER_USES_AD595
-      EEPROM_WRITE(ad595_offset);
-      EEPROM_WRITE(ad595_gain);
+      EEPROM_WRITE(thermalManager.ad595_offset);
+      EEPROM_WRITE(thermalManager.ad595_gain);
     #endif
 
     #if MECH(DELTA)
@@ -418,13 +418,11 @@ void EEPROM::Postprocess() {
         EEPROM_WRITE(PID_PARAM(Kd, h));
         EEPROM_WRITE(PID_PARAM(Kc, h));
       }
+      #if ENABLED(PID_ADD_EXTRUSION_RATE)
+        EEPROM_WRITE(thermalManager.lpq_len);
+      #endif
     #endif
 
-    #if DISABLED(PID_ADD_EXTRUSION_RATE)
-      const int lpq_len = 20;
-    #endif
-    EEPROM_WRITE(lpq_len);
-    
     #if ENABLED(PIDTEMPBED)
       EEPROM_WRITE(thermalManager.bedKp);
       EEPROM_WRITE(thermalManager.bedKi);
@@ -449,23 +447,23 @@ void EEPROM::Postprocess() {
     EEPROM_WRITE(lcd_contrast);
 
     #if ENABLED(FWRETRACT)
-      EEPROM_WRITE(autoretract_enabled);
-      EEPROM_WRITE(retract_length);
+      EEPROM_WRITE(printer.autoretract_enabled);
+      EEPROM_WRITE(printer.retract_length);
       #if EXTRUDERS > 1
-        EEPROM_WRITE(retract_length_swap);
+        EEPROM_WRITE(printer.retract_length_swap);
       #else
         const float dummy = 0.0f;
         EEPROM_WRITE(dummy);
       #endif
-      EEPROM_WRITE(retract_feedrate);
-      EEPROM_WRITE(retract_zlift);
-      EEPROM_WRITE(retract_recover_length);
+      EEPROM_WRITE(printer.retract_feedrate_mm_s);
+      EEPROM_WRITE(printer.retract_zlift);
+      EEPROM_WRITE(printer.retract_recover_length);
       #if EXTRUDERS > 1
-        EEPROM_WRITE(retract_recover_length_swap);
+        EEPROM_WRITE(printer.retract_recover_length_swap);
       #else
         EEPROM_WRITE(dummy);
       #endif
-      EEPROM_WRITE(retract_recover_feedrate);
+      EEPROM_WRITE(printer.retract_recover_feedrate_mm_s);
     #endif // FWRETRACT
 
     EEPROM_WRITE(printer.volumetric_enabled);
@@ -475,7 +473,7 @@ void EEPROM::Postprocess() {
       EEPROM_WRITE(printer.filament_size[e]);
 
     #if ENABLED(IDLE_OOZING_PREVENT)
-      EEPROM_WRITE(IDLE_OOZING_enabled);
+      EEPROM_WRITE(printer.IDLE_OOZING_enabled);
     #endif
 
     #if MB(ALLIGATOR) || MB(ALLIGATOR_V3)
@@ -717,10 +715,10 @@ void EEPROM::Postprocess() {
       #endif
 
       #if HEATER_USES_AD595
-        EEPROM_READ(ad595_offset);
-        EEPROM_READ(ad595_gain);
+        EEPROM_READ(thermalManager.ad595_offset);
+        EEPROM_READ(thermalManager.ad595_gain);
         for (int8_t h = 0; h < HOTENDS; h++)
-          if (ad595_gain[h] == 0) ad595_gain[h] == TEMP_SENSOR_AD595_GAIN;
+          if (thermalManager.ad595_gain[h] == 0) thermalManager.ad595_gain[h] == TEMP_SENSOR_AD595_GAIN;
       #endif
 
       #if MECH(DELTA)
@@ -762,12 +760,10 @@ void EEPROM::Postprocess() {
           EEPROM_READ(PID_PARAM(Kd, h));
           EEPROM_READ(PID_PARAM(Kc, h));
         }
+        #if ENABLED(PID_ADD_EXTRUSION_RATE)
+          EEPROM_READ(thermalManager.lpq_len);
+        #endif
       #endif // PIDTEMP
-
-      #if DISABLED(PID_ADD_EXTRUSION_RATE)
-        int lpq_len;
-      #endif
-      EEPROM_READ(lpq_len);
 
       #if ENABLED(PIDTEMPBED)
         EEPROM_READ(thermalManager.bedKp);
@@ -793,22 +789,22 @@ void EEPROM::Postprocess() {
       EEPROM_READ(lcd_contrast);
 
       #if ENABLED(FWRETRACT)
-        EEPROM_READ(autoretract_enabled);
-        EEPROM_READ(retract_length);
+        EEPROM_READ(printer.autoretract_enabled);
+        EEPROM_READ(printer.retract_length);
         #if EXTRUDERS > 1
-          EEPROM_READ(retract_length_swap);
+          EEPROM_READ(printer.retract_length_swap);
         #else
           EEPROM_READ(dummy);
         #endif
-        EEPROM_READ(retract_feedrate);
-        EEPROM_READ(retract_zlift);
-        EEPROM_READ(retract_recover_length);
+        EEPROM_READ(printer.retract_feedrate_mm_s);
+        EEPROM_READ(printer.retract_zlift);
+        EEPROM_READ(printer.retract_recover_length);
         #if EXTRUDERS > 1
-          EEPROM_READ(retract_recover_length_swap);
+          EEPROM_READ(printer.retract_recover_length_swap);
         #else
           EEPROM_READ(dummy);
         #endif
-        EEPROM_READ(retract_recover_feedrate);
+        EEPROM_READ(printer.retract_recover_feedrate_mm_s);
       #endif // FWRETRACT
 
       EEPROM_READ(printer.volumetric_enabled);
@@ -817,7 +813,7 @@ void EEPROM::Postprocess() {
         EEPROM_READ(printer.filament_size[e]);
 
       #if ENABLED(IDLE_OOZING_PREVENT)
-        EEPROM_READ(IDLE_OOZING_enabled);
+        EEPROM_READ(printer.IDLE_OOZING_enabled);
       #endif
 
       #if MB(ALLIGATOR) || MB(ALLIGATOR_V3)
@@ -1029,7 +1025,7 @@ void EEPROM::Factory_Settings() {
       PID_PARAM(Kc, h) = tmp9[h];
     }
     #if ENABLED(PID_ADD_EXTRUSION_RATE)
-      lpq_len = 20; // default last-position-queue size
+      thermalManager.lpq_len = 20; // default last-position-queue size
     #endif
   #endif // PIDTEMP
 
@@ -1052,18 +1048,18 @@ void EEPROM::Factory_Settings() {
   #endif
 
   #if ENABLED(FWRETRACT)
-    autoretract_enabled = false;
-    retract_length = RETRACT_LENGTH;
+    printer.autoretract_enabled = false;
+    printer.retract_length = RETRACT_LENGTH;
     #if EXTRUDERS > 1
-      retract_length_swap = RETRACT_LENGTH_SWAP;
+      printer.retract_length_swap = RETRACT_LENGTH_SWAP;
     #endif
-    retract_feedrate = RETRACT_FEEDRATE;
-    retract_zlift = RETRACT_ZLIFT;
-    retract_recover_length = RETRACT_RECOVER_LENGTH;
+    printer.retract_feedrate_mm_s = RETRACT_FEEDRATE;
+    printer.retract_zlift = RETRACT_ZLIFT;
+    printer.retract_recover_length = RETRACT_RECOVER_LENGTH;
     #if EXTRUDERS > 1
-      retract_recover_length_swap = RETRACT_RECOVER_LENGTH_SWAP;
+      printer.retract_recover_length_swap = RETRACT_RECOVER_LENGTH_SWAP;
     #endif
-    retract_recover_feedrate = RETRACT_RECOVER_FEEDRATE;
+    printer.retract_recover_feedrate_mm_s = RETRACT_RECOVER_FEEDRATE;
   #endif
 
   #if ENABLED(VOLUMETRIC_DEFAULT_ON)
@@ -1084,7 +1080,7 @@ void EEPROM::Factory_Settings() {
   );
 
   #if ENABLED(IDLE_OOZING_PREVENT)
-    IDLE_OOZING_enabled = true;
+    printer.IDLE_OOZING_enabled = true;
   #endif
 
   #if ENABLED(HAVE_TMC2130)
@@ -1310,8 +1306,8 @@ void EEPROM::Factory_Settings() {
       CONFIG_MSG_START("AD595 Offset and Gain:");
       for (int8_t h = 0; h < HOTENDS; h++) {
         SERIAL_SMV(CFG, "  M595 H", h);
-        SERIAL_MV(" O", ad595_offset[h]);
-        SERIAL_EMV(", S", ad595_gain[h]);
+        SERIAL_MV(" O", thermalManager.ad595_offset[h]);
+        SERIAL_EMV(", S", thermalManager.ad595_gain[h]);
       }
     #endif // HEATER_USES_AD595
 
@@ -1379,7 +1375,7 @@ void EEPROM::Factory_Settings() {
           #endif
           SERIAL_EOL();
           #if ENABLED(PID_ADD_EXTRUSION_RATE)
-            SERIAL_LMV(CFG, "  M301 L", lpq_len);
+            SERIAL_LMV(CFG, "  M301 L", thermalManager.lpq_len);
           #endif
         #elif HOTENDS > 1
           for (int8_t h = 0; h < HOTENDS; h++) {
@@ -1393,7 +1389,7 @@ void EEPROM::Factory_Settings() {
             SERIAL_EOL();
           }
           #if ENABLED(PID_ADD_EXTRUSION_RATE)
-            SERIAL_LMV(CFG, "  M301 L", lpq_len);
+            SERIAL_LMV(CFG, "  M301 L", thermalManager.lpq_len);
           #endif
         #endif
       #endif
@@ -1416,22 +1412,22 @@ void EEPROM::Factory_Settings() {
 
     #if ENABLED(FWRETRACT)
       CONFIG_MSG_START("Retract: S=Length (mm) F:Speed (mm/m) Z: ZLift (mm)");
-      SERIAL_SMV(CFG, "  M207 S", retract_length);
+      SERIAL_SMV(CFG, "  M207 S", printer.retract_length);
       #if EXTRUDERS > 1
-        SERIAL_MV(" W", retract_length_swap);
+        SERIAL_MV(" W", printer.retract_length_swap);
       #endif
-      SERIAL_MV(" F", retract_feedrate * 60);
-      SERIAL_EMV(" Z", retract_zlift);
+      SERIAL_MV(" F", printer.retract_feedrate_mm_s * 60);
+      SERIAL_EMV(" Z", printer.retract_zlift);
 
       CONFIG_MSG_START("Recover: S=Extra length (mm) F:Speed (mm/m)");
-      SERIAL_SMV(CFG, "  M208 S", retract_recover_length);
+      SERIAL_SMV(CFG, "  M208 S", printer.retract_recover_length);
       #if EXTRUDERS > 1
-        SERIAL_MV(" W", retract_recover_length_swap);
+        SERIAL_MV(" W", printer.retract_recover_length_swap);
       #endif
-      SERIAL_MV(" F", retract_recover_feedrate * 60);
+      SERIAL_MV(" F", printer.retract_recover_feedrate_mm_s * 60);
 
       CONFIG_MSG_START("Auto-Retract: S=0 to disable, 1 to interpret extrude-only moves as retracts or recoveries");
-      SERIAL_LMV(CFG, "  M209 S", autoretract_enabled ? 1 : 0);
+      SERIAL_LMV(CFG, "  M209 S", printer.autoretract_enabled ? 1 : 0);
     #endif // FWRETRACT
 
     /**

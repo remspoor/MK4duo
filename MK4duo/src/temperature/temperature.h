@@ -152,6 +152,11 @@ class Temperature {
       static millis_t next_temp_report_ms;
     #endif
 
+    #if HEATER_USES_AD595
+      static float  ad595_offset[HOTENDS],
+                    ad595_gain[HOTENDS];
+    #endif
+
   private:
 
     #if ENABLED(TEMP_SENSOR_1_AS_REDUNDANT)
@@ -167,10 +172,11 @@ class Temperature {
                     pid_error[HOTENDS];
 
       #if ENABLED(PID_ADD_EXTRUSION_RATE)
-        static float cTerm[HOTENDS];
-        static long last_e_position;
-        static long lpq[LPQ_MAX_LEN];
-        static int lpq_ptr;
+        static float  cTerm[HOTENDS];
+        static long   last_e_position,
+                      lpq[LPQ_MAX_LEN];
+        static int    lpq_ptr,
+                      lpq_len;
       #endif
 
       static uint8_t pid_pointer[HOTENDS];
@@ -349,16 +355,6 @@ class Temperature {
     #if HAS_FILAMENT_SENSOR
       static float analog2widthFil(); // Convert raw Filament Width to millimeters
       static int widthFil_to_size_ratio(); // Convert raw Filament Width to an extrusion ratio
-    #endif
-
-    #if HAS_POWER_CONSUMPTION_SENSOR
-      // For converting raw Power Consumption to watt
-      static float analog2voltage(),
-                   analog2current(),
-                   analog2power(),
-                   raw_analog2voltage(),
-                   analog2error(float current),
-                   analog2efficiency(float watt);
     #endif
 
     // high level conversion routines, for use outside of temperature.cpp
@@ -758,11 +754,6 @@ class Temperature {
       #endif
 
     #endif // THERMAL_PROTECTION
-
-    #if HAS_POWER_CONSUMPTION_SENSOR
-      int current_raw_powconsumption;
-      static unsigned long raw_powconsumption_value;
-    #endif
 
     #if HAS_TEMP_HOTEND || HAS_TEMP_BED
       static void print_heater_state(const float &c, const int16_t &t,

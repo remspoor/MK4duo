@@ -31,15 +31,6 @@
 
 extern const char axis_codes[NUM_AXIS];
 
-#if HAS_EXT_ENCODER
-  #if HAS_SDSUPPORT
-    extern void gcode_M25();
-  #endif
-  #if ENABLED(PARK_HEAD_ON_PAUSE)
-    extern void gcode_M125();
-  #endif
-#endif
-
 class Printer {
 
   public: /** Constructor */
@@ -88,6 +79,21 @@ class Printer {
     static PrinterMode          mode;
     static PrintCounter         print_job_counter;
 
+    #if ENABLED(FWRETRACT)
+      static bool   autoretract_enabled,
+                    retracted[EXTRUDERS],
+                    retracted_swap[EXTRUDERS];
+      static float  retract_length, retract_length_swap, retract_feedrate_mm_s, retract_zlift,
+                    retract_recover_length, retract_recover_length_swap, retract_recover_feedrate_mm_s;
+    #endif
+
+    #if ENABLED(COLOR_MIXING_EXTRUDER)
+      static float mixing_factor[MIXING_STEPPERS];
+      #if MIXING_VIRTUAL_TOOLS  > 1
+        float mixing_virtual_tool_mix[MIXING_VIRTUAL_TOOLS][MIXING_STEPPERS];
+      #endif
+    #endif
+
     #if ENABLED(PROBE_MANUALLY)
       static bool g29_in_progress;
     #else
@@ -112,6 +118,13 @@ class Printer {
       static uint8_t fanKickstart;
     #endif
 
+    #if ENABLED(HOST_KEEPALIVE_FEATURE)
+      static MK4duoBusyState busy_state;
+      #define KEEPALIVE_STATE(n) do{ printer.busy_state = n; }while(0)
+    #else
+      #define KEEPALIVE_STATE(n) NOOP
+    #endif
+
     #if ENABLED(ADVANCED_PAUSE_FEATURE)
       static AdvancedPauseMenuResponse advanced_pause_menu_response;
     #endif
@@ -133,6 +146,13 @@ class Printer {
       static int8_t   filwidth_delay_index[2];  // Ring buffer indexes. Used by planner, temperature, and main code
     #endif
 
+    #if ENABLED(RFID_MODULE)
+      static uint32_t Spool_ID[EXTRUDERS];
+      static bool     RFID_ON,
+                      Spool_must_read[EXTRUDERS],
+                      Spool_must_write[EXTRUDERS];
+    #endif
+
     #if HAS_CASE_LIGHT
       static int case_light_brightness;
       static bool case_light_on;
@@ -146,9 +166,26 @@ class Printer {
                       encErrorSteps[EXTRUDERS];
     #endif
 
+    #if ENABLED(NPR2)
+      static uint8_t old_color; // old color for system NPR2
+    #endif
+
+    #if ENABLED(G38_PROBE_TARGET)
+      static bool G38_move,        // flag to tell the interrupt handler that a G38 command is being run
+                  G38_endstop_hit; // flag from the interrupt handler to indicate if the endstop went active
+    #endif
+
     #if ENABLED(BARICUDA)
       static int baricuda_valve_pressure;
       static int baricuda_e_to_p_pressure;
+    #endif
+
+    #if ENABLED(EASY_LOAD)
+      static bool allow_lengthy_extrude_once; // for load/unload
+    #endif
+
+    #if ENABLED(IDLE_OOZING_PREVENT)
+      static bool IDLE_OOZING_enabled;
     #endif
 
   public: /** Public Function */
@@ -192,6 +229,10 @@ class Printer {
       static void stopSDPrint(const bool store_location);
     #endif
 
+    #if ENABLED(FWRETRACT)
+      static void retract(const bool retracting, const bool swapping=false);
+    #endif
+
     #if ENABLED(ADVANCED_PAUSE_FEATURE)
       #if HAS_BUZZER
         static void filament_change_beep(const int8_t max_beep_count, const bool init=false);
@@ -228,6 +269,11 @@ class Printer {
 
   private: /** Private Parameters */
 
+    #if ENABLED(IDLE_OOZING_PREVENT)
+      millis_t  axis_last_activity;
+      bool      IDLE_OOZING_retracted[EXTRUDERS];
+    #endif
+
   private: /** Private Function */
 
     #if HAS_FIL_RUNOUT
@@ -248,6 +294,10 @@ class Printer {
     static float calculate_volumetric_multiplier(const float diameter);
 
     static void invalid_extruder_error(const uint8_t e);
+
+    #if HAS_DONDOLO
+      static void move_extruder_servo(const uint8_t e);
+    #endif
 
     #if ENABLED(IDLE_OOZING_PREVENT)
       IDLE_OOZING_retract(bool retracting);

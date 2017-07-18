@@ -37,51 +37,13 @@
   #endif
 #endif
 
-#if ENABLED(G38_PROBE_TARGET)
-  bool G38_move         = false,
-       G38_endstop_hit  = false;
-#endif
-
-#if ENABLED(FLOWMETER_SENSOR) && ENABLED(MINFLOW_PROTECTION)
-  bool flow_firstread = false;
-#endif
-
 #if ENABLED(CNCROUTER)
   uint8_t active_cnc_tool = 0;
   #define CNC_M6_TOOL_ID 255
 #endif
 
-#if HEATER_USES_AD595
-  float ad595_offset[HOTENDS] = ARRAY_BY_HOTENDS(TEMP_SENSOR_AD595_OFFSET),
-        ad595_gain[HOTENDS]   = ARRAY_BY_HOTENDS(TEMP_SENSOR_AD595_GAIN);
-#endif
 
-#if ENABLED(NPR2)
-  uint8_t old_color = 99;
-#endif
 
-#if ENABLED(RFID_MODULE)
-  unsigned long Spool_ID[EXTRUDERS] = ARRAY_BY_EXTRUDERS(0);
-  bool  RFID_ON = false,
-        Spool_must_read[EXTRUDERS]  = ARRAY_BY_EXTRUDERS(false),
-        Spool_must_write[EXTRUDERS] = ARRAY_BY_EXTRUDERS(false);
-#endif
-
-#if ENABLED(FWRETRACT)
-
-  bool  autoretract_enabled           = false,
-        retracted[EXTRUDERS]          = { false },
-        retracted_swap[EXTRUDERS]     = { false };
-
-  float retract_length                = RETRACT_LENGTH,
-        retract_length_swap           = RETRACT_LENGTH_SWAP,
-        retract_feedrate_mm_s         = RETRACT_FEEDRATE,
-        retract_zlift                 = RETRACT_ZLIFT,
-        retract_recover_length        = RETRACT_RECOVER_LENGTH,
-        retract_recover_length_swap   = RETRACT_RECOVER_LENGTH_SWAP,
-        retract_recover_feedrate_mm_s = RETRACT_RECOVER_FEEDRATE;
-
-#endif // FWRETRACT
 
 #if MECH(DELTA)
 
@@ -154,42 +116,9 @@
 
 #endif
 
-#if ENABLED(COLOR_MIXING_EXTRUDER)
-  float mixing_factor[MIXING_STEPPERS]; // Reciprocal of mix proportion. 0.0 = off, otherwise >= 1.0
-  #if MIXING_VIRTUAL_TOOLS  > 1
-    float mixing_virtual_tool_mix[MIXING_VIRTUAL_TOOLS][MIXING_STEPPERS];
-  #endif
-#endif
-
-#if ENABLED(IDLE_OOZING_PREVENT)
-  unsigned long axis_last_activity = 0;
-  bool IDLE_OOZING_enabled = true;
-  bool IDLE_OOZING_retracted[EXTRUDERS] = ARRAY_BY_EXTRUDERS(false);
-#endif
-
-#if HAS_POWER_CONSUMPTION_SENSOR
-  float power_consumption_meas = 0.0;
-  unsigned long power_consumption_hour,
-                startpower  = 0;
-                stoppower   = 0;
-#endif
-
-#if ENABLED(NPR2)
-  static float  color_position[] = COLOR_STEP,
-                color_step_moltiplicator = (DRIVER_MICROSTEP / MOTOR_ANGLE) * CARTER_MOLTIPLICATOR;
-#endif // NPR2
-
-#if ENABLED(EASY_LOAD)
-  bool allow_lengthy_extrude_once; // for load/unload
-#endif
-
 #if HAS_CHDK
   millis_t chdkHigh = 0;
   bool chdkActive = false;
-#endif
-
-#if ENABLED(PIDTEMP) && ENABLED(PID_ADD_EXTRUSION_RATE)
-  int lpq_len = 20;
 #endif
 
 #if ENABLED(CNC_WORKSPACE_PLANES)
@@ -201,97 +130,6 @@
  * ******************************** FUNCTIONS ********************************
  * ***************************************************************************
  */
-
-#if HAS_BED_PROBE
-
-  #if MECH(MAKERARM_SCARA)
-
-    /**
-     * Get the arm-end position based on the probe position
-     * If the position is unreachable return vector_3 0,0,0
-     */
-    vector_3 probe_point_to_end_point(const float &x, const float &y) {
-
-      // Simply can't reach the given point
-      if (HYPOT2(x, y) > sq(L1 + L2 + Y_PROBE_OFFSET_FROM_NOZZLE))
-        return vector_3();
-
-      float pos[XYZ] = { x, y, 0 };
-
-      // Get the angles for placing the probe at x, y
-      inverse_kinematics(pos, Y_PROBE_OFFSET_FROM_NOZZLE);
-
-      // Get the arm-end XY based on the given angles
-      forward_kinematics_SCARA(mechanics.delta[A_AXIS], mechanics.delta[B_AXIS]);
-      float tx = LOGICAL_X_POSITION(mechanics.cartesian_position[X_AXIS]),
-            ty = LOGICAL_Y_POSITION(mechanics.cartesian_position[Y_AXIS]);
-
-      return vector_3(tx, ty, 0);
-    }
-
-    /**
-     * Get the probe position based on the arm-end position
-     * If the position is unreachable return vector_3 0,0,0
-     */
-    vector_3 end_point_to_probe_point(const float logical[XYZ]) {
-
-      // Simply can't reach the given point
-      if (HYPOT2(logical[X_AXIS], logical[Y_AXIS]) > sq(L1 + L2))
-        return vector_3();
-
-      // Get the angles for placing the arm-end at x, y
-      inverse_kinematics(logical);
-
-      // Get the probe XY based on the sum of the angles
-      float ab = RADIANS(mechanics.delta[A_AXIS] + mechanics.delta[B_AXIS] + 90.0);
-      return vector_3(
-        logical[X_AXIS] + sin(ab) * X_PROBE_OFFSET_FROM_NOZZLE,
-        logical[Y_AXIS] - cos(ab) * Y_PROBE_OFFSET_FROM_NOZZLE,
-        0
-      );
-    }
-
-  #endif // MAKERARM_SCARA
-
-#endif // HAS_BED_PROBE
-
-#if ENABLED(FLOWMETER_SENSOR)
-
-  void print_flowratestate() {
-    float readval = get_flowrate();
-
-    #if ENABLED(MINFLOW_PROTECTION)
-      if(readval > MINFLOW_PROTECTION)
-        flow_firstread = true;
-    #endif
-
-    SERIAL_MV(" FLOW: ", readval);
-    SERIAL_MSG(" l/min ");
-  }
-
-#endif
-
-#if ENABLED(CNCROUTER) && ENABLED(FAST_PWM_CNCROUTER)
-
-  void print_cncspeed() {
-    SERIAL_MV(" CNC speed: ", getCNCSpeed());
-    SERIAL_MSG(" rpm ");
-  }
-
-#endif
-
-#if HAS_DONDOLO
-
-  inline void move_extruder_servo(const uint8_t e) {
-    const int angles[2] = { DONDOLO_SERVOPOS_E0, DONDOLO_SERVOPOS_E1 };
-    MOVE_SERVO(DONDOLO_SERVO_INDEX, angles[e]);
-
-    #if (DONDOLO_SERVO_DELAY > 0)
-      printer.safe_delay(DONDOLO_SERVO_DELAY);
-    #endif
-  }
-
-#endif
 
 /**
  * Function for DELTA
