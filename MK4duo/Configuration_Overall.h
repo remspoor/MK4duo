@@ -80,6 +80,13 @@
 // Get temp
 // M105
 
+#if 0
+#ifdef H0_AUTO_FAN_PIN
+  #undef H0_AUTO_FAN_PIN
+  #define H0_AUTO_FAN_PIN ORIG_FAN1_PIN
+#endif
+#endif
+
 
 /***********************
  * Configuration_Basic *
