@@ -34,7 +34,7 @@
 // Display test with a rewired 'Full Graphical Smart Controller'
 #if 1
   #define REPRAPWORLD_GRAPHICAL_LCD
-  //#define DOGM_SPI_DELAY_US 5
+  #define DOGM_SPI_DELAY_US 4
 
   #define KILL_PIN            A9
   //#define SUICIDE_PIN         A9
@@ -100,7 +100,7 @@
 #define MACHINE_UUID "00000000-0000-0000-0000-000000000000"
 #define KILL_METHOD 0
 #define NO_TIMEOUTS 1000
-//#define ADVANCED_OK
+#define ADVANCED_OK
 //#define EMERGENCY_PARSER
 #define FASTER_GCODE_PARSER
 #define HOST_KEEPALIVE_FEATURE
@@ -178,7 +178,7 @@
 #define PREHEAT_3_FAN_SPEED 255
 #define AUTOTEMP
 #define AUTOTEMP_OLDWEIGHT 0.98
-//#define HEATERS_PARALLEL
+#define HEATERS_PARALLEL
 //#define TEMP_SENSOR_1_AS_REDUNDANT
 #define MAX_REDUNDANT_TEMP_SENSOR_DIFF 10 // (degC)
 //#define TEMP_STAT_LEDS
@@ -387,7 +387,7 @@
 //#define MANUAL_X_HOME_POS 0
 //#define MANUAL_Y_HOME_POS -20
 //#define MANUAL_Z_HOME_POS 0
-#define DEFAULT_AXIS_STEPS_PER_UNIT {160,160,5120,191,191,191,625,625,625}
+#define DEFAULT_AXIS_STEPS_PER_UNIT {160,160,5120,24,24,24,625,625,625}
 #define DEFAULT_MAX_FEEDRATE {300,300,2,100,100,100,100,100,100}
 #define MANUAL_FEEDRATE {100*60,100*60,2*60,10*60}
 #define DEFAULT_MINIMUMFEEDRATE       0.0
@@ -472,8 +472,8 @@
 #define EXTRUDER_RUNOUT_SECONDS  30
 #define EXTRUDER_RUNOUT_SPEED  1500 // mm/m
 #define EXTRUDER_RUNOUT_EXTRUDE   5 // mm
-//#define EASY_LOAD
-#define BOWDEN_LENGTH 250
+#define EASY_LOAD
+#define BOWDEN_LENGTH 800
 #define LCD_PURGE_LENGTH 10
 #define LCD_RETRACT_LENGTH 5
 #define LCD_PURGE_FEEDRATE 3
@@ -547,7 +547,7 @@
 #define DEFAULT_DUAL_X_CARRIAGE_MODE DXC_FULL_CONTROL_MODE
 #define TOOLCHANGE_PARK_ZLIFT   0.2      // the distance to raise Z axis when parking an extruder
 #define TOOLCHANGE_UNPARK_ZLIFT 1        // the distance to raise Z axis when unparking an extruder
-#define DEFAULT_DUPLICATION_X_OFFSET 100
+#define DEFAULT_DUPLICATION_X_OFFSET 190
 //#define X_TWO_STEPPER
 #define INVERT_X2_VS_X_DIR false
 //#define Y_TWO_STEPPER
@@ -593,7 +593,7 @@
 #define POWER_CHECK_PULLUP
 #define EEPROM_SETTINGS
 #define EEPROM_CHITCHAT // Uncomment this to enable EEPROM Serial responses.
-#define EEPROM_SD
+//#define EEPROM_SD
 //#define DISABLE_M503
 #define SDSUPPORT
 //#define SDSLOW              // Use slower SD transfer mode (not normally needed - uncomment if you're getting volume init error)
@@ -606,7 +606,7 @@
 #define SD_FINISHED_RELEASECOMMAND "M84 X Y Z E" // You might want to keep the z enabled so your bed stays in place.
 #define SDCARD_RATHERRECENTFIRST  //reverse file order of sd card menu display. Its sorted practically after the file system block order.
 //#define MENU_ADDAUTOSTART
-#define SD_SETTINGS                     // Uncomment to enable
+//#define SD_SETTINGS                     // Uncomment to enable
 #define SD_CFG_SECONDS        300         // seconds between update
 #define CFG_SD_FILE           "INFO.CFG"  // name of the configuration file
 #define LCD_LANGUAGE en
@@ -633,14 +633,14 @@
 //#define REVERSE_ENCODER_DIRECTION
 //#define REVERSE_MENU_DIRECTION
 #define ENCODER_RATE_MULTIPLIER         // If defined, certain menu edit operations automatically multiply the steps when the encoder is moved quickly
-#define ENCODER_10X_STEPS_PER_SEC 75    // If the encoder steps per sec exceeds this value, multiply steps moved x10 to quickly advance the value
-#define ENCODER_100X_STEPS_PER_SEC 160  // If the encoder steps per sec exceeds this value, multiply steps moved x100 to really quickly advance the value
+#define ENCODER_10X_STEPS_PER_SEC 25    // If the encoder steps per sec exceeds this value, multiply steps moved x10 to quickly advance the value
+#define ENCODER_100X_STEPS_PER_SEC 45  // If the encoder steps per sec exceeds this value, multiply steps moved x100 to really quickly advance the value
 #define DOUBLECLICK_FOR_Z_BABYSTEPPING
 #define DOUBLECLICK_MAX_INTERVAL 1250
 #define ULTIPANEL_FEEDMULTIPLY
 #define SPEAKER
-#define LCD_FEEDBACK_FREQUENCY_DURATION_MS 20
-#define LCD_FEEDBACK_FREQUENCY_HZ 100
+#define LCD_FEEDBACK_FREQUENCY_DURATION_MS 18
+#define LCD_FEEDBACK_FREQUENCY_HZ 120
 //#define UI_VOLTAGE_LEVEL 0 // 3.3 V
 #define UI_VOLTAGE_LEVEL 1   // 5 V
 #define LCD_INFO_MENU

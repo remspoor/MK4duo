@@ -876,7 +876,7 @@ bool HAL::analogWrite(Pin pin, const uint8_t value, const uint16_t freq/*=50*/) 
 
   static void eeprom_init(void) {
     if (!eeprom_initialised) {
-      Wire.begin();
+      Wire1.begin();
       eeprom_initialised = true;
     }
   }
@@ -887,13 +887,13 @@ bool HAL::analogWrite(Pin pin, const uint8_t value, const uint16_t freq/*=50*/) 
 
     eeprom_init();
 
-    Wire.beginTransmission(eeprom_device_address);
-    Wire.write((int)(eeprom_address >> 8));   // MSB
-    Wire.write((int)(eeprom_address & 0xFF)); // LSB
-    Wire.endTransmission();
-    Wire.requestFrom(eeprom_device_address, (byte)1);
-    if (Wire.available())
-      data = Wire.read();
+    Wire1.beginTransmission(eeprom_device_address);
+    Wire1.write((int)(eeprom_address >> 8));   // MSB
+    Wire1.write((int)(eeprom_address & 0xFF)); // LSB
+    Wire1.endTransmission();
+    Wire1.requestFrom(eeprom_device_address, (byte)1);
+    if (Wire1.available())
+      data = Wire1.read();
     return data;
   }
 
@@ -901,13 +901,13 @@ bool HAL::analogWrite(Pin pin, const uint8_t value, const uint16_t freq/*=50*/) 
   void eeprom_read_block(void* pos, const void* eeprom_address, size_t n) {
     eeprom_init();
 
-    Wire.beginTransmission(eeprom_device_address);
-    Wire.write((int)((unsigned)eeprom_address >> 8));   // MSB
-    Wire.write((int)((unsigned)eeprom_address & 0xFF)); // LSB
-    Wire.endTransmission();
-    Wire.requestFrom(eeprom_device_address, (byte)n);
+    Wire1.beginTransmission(eeprom_device_address);
+    Wire1.write((int)((unsigned)eeprom_address >> 8));   // MSB
+    Wire1.write((int)((unsigned)eeprom_address & 0xFF)); // LSB
+    Wire1.endTransmission();
+    Wire1.requestFrom(eeprom_device_address, (byte)n);
     for (byte c = 0; c < n; c++ )
-      if (Wire.available()) *((uint8_t*)pos + c) = Wire.read();
+      if (Wire1.available()) *((uint8_t*)pos + c) = Wire1.read();
   }
 
   void eeprom_write_byte(uint8_t *pos, uint8_t value) {
@@ -915,11 +915,11 @@ bool HAL::analogWrite(Pin pin, const uint8_t value, const uint16_t freq/*=50*/) 
 
     eeprom_init();
 
-    Wire.beginTransmission(eeprom_device_address);
-    Wire.write((int)(eeprom_address >> 8));   // MSB
-    Wire.write((int)(eeprom_address & 0xFF)); // LSB
-    Wire.write(value);
-    Wire.endTransmission();
+    Wire1.beginTransmission(eeprom_device_address);
+    Wire1.write((int)(eeprom_address >> 8));   // MSB
+    Wire1.write((int)(eeprom_address & 0xFF)); // LSB
+    Wire1.write(value);
+    Wire1.endTransmission();
 
     // wait for write cycle to complete
     // this could be done more efficiently with "acknowledge polling"
@@ -934,22 +934,22 @@ bool HAL::analogWrite(Pin pin, const uint8_t value, const uint16_t freq/*=50*/) 
 
     eeprom_init();
 
-    Wire.beginTransmission(eeprom_device_address);
-    Wire.write((int)((unsigned)eeprom_address >> 8));   // MSB
-    Wire.write((int)((unsigned)eeprom_address & 0xFF)); // LSB
-    Wire.endTransmission();
-    Wire.requestFrom(eeprom_device_address, (byte)n);
+    Wire1.beginTransmission(eeprom_device_address);
+    Wire1.write((int)((unsigned)eeprom_address >> 8));   // MSB
+    Wire1.write((int)((unsigned)eeprom_address & 0xFF)); // LSB
+    Wire1.endTransmission();
+    Wire1.requestFrom(eeprom_device_address, (byte)n);
     for (byte c = 0; c < n; c++) {
-      if (Wire.available()) eeprom_temp[c] = Wire.read();
+      if (Wire1.available()) eeprom_temp[c] = Wire1.read();
       if (flag = (eeprom_temp[c] ^ *((uint8_t*)pos + c))) break;
     }
 
     if (flag) {
-      Wire.beginTransmission(eeprom_device_address);
-      Wire.write((int)((unsigned)eeprom_address >> 8));   // MSB
-      Wire.write((int)((unsigned)eeprom_address & 0xFF)); // LSB
-      Wire.write((uint8_t*)(pos), n);
-      Wire.endTransmission();
+      Wire1.beginTransmission(eeprom_device_address);
+      Wire1.write((int)((unsigned)eeprom_address >> 8));   // MSB
+      Wire1.write((int)((unsigned)eeprom_address & 0xFF)); // LSB
+      Wire1.write((uint8_t*)(pos), n);
+      Wire1.endTransmission();
 
       // wait for write cycle to complete
       // this could be done more efficiently with "acknowledge polling"
