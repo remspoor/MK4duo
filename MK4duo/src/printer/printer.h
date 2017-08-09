@@ -74,12 +74,6 @@ class Printer {
       #endif
     #endif
 
-    #if ENABLED(PROBE_MANUALLY)
-      static bool g29_in_progress;
-    #else
-      static const bool g29_in_progress;
-    #endif
-
     #if HAS_SDSUPPORT
       static bool sd_print_paused;
     #endif
@@ -232,9 +226,9 @@ class Printer {
       static void set_led_color(const uint8_t r, const uint8_t g, const uint8_t b
                                 #if ENABLED(RGBW_LED) || ENABLED(NEOPIXEL_RGBW_LED)
                                   , const uint8_t w=0
-                                  #if ENABLED(NEOPIXEL_RGBW_LED)
-                                    , bool isSequence=false
-                                  #endif
+                                #endif
+                                #if HAS_NEOPIXEL
+                                  , bool isSequence=false
                                 #endif
       );
     #endif
@@ -267,11 +261,6 @@ class Printer {
 
     static void setup_powerhold();
 
-    #if HAS_STEPPER_RESET
-      static void disableStepperDrivers();
-      static void enableStepperDrivers();
-    #endif
-
     #if HAS_CONTROLLERFAN
       static void controllerFan();
     #endif
@@ -292,7 +281,7 @@ class Printer {
       static void host_keepalive();
     #endif
 
-    #if ENABLED(NEOPIXEL_RGBW_LED)
+    #if HAS_NEOPIXEL
       static void set_neopixel_color(const uint32_t color);
       static void setup_neopixel();
     #endif

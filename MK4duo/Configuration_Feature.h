@@ -1575,12 +1575,13 @@
  ********************* Adafruit Neopixel LED driver ***********************
  **************************************************************************
  *                                                                        *
- * Support for Adafruit Neopixel LED driver                                *
+ * Support for Adafruit Neopixel LED driver                               *
  *                                                                        *
  **************************************************************************/
+//#define NEOPIXEL_RGB_LED
 //#define NEOPIXEL_RGBW_LED
 
-#define NEOPIXEL_PIXELS 3
+#define NEOPIXEL_PIXELS 16
 // Cycle through colors at startup
 //#define NEOPIXEL_STARTUP_TEST
 /**************************************************************************/
