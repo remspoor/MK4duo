@@ -1,9 +1,9 @@
 /**
- * MK4duo 3D Printer Firmware
+ * MK4duo Firmware for 3D Printer, Laser and CNC
  *
  * Based on Marlin, Sprinter and grbl
  * Copyright (C) 2011 Camiel Gubbels / Erik van der Zalm
- * Copyright (C) 2013 - 2017 Alberto Cotronei @MagoKimbra
+ * Copyright (C) 2013 Alberto Cotronei @MagoKimbra
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -276,34 +276,15 @@
    * Prepare a single move and get ready for the next one
    * If Mesh Bed Leveling is enabled, perform a mesh move.
    */
-  void Cartesian_Mechanics::prepare_move_to_destination() {
-
-    endstops.clamp_to_software_endstops(destination);
-    commands.refresh_cmd_timeout();
-
-    #if ENABLED(PREVENT_COLD_EXTRUSION)
-
-      if (!DEBUGGING(DRYRUN)) {
-        if (destination[E_AXIS] != current_position[E_AXIS]) {
-          if (thermalManager.tooColdToExtrude(tools.active_extruder))
-            current_position[E_AXIS] = destination[E_AXIS];
-          #if ENABLED(PREVENT_LENGTHY_EXTRUDE)
-            if (destination[E_AXIS] - current_position[E_AXIS] > EXTRUDE_MAXLENGTH) {
-              current_position[E_AXIS] = destination[E_AXIS];
-              SERIAL_LM(ER, MSG_ERR_LONG_EXTRUDE_STOP);
-            }
-          #endif
-        }
-      }
-    #endif
-
+  bool Cartesian_Mechanics::prepare_move_to_destination_mech_specific() {
     #if ENABLED(DUAL_X_CARRIAGE)
-      if (prepare_move_to_destination_dualx() || prepare_move_to_destination_cartesian()) return;
+      if (prepare_move_to_destination_dualx() || prepare_move_to_destination_cartesian()) return true;
     #else
-      if (prepare_move_to_destination_cartesian()) return;
+      if (prepare_move_to_destination_cartesian()) return true;
     #endif
 
     set_current_to_destination();
+    return false;
   }
 
   #if ENABLED(DUAL_X_CARRIAGE)
@@ -568,8 +549,8 @@
       destination[Z_AXIS] = current_position[Z_AXIS]; // Z is already at the right height
 
       #if HOMING_Z_WITH_PROBE
-        destination[X_AXIS] -= X_PROBE_OFFSET_FROM_NOZZLE;
-        destination[Y_AXIS] -= Y_PROBE_OFFSET_FROM_NOZZLE;
+        destination[X_AXIS] -= probe.offset[X_AXIS];
+        destination[Y_AXIS] -= probe.offset[Y_AXIS];
       #endif
 
       if (position_is_reachable_xy(destination[X_AXIS], destination[Y_AXIS])) {
@@ -623,8 +604,8 @@
       destination[Z_AXIS] = current_position[Z_AXIS]; // Z is already at the right height
 
       #if HAS_BED_PROBE
-        destination[X_AXIS] -= X_PROBE_OFFSET_FROM_NOZZLE;
-        destination[Y_AXIS] -= Y_PROBE_OFFSET_FROM_NOZZLE;
+        destination[X_AXIS] -= probe.offset[X_AXIS];
+        destination[Y_AXIS] -= probe.offset[Y_AXIS];
       #endif
 
       if (position_is_reachable_xy(destination[X_AXIS], destination[Y_AXIS])) {
@@ -633,7 +614,7 @@
           if (DEBUGGING(LEVELING)) DEBUG_POS("DOUBLE_Z_HOMING", destination);
         #endif
 
-        const float newzero = probe_pt(destination[X_AXIS], destination[Y_AXIS], true, 1) - (2 * probe.zprobe_zoffset);
+        const float newzero = probe_pt(destination[X_AXIS], destination[Y_AXIS], true, 1) - (2 * probe.offset[Z_AXIS]);
         current_position[Z_AXIS] -= newzero;
         destination[Z_AXIS] = current_position[Z_AXIS];
         endstops.soft_endstop_max[Z_AXIS] = base_max_pos(Z_AXIS) - newzero;
@@ -820,12 +801,12 @@
      */
     #if HOMING_Z_WITH_PROBE
       if (axis == Z_AXIS) {
-        current_position[Z_AXIS] -= probe.zprobe_zoffset;
+        current_position[Z_AXIS] -= probe.offset[Z_AXIS];
 
         #if ENABLED(DEBUG_LEVELING_FEATURE)
           if (DEBUGGING(LEVELING)) {
             SERIAL_EM("*** Z HOMED WITH PROBE ***");
-            SERIAL_EMV("zprobe_zoffset = ", probe.zprobe_zoffset);
+            SERIAL_EMV("zprobe_zoffset = ", probe.offset[Z_AXIS]);
           }
         #endif
       }

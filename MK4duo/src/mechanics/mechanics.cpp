@@ -1,9 +1,9 @@
 /**
- * MK4duo 3D Printer Firmware
+ * MK4duo Firmware for 3D Printer, Laser and CNC
  *
  * Based on Marlin, Sprinter and grbl
  * Copyright (C) 2011 Camiel Gubbels / Erik van der Zalm
- * Copyright (C) 2013 - 2017 Alberto Cotronei @MagoKimbra
+ * Copyright (C) 2013 Alberto Cotronei @MagoKimbra
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -139,6 +139,37 @@ void Mechanics::line_to_current_position() {
  */
 void Mechanics::line_to_destination(float fr_mm_s) {
   planner.buffer_line(destination[A_AXIS], destination[B_AXIS], destination[C_AXIS], destination[E_AXIS], fr_mm_s, tools.active_extruder);
+}
+
+/**
+ * Prepare a single move and get ready for the next one
+ *
+ * This may result in several calls to planner.buffer_line to
+ * do smaller moves for DELTA, SCARA, mesh moves, etc.
+ */
+void Mechanics::prepare_move_to_destination() {
+  endstops.clamp_to_software_endstops(destination);
+  commands.refresh_cmd_timeout();
+
+  #if ENABLED(PREVENT_COLD_EXTRUSION)
+
+    if (!DEBUGGING(DRYRUN)) {
+      if (destination[E_AXIS] != current_position[E_AXIS]) {
+        if (thermalManager.tooColdToExtrude(tools.active_extruder))
+          current_position[E_AXIS] = destination[E_AXIS];
+        #if ENABLED(PREVENT_LENGTHY_EXTRUDE)
+          if (destination[E_AXIS] - current_position[E_AXIS] > EXTRUDE_MAXLENGTH) {
+            current_position[E_AXIS] = destination[E_AXIS];
+            SERIAL_LM(ER, MSG_ERR_LONG_EXTRUDE_STOP);
+          }
+        #endif
+      }
+    }
+  #endif
+
+  if (prepare_move_to_destination_mech_specific()) return;
+
+  set_current_to_destination();
 }
 
 /**
@@ -411,11 +442,11 @@ bool Mechanics::position_is_reachable_by_probe_raw_xy(const float &rx, const flo
   return WITHIN(rx, MIN_PROBE_X - 0.001, MAX_PROBE_X + 0.001)
       && WITHIN(ry, MIN_PROBE_Y - 0.001, MAX_PROBE_Y + 0.001);
 }
-bool Mechanics::position_is_reachable_by_probe_xy(const float &lx, const float &ly) {
-  return position_is_reachable_by_probe_raw_xy(RAW_X_POSITION(lx), RAW_Y_POSITION(ly));
-}
 bool Mechanics::position_is_reachable_xy(const float &lx, const float &ly) {
   return position_is_reachable_raw_xy(RAW_X_POSITION(lx), RAW_Y_POSITION(ly));
+}
+bool Mechanics::position_is_reachable_by_probe_xy(const float &lx, const float &ly) {
+  return position_is_reachable_by_probe_raw_xy(RAW_X_POSITION(lx), RAW_Y_POSITION(ly));
 }
 
 #if ENABLED(ARC_SUPPORT)
@@ -603,28 +634,30 @@ bool Mechanics::position_is_reachable_xy(const float &lx, const float &ly) {
     #endif
 
     #if HAS_BED_PROBE
-      SERIAL_MV("Probe Offset X:", X_PROBE_OFFSET_FROM_NOZZLE);
-      SERIAL_MV(" Y:", Y_PROBE_OFFSET_FROM_NOZZLE);
-      SERIAL_MV(" Z:", probe.zprobe_zoffset);
-      #if X_PROBE_OFFSET_FROM_NOZZLE > 0
+      SERIAL_SM(ECHO, MSG_PROBE_OFFSET);
+      SERIAL_MV(MSG_PROBE_OFFSET " X:", probe.offset[X_AXIS]);
+      SERIAL_MV(" Y:", probe.offset[Y_AXIS]);
+      SERIAL_MV(" Z:", probe.offset[Z_AXIS]);
+
+      if (probe.offset[X_AXIS] > 0)
         SERIAL_MSG(" (Right");
-      #elif X_PROBE_OFFSET_FROM_NOZZLE < 0
+      else if (probe.offset[X_AXIS] < 0)
         SERIAL_MSG(" (Left");
-      #elif Y_PROBE_OFFSET_FROM_NOZZLE != 0
+      else if (probe.offset[Y_AXIS] != 0)
         SERIAL_MSG(" (Middle");
-      #else
+      else
         SERIAL_MSG(" (Aligned With");
-      #endif
-      #if Y_PROBE_OFFSET_FROM_NOZZLE > 0
+
+      if (probe.offset[Y_AXIS] > 0)
         SERIAL_MSG("-Back");
-      #elif Y_PROBE_OFFSET_FROM_NOZZLE < 0
+      else if (probe.offset[Y_AXIS] < 0)
         SERIAL_MSG("-Front");
-      #elif X_PROBE_OFFSET_FROM_NOZZLE != 0
+      else if (probe.offset[X_AXIS] != 0)
         SERIAL_MSG("-Center");
-      #endif
-      if (probe.zprobe_zoffset < 0)
+
+      if (probe.offset[Z_AXIS] < 0)
         SERIAL_MSG(" & Below");
-      else if (probe.zprobe_zoffset > 0)
+      else if (probe.offset[Z_AXIS] > 0)
         SERIAL_MSG(" & Above");
       else
         SERIAL_MSG(" & Same Z as");

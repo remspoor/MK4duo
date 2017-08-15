@@ -1,9 +1,9 @@
 /**
- * MK4duo 3D Printer Firmware
+ * MK4duo Firmware for 3D Printer, Laser and CNC
  *
  * Based on Marlin, Sprinter and grbl
  * Copyright (C) 2011 Camiel Gubbels / Erik van der Zalm
- * Copyright (C) 2013 - 2017 Alberto Cotronei @MagoKimbra
+ * Copyright (C) 2013 Alberto Cotronei @MagoKimbra
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -100,6 +100,7 @@
  * - Trinamic TMC2130 motor drivers
  * - L6470 motor drivers
  * ADVANCED FEATURES:
+ * - PWM Hardware
  * - Buffer stuff
  * - Nozzle Clean Feature
  * - Nozzle Park
@@ -1787,18 +1788,32 @@
  *                                                                                *
  **********************************************************************************/
 //#define HAVE_L6470DRIVER
-/**********************************************************************************/  
+/**********************************************************************************/
 
 
 //===========================================================================
 //============================= ADVANCED FEATURES ===========================
 //===========================================================================
 
+
+/**********************************************************************************
+ ********************************* PWM Hardware ***********************************
+ **********************************************************************************
+ *                                                                                *
+ * Support PWM hardware for SAM processor                                         *
+ * This function ability PWM hardware on SAM proccesor, tested only on ALLIGATOR! *
+ *                                                                                *
+ **********************************************************************************/
+//#define PWM_HARDWARE
+/**********************************************************************************/
+
+
 /****************************************************************************************
  ************************************** Buffer stuff ************************************
  ****************************************************************************************/
 // The number of linear motions that can be in the plan at any give time.
-// THE BLOCK BUFFER SIZE NEEDS TO BE A POWER OF 2, i.g. 8,16,32 because shifts and ors are used to do the ring-buffering.
+// THE BLOCK BUFFER SIZE NEEDS TO BE A POWER OF 2, i.g. 8,16,32 because shifts
+// and ors are used to do the ring-buffering.
 // For Arduino DUE setting BLOCK BUFFER SIZE to 32
 #define BLOCK_BUFFER_SIZE 16
 

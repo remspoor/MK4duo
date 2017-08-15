@@ -1,9 +1,9 @@
 /**
- * MK4duo 3D Printer Firmware
+ * MK4duo Firmware for 3D Printer, Laser and CNC
  *
  * Based on Marlin, Sprinter and grbl
  * Copyright (C) 2011 Camiel Gubbels / Erik van der Zalm
- * Copyright (C) 2013 - 2017 Alberto Cotronei @MagoKimbra
+ * Copyright (C) 2013 Alberto Cotronei @MagoKimbra
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -166,6 +166,12 @@ void HAL::hwSetup(void) {
     SET_INPUT(MISO);
     SET_OUTPUT(MOSI);
 
+  #endif
+  
+  // Initialize Fans
+  #if FAN_COUNT > 0
+    const Pin FAN_PINS[FAN_COUNT] = FANS_CHANNELS;
+    LOOP_FAN() fans.init(f, FAN_PINS[f], FAN_INVERTED, PWM_HARDWARE_ON);
   #endif
 }
 
@@ -466,7 +472,7 @@ bool HAL::analogWrite(Pin pin, const uint8_t value, const uint16_t freq/*=50*/) 
 
   if (isnan(value)) return true;
 
-  const float ulValue = (float)value / 255.0;
+  const float ulValue = constrain((float)value / 255.0, 0.0, 1.0);
   const PinDescription& pinDesc = g_APinDescription[pin];
   const uint32_t attr = pinDesc.ulPinAttribute;
 
@@ -500,124 +506,67 @@ HAL_TEMP_TIMER_ISR {
 
   #if HAS_TEMP_HOTEND
     static uint8_t  pwm_heater_pos[HOTENDS] = { 0 };
-    static bool     pwm_heater_hd[HOTENDS]  =
-      #if ENABLED(INVERTED_HEATER_PINS)
-        ARRAY_BY_HOTENDS(false)
-      #else
-        ARRAY_BY_HOTENDS(true)
-      #endif
-    ;
+    static bool     pwm_heater_hd[HOTENDS]  = ARRAY_BY_HOTENDS(true);
   #endif
   #if HAS_HEATER_BED
     static uint8_t  pwm_bed_pos = 0;
-    static bool     pwm_bed_hd  =
-      #if ENABLED(INVERTED_BED_PIN)
-        false
-      #else
-        true
-      #endif
-    ;
+    static bool     pwm_bed_hd  = true;
   #endif
   #if HAS_HEATER_CHAMBER
     static uint8_t  pwm_chamber_pos = 0;
-    static bool     pwm_chamber_hd  =
-      #if ENABLED(INVERTED_CHAMBER_PIN)
-        false
-      #else
-        true
-      #endif
-    ;
+    static bool     pwm_chamber_hd  = true;
   #endif
   #if HAS_COOLER
     static uint8_t  pwm_cooler_pos = 0;
-    static bool     pwm_cooler_hd  =
-      #if ENABLED(INVERTED_COOLER_PIN)
-        false
-      #else
-        true
-      #endif
-    ;
-  #endif
-  #if FAN_COUNT > 0
-    static uint8_t  pwm_fan_pos[FAN_COUNT]  = { 0 };
-    static bool     pwm_fan_hd[FAN_COUNT]   =
-      #if ENABLED(INVERTED_FAN_PIN)
-        ARRAY_BY_FANS(false)
-      #else
-        ARRAY_BY_FANS(true)
-      #endif
-    ;
-  #endif
-  #if HAS_CONTROLLERFAN
-    static uint8_t  pwm_controller_pos = 0;
-    static bool     pwm_controller_hd  =
-      #if ENABLED(INVERTED_FAN_PIN)
-        false
-      #else
-        true
-      #endif
-    ;
+    static bool     pwm_cooler_hd  = true;
   #endif
 
   #if ENABLED(FILAMENT_SENSOR)
     static unsigned long raw_filwidth_value = 0;
   #endif
 
-  /**
-   * Harware PWM or TC
-   */
-  #if HOTENDS > 0
-    if (pwm_heater_hd[0])
-      pwm_heater_hd[0] = HAL::analogWrite(HEATER_0_PIN, thermalManager.soft_pwm[0], HEATER_PWM_FREQ);
-    #if HOTENDS > 1
-      if (pwm_heater_hd[1])
-        pwm_heater_hd[1] = HAL::analogWrite(HEATER_1_PIN, thermalManager.soft_pwm[1], HEATER_PWM_FREQ);
-      #if HOTENDS > 2
-        if (pwm_heater_hd[2])
-          pwm_heater_hd[2] = HAL::analogWrite(HEATER_2_PIN, thermalManager.soft_pwm[2], HEATER_PWM_FREQ);
-        #if HOTENDS > 3
-          if (pwm_heater_hd[3])
-            pwm_heater_hd[3] = HAL::analogWrite(HEATER_3_PIN, thermalManager.soft_pwm[3], HEATER_PWM_FREQ);
+  #if ENABLED(PWM_HARDWARE)
+
+    /**
+     * Harware PWM or TC
+     */
+    #if HOTENDS > 0
+      if (pwm_heater_hd[0])
+        pwm_heater_hd[0] = HAL::analogWrite(HEATER_0_PIN, (HEATER_ON) ? thermalManager.soft_pwm[0] : 255 - thermalManager.soft_pwm[0], HEATER_PWM_FREQ);
+      #if HOTENDS > 1
+        if (pwm_heater_hd[1])
+          pwm_heater_hd[1] = HAL::analogWrite(HEATER_1_PIN, (HEATER_ON) ? thermalManager.soft_pwm[1] : 255 - thermalManager.soft_pwm[1], HEATER_PWM_FREQ);
+        #if HOTENDS > 2
+          if (pwm_heater_hd[2])
+            pwm_heater_hd[2] = HAL::analogWrite(HEATER_2_PIN, (HEATER_ON) ? thermalManager.soft_pwm[2] : 255 - thermalManager.soft_pwm[2], HEATER_PWM_FREQ);
+          #if HOTENDS > 3
+            if (pwm_heater_hd[3])
+              pwm_heater_hd[3] = HAL::analogWrite(HEATER_3_PIN, (HEATER_ON) ? thermalManager.soft_pwm[3] : 255 - thermalManager.soft_pwm[3], HEATER_PWM_FREQ);
+          #endif
         #endif
       #endif
     #endif
-  #endif
 
-  #if HAS_HEATER_BED && HAS_TEMP_BED
-    if (pwm_bed_hd)
-      pwm_bed_hd = HAL::analogWrite(HEATER_BED_PIN, thermalManager.soft_pwm_bed, HEATER_PWM_FREQ);
-  #endif
+    #if HAS_HEATER_BED && HAS_TEMP_BED
+      if (pwm_bed_hd)
+        pwm_bed_hd = HAL::analogWrite(HEATER_BED_PIN, (BED_ON) ? thermalManager.soft_pwm_bed : 255 - thermalManager.soft_pwm_bed, HEATER_PWM_FREQ);
+    #endif
 
-  #if HAS_HEATER_CHAMBER && HAS_TEMP_CHAMBER
-    if (pwm_chamber_hd)
-      pwm_chamber_hd = HAL::analogWrite(HEATER_CHAMBER_PIN, thermalManager.soft_pwm_chamber, HEATER_PWM_FREQ);
-  #endif
+    #if HAS_HEATER_CHAMBER && HAS_TEMP_CHAMBER
+      if (pwm_chamber_hd)
+        pwm_chamber_hd = HAL::analogWrite(HEATER_CHAMBER_PIN, (CHAMBER_ON) ? thermalManager.soft_pwm_chamber : 255 - thermalManager.soft_pwm_chamber, HEATER_PWM_FREQ);
+    #endif
 
-  #if HAS_COOLER && HAS_TEMP_COOLER
-    if (pwm_cooler_hd)
-      pwm_cooler_hd = HAL::analogWrite(COOLER_PIN, thermalManager.soft_pwm_cooler, HEATER_PWM_FREQ);
-  #endif
+    #if HAS_COOLER && HAS_TEMP_COOLER
+      if (pwm_cooler_hd)
+        pwm_cooler_hd = HAL::analogWrite(COOLER_PIN, (COOLER_ON) ? thermalManager.soft_pwm_cooler : 255 - thermalManager.soft_pwm_cooler, HEATER_PWM_FREQ);
+    #endif
 
-  #if HAS_FAN0
-    if (pwm_fan_hd[0])
-      pwm_fan_hd[0] = HAL::analogWrite(FAN_PIN, printer.fanSpeeds[0], FAN_PWM_FREQ);
-  #endif
-  #if HAS_FAN1
-    if (pwm_fan_hd[1])
-      pwm_fan_hd[1] = HAL::analogWrite(FAN1_PIN, printer.fanSpeeds[1], FAN_PWM_FREQ);
-  #endif
-  #if HAS_FAN2
-    if (pwm_fan_hd[2])
-      pwm_fan_hd[2] = HAL::analogWrite(FAN2_PIN, printer.fanSpeeds[2], FAN_PWM_FREQ);
-  #endif
-  #if HAS_FAN3
-    if (pwm_fan_hd[3])
-      pwm_fan_hd[3] = HAL::analogWrite(FAN3_PIN, printer.fanSpeeds[3], FAN_PWM_FREQ);
-  #endif
-  #if HAS_CONTROLLERFAN
-    if (pwm_controller_hd)
-      pwm_controller_hd = HAL::analogWrite(CONTROLLERFAN_PIN, printer.controller_fanSpeeds, FAN_PWM_FREQ);
-  #endif
+    #if FAN_COUNT > 0
+      fans.SetHardwarePwm();
+    #endif
+
+  #endif // PWM_HARDWARE
 
   /**
    * Standard PWM modulation
@@ -634,7 +583,7 @@ HAL_TEMP_TIMER_ISR {
             WRITE_HEATER_2(HIGH);
           #if HOTENDS > 3
             if (!pwm_heater_hd[3] && ((pwm_heater_pos[3] = (thermalManager.soft_pwm[3] & HEATER_PWM_MASK)) > 0))
-              WRITE_HEATER_0(HIGH);
+              WRITE_HEATER_3(HIGH);
           #endif
         #endif
       #endif
@@ -658,86 +607,63 @@ HAL_TEMP_TIMER_ISR {
   }
 
   if (pwm_count_fan == 0) {
-    #if HAS_FAN0
-      if (!pwm_fan_hd[0] && ((pwm_fan_pos[0] = (printer.fanSpeeds[0] & FAN_PWM_MASK)) > 0))
-        WRITE_FAN(HIGH);
-    #endif
-    #if HAS_FAN1
-      if (!pwm_fan_hd[1] && ((pwm_fan_pos[1] = (printer.fanSpeeds[1] & FAN_PWM_MASK)) > 0))
-        WRITE_FAN1(HIGH);
-    #endif
-    #if HAS_FAN2
-      if (!pwm_fan_hd[2] && ((pwm_fan_pos[2] = (printer.fanSpeeds[2] & FAN_PWM_MASK)) > 0))
-        WRITE_FAN2(HIGH);
-    #endif
-    #if HAS_FAN3
-      if (!pwm_fan_hd[3] && ((pwm_fan_pos[3] = (printer.fanSpeeds[3] & FAN_PWM_MASK)) > 0))
-        WRITE_FAN3(HIGH);
-    #endif
-    #if HAS_CONTROLLERFAN
-      if (!pwm_controller_hd && ((pwm_controller_pos = (printer.controller_fanSpeeds & FAN_PWM_MASK)) > 0))
-        WRITE(CONTROLLERFAN_PIN, HIGH);
+    #if FAN_COUNT >0
+      LOOP_FAN() {
+        if (!fans.pwm_hardware[f] && ((fans.pwm_pos[f] = (fans.Speed[f] & FAN_PWM_MASK)) > 0))
+          HAL::digitalWrite(fans.pin[f], FAN_ON);
+      }
     #endif
   }
 
   #if HOTENDS > 0
-    if (!pwm_heater_hd[0] && pwm_heater_pos[0] == pwm_count_heater && pwm_heater_pos[0] != HEATER_PWM_MASK) WRITE_HEATER_0(LOW);
+    if (!pwm_heater_hd[0] && pwm_heater_pos[0] == pwm_count_heater && pwm_heater_pos[0] != HEATER_PWM_MASK)
+      WRITE_HEATER_0(LOW);
     #if HOTENDS > 1
-      if (!pwm_heater_hd[1] && pwm_heater_pos[1] == pwm_count_heater && pwm_heater_pos[1] != HEATER_PWM_MASK) WRITE_HEATER_1(LOW);
+      if (!pwm_heater_hd[1] && pwm_heater_pos[1] == pwm_count_heater && pwm_heater_pos[1] != HEATER_PWM_MASK)
+        WRITE_HEATER_1(LOW);
       #if HOTENDS > 2
-        if (!pwm_heater_hd[2] && pwm_heater_pos[2] == pwm_count_heater && pwm_heater_pos[2] != HEATER_PWM_MASK) WRITE_HEATER_2(LOW);
+        if (!pwm_heater_hd[2] && pwm_heater_pos[2] == pwm_count_heater && pwm_heater_pos[2] != HEATER_PWM_MASK)
+          WRITE_HEATER_2(LOW);
         #if HOTENDS > 3
-          if (!pwm_heater_hd[3] && pwm_heater_pos[3] == pwm_count_heater && pwm_heater_pos[3] != HEATER_PWM_MASK) WRITE_HEATER_3(LOW);
+          if (!pwm_heater_hd[3] && pwm_heater_pos[3] == pwm_count_heater && pwm_heater_pos[3] != HEATER_PWM_MASK)
+            WRITE_HEATER_3(LOW);
         #endif
       #endif
     #endif
   #endif
 
   #if HAS_HEATER_BED && HAS_TEMP_BED
-    if (!pwm_bed_hd && pwm_bed_pos == pwm_count_heater && pwm_bed_pos != HEATER_PWM_MASK) WRITE_HEATER_BED(LOW);
+    if (!pwm_bed_hd && pwm_bed_pos == pwm_count_heater && pwm_bed_pos != HEATER_PWM_MASK)
+      WRITE_HEATER_BED(LOW);
   #endif
 
   #if HAS_HEATER_CHAMBER && HAS_TEMP_CHAMBER
-    if (!pwm_chamber_hd && pwm_chamber_pos == pwm_count_heater && pwm_chamber_pos != HEATER_PWM_MASK) WRITE_HEATER_CHAMBER(LOW);
+    if (!pwm_chamber_hd && pwm_chamber_pos == pwm_count_heater && pwm_chamber_pos != HEATER_PWM_MASK)
+      WRITE_HEATER_CHAMBER(LOW);
   #endif
 
   #if HAS_COOLER && !ENABLED(FAST_PWM_COOLER) && HAS_TEMP_COOLER
-    if (!pwm_cooler_hd && pwm_cooler_pos == pwm_count_heater && pwm_cooler_pos != HEATER_PWM_MASK) WRITE_COOLER(LOW);
+    if (!pwm_cooler_hd && pwm_cooler_pos == pwm_count_heater && pwm_cooler_pos != HEATER_PWM_MASK)
+      WRITE_COOLER(LOW);
   #endif
 
-  #if ENABLED(FAN_KICKSTART_TIME)
-    if (printer.fanKickstart == 0)
+  #if FAN_COUNT > 0
+    LOOP_FAN() {
+      if (fans.Kickstart[f] == 0) {
+        if (!fans.pwm_hardware[f] && fans.pwm_pos[f] == pwm_count_fan && fans.pwm_pos[f] != FAN_PWM_MASK)
+          HAL::digitalWrite(fans.pin[f], FAN_OFF);
+      }
+    }
   #endif
-  {
-    #if HAS_FAN0
-      if (!pwm_fan_hd[0] && pwm_fan_pos[0] == pwm_count_fan && pwm_fan_pos[0] != FAN_PWM_MASK)
-        WRITE_FAN(LOW);
-    #endif
-    #if HAS_FAN1
-      if (!pwm_fan_hd[1] && pwm_fan_pos[1] == pwm_count_fan && pwm_fan_pos[1] != FAN_PWM_MASK)
-        WRITE_FAN1(LOW);
-    #endif
-    #if HAS_FAN2
-      if (!pwm_fan_hd[2] && pwm_fan_pos[2] == pwm_count_fan && pwm_fan_pos[2] != FAN_PWM_MASK)
-        WRITE_FAN2(LOW);
-    #endif
-    #if HAS_FAN3
-      if (!pwm_fan_hd[3] && pwm_fan_pos[3] == pwm_count_fan && pwm_fan_pos[3] != FAN_PWM_MASK)
-        WRITE_FAN3(LOW);
-    #endif
-    #if HAS_CONTROLLERFAN
-      if (!pwm_controller_hd && pwm_controller_pos == pwm_count_fan && printer.controller_fanSpeeds != FAN_PWM_MASK)
-        WRITE(CONTROLLERFAN_PIN, LOW);
-    #endif
-  }
 
   // Calculation cycle approximate a 100ms
   cycle_100ms++;
   if (cycle_100ms >= 390) {
     cycle_100ms = 0;
     HAL::execute_100ms = true;
-    #if ENABLED(FAN_KICKSTART_TIME)
-      if (printer.fanKickstart) printer.fanKickstart--;
+    #if ENABLED(FAN_KICKSTART_TIME) && FAN_COUNT > 0
+      LOOP_FAN()
+        if (fans.Kickstart[f]) fans.Kickstart[f]--;
     #endif
   }
 

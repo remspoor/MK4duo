@@ -1,9 +1,9 @@
 /**
- * MK4duo 3D Printer Firmware
+ * MK4duo Firmware for 3D Printer, Laser and CNC
  *
  * Based on Marlin, Sprinter and grbl
  * Copyright (C) 2011 Camiel Gubbels / Erik van der Zalm
- * Copyright (C) 2013 - 2017 Alberto Cotronei @MagoKimbra
+ * Copyright (C) 2013 Alberto Cotronei @MagoKimbra
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -44,20 +44,19 @@
    *  P<index> Fan index, if more than one fan
    */
   inline void gcode_M106(void) {
-    uint8_t speed = parser.seen('S') ? parser.value_ushort() : 255,
-            fan   = parser.seen('P') ? parser.value_ushort() : 0;
-
-    if (fan >= FAN_COUNT || printer.fanSpeeds[fan] == speed)
+    const uint8_t speed = parser.byteval('S', 255),
+                  fan   = parser.byteval('P', 0);
+    
+    if (fan >= FAN_COUNT || fans.Speed[fan] == speed)
       return;
 
     #if ENABLED(FAN_KICKSTART_TIME)
-      if (printer.fanKickstart == 0 && speed > printer.fanSpeeds[fan] && speed < 85) {
-        if (printer.fanSpeeds[fan]) printer.fanKickstart = FAN_KICKSTART_TIME / 100;
-        else                printer.fanKickstart = FAN_KICKSTART_TIME / 25;
+      if (fans.Kickstart[fan] == 0 && speed > fans.Speed[fan] && speed < 85) {
+        if (fans.Speed[fan])  fans.Kickstart[fan] = FAN_KICKSTART_TIME / 100;
+        else                  fans.Kickstart[fan] = FAN_KICKSTART_TIME / 25;
       }
     #endif
-
-    printer.fanSpeeds[fan] = CALC_FAN_SPEED();
+    fans.Speed[fan] = CALC_FAN_SPEED();
   }
 
   /**
@@ -65,7 +64,7 @@
    */
   inline void gcode_M107(void) {
     uint16_t p = parser.seen('P') ? parser.value_ushort() : 0;
-    if (p < FAN_COUNT) printer.fanSpeeds[p] = 0;
+    if (p < FAN_COUNT) fans.Speed[p] = 0;
   }
 
 #endif // FAN_COUNT > 0

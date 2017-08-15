@@ -1,9 +1,9 @@
 /**
- * MK4duo 3D Printer Firmware
+ * MK4duo Firmware for 3D Printer, Laser and CNC
  *
  * Based on Marlin, Sprinter and grbl
  * Copyright (C) 2011 Camiel Gubbels / Erik van der Zalm
- * Copyright (C) 2013 - 2017 Alberto Cotronei @MagoKimbra
+ * Copyright (C) 2013 Alberto Cotronei @MagoKimbra
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -51,19 +51,10 @@ inline void gcode_M42(void) {
   HAL::analogWrite(pin_number, pin_status);
 
   #if FAN_COUNT > 0
-    switch (pin_number) {
-      #if HAS_FAN0
-        case FAN_PIN: printer.fanSpeeds[0] = pin_status; break;
-      #endif
-      #if HAS_FAN1
-        case FAN1_PIN: printer.fanSpeeds[1] = pin_status; break;
-      #endif
-      #if HAS_FAN2
-        case FAN2_PIN: printer.fanSpeeds[2] = pin_status; break;
-      #endif
-      #if HAS_FAN3
-        case FAN3_PIN: printer.fanSpeeds[3] = pin_status; break;
-      #endif
+    LOOP_FAN() {
+      if (fans.pin[f] = pin_number) {
+        fans.Speed[f] = pin_status;
+      }
     }
   #endif
 }

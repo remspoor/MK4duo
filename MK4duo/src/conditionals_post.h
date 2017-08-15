@@ -1,9 +1,9 @@
 /**
- * MK4duo 3D Printer Firmware
+ * MK4duo Firmware for 3D Printer, Laser and CNC
  *
  * Based on Marlin, Sprinter and grbl
  * Copyright (C) 2011 Camiel Gubbels / Erik van der Zalm
- * Copyright (C) 2013 - 2017 Alberto Cotronei @MagoKimbra
+ * Copyright (C) 2013 Alberto Cotronei @MagoKimbra
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -486,11 +486,19 @@
   #define Z_PROBE_SPEED_SLOW  Z_PROBE_SPEED
 
   // Set the rectangle in which to probe
-  #define DELTA_PROBEABLE_RADIUS    (DELTA_PRINTABLE_RADIUS - 5)
-  #define LEFT_PROBE_BED_POSITION   -(DELTA_PROBEABLE_RADIUS)
-  #define RIGHT_PROBE_BED_POSITION  (DELTA_PROBEABLE_RADIUS)
-  #define FRONT_PROBE_BED_POSITION  -(DELTA_PROBEABLE_RADIUS)
-  #define BACK_PROBE_BED_POSITION   (DELTA_PROBEABLE_RADIUS)
+  #define DELTA_PROBEABLE_RADIUS     (DELTA_PRINTABLE_RADIUS - max(abs(X_PROBE_OFFSET_FROM_NOZZLE), abs(Y_PROBE_OFFSET_FROM_NOZZLE)))
+  #define LEFT_PROBE_BED_POSITION   -(mechanics.delta_probe_radius)
+  #define RIGHT_PROBE_BED_POSITION   (mechanics.delta_probe_radius)
+  #define FRONT_PROBE_BED_POSITION  -(mechanics.delta_probe_radius)
+  #define BACK_PROBE_BED_POSITION    (mechanics.delta_probe_radius)
+
+  #define X_MIN_POS -(mechanics.delta_print_radius)
+  #define X_MAX_POS  (mechanics.delta_print_radius)
+  #define Y_MIN_POS -(mechanics.delta_print_radius)
+  #define Y_MAX_POS  (mechanics.delta_print_radius)
+  #define Z_MAX_POS  (mechanics.delta_height)
+  #define Z_MIN_POS 0
+  #define E_MIN_POS 0
 
   #if ENABLED(WORKSPACE_OFFSETS)
     #undef WORKSPACE_OFFSETS
@@ -531,23 +539,6 @@
  */
 #if ENABLED(GRID_MAX_POINTS_X) && ENABLED(GRID_MAX_POINTS_Y)
   #define GRID_MAX_POINTS ((GRID_MAX_POINTS_X) * (GRID_MAX_POINTS_Y))
-#endif
-
-/**
- * Auto Bed Leveling
- */
-#if IS_KINEMATIC
-  // Check for this in the code instead
-  #define MIN_PROBE_X -mechanics.delta_print_radius
-  #define MAX_PROBE_X  mechanics.delta_print_radius
-  #define MIN_PROBE_Y -mechanics.delta_print_radius
-  #define MAX_PROBE_Y  mechanics.delta_print_radius
-#else
-  // Boundaries for probing based on set limits
-  #define MIN_PROBE_X (max(X_MIN_POS, X_MIN_POS + X_PROBE_OFFSET_FROM_NOZZLE))
-  #define MAX_PROBE_X (min(X_MAX_POS, X_MAX_POS + X_PROBE_OFFSET_FROM_NOZZLE))
-  #define MIN_PROBE_Y (max(Y_MIN_POS, Y_MIN_POS + Y_PROBE_OFFSET_FROM_NOZZLE))
-  #define MAX_PROBE_Y (min(Y_MAX_POS, Y_MAX_POS + Y_PROBE_OFFSET_FROM_NOZZLE))
 #endif
 
 /**
@@ -764,8 +755,10 @@
  */
 #if ENABLED(INVERTED_HEATER_PINS)
   #define WRITE_HEATER(pin, value) WRITE(pin, !value)
+  #define HEATER_ON false
 #else
   #define WRITE_HEATER(pin, value) WRITE(pin, value)
+  #define HEATER_ON true
 #endif
 #if HOTENDS > 0
   #define WRITE_HEATER_0P(v) WRITE_HEATER(HEATER_0_PIN, v)
@@ -787,68 +780,161 @@
 #if HAS_HEATER_BED
   #if ENABLED(INVERTED_BED_PIN)
     #define WRITE_HEATER_BED(v) WRITE(HEATER_BED_PIN,!v)
+    #define BED_ON false
   #else
     #define WRITE_HEATER_BED(v) WRITE(HEATER_BED_PIN,v)
+    #define BED_ON true
   #endif
 #endif
 #if HAS_HEATER_CHAMBER
   #if ENABLED(INVERTED_CHAMBER_PIN)
     #define WRITE_HEATER_CHAMBER(v) WRITE(HEATER_CHAMBER_PIN,!v)
+    #define CHAMBER_ON false
   #else
     #define WRITE_HEATER_CHAMBER(v) WRITE(HEATER_CHAMBER_PIN,v)
+    #define CHAMBER_ON true
   #endif
 #endif
 #if HAS_COOLER
   #if ENABLED(INVERTED_COOLER_PIN)
     #define WRITE_COOLER(v) WRITE(COOLER_PIN,!v)
+    #define COOLER_ON false
   #else
     #define WRITE_COOLER(v) WRITE(COOLER_PIN,v)
+    #define COOLER_ON true
   #endif
 #endif
 
 /**
- * Up to 4 PWM fans
+ * FANS
  */
-#if HAS_FAN3
-  #define FAN_COUNT 4
-#elif HAS_FAN2
-  #define FAN_COUNT 3
-#elif HAS_FAN1
-  #define FAN_COUNT 2
-#elif HAS_FAN0
-  #define FAN_COUNT 1
+#if HAS_FAN0
+  #define FAN0_COUNT 1
+  #define FAN0_INDEX 0
+  #define FAN0_CHANNEL FAN_PIN
+  #define FAN0_COMMA ,
 #else
-  #define FAN_COUNT 0
+  #define FAN0_COUNT 0
+  #define FAN0_INDEX
+  #define FAN0_CHANNEL
+  #define FAN0_COMMA
+#endif
+
+#if HAS_FAN1
+  #define FAN1_COUNT 1
+  #define FAN1_INDEX FAN0_COUNT
+  #define FAN1_CHANNEL FAN0_COMMA FAN1_PIN
+  #define FAN1_COMMA ,
+#else
+  #define FAN1_COUNT 0
+  #define FAN1_INDEX
+  #define FAN1_CHANNEL
+  #define FAN1_COMMA FAN0_COMMA
+#endif
+
+#if HAS_FAN2
+  #define FAN2_COUNT 1
+  #define FAN2_INDEX FAN0_COUNT+FAN1_COUNT
+  #define FAN2_CHANNEL FAN1_COMMA FAN2_PIN
+  #define FAN2_COMMA ,
+#else
+  #define FAN2_COUNT 0
+  #define FAN2_INDEX
+  #define FAN2_CHANNEL
+  #define FAN2_COMMA FAN1_COMMA
+#endif
+
+#if HAS_FAN3
+  #define FAN3_COUNT 1
+  #define FAN3_INDEX FAN0_COUNT+FAN1_COUNT+FAN2_COUNT
+  #define FAN3_CHANNEL FAN2_COMMA FAN3_PIN
+  #define FAN3_COMMA ,
+#else
+  #define FAN3_COUNT 0
+  #define FAN3_INDEX
+  #define FAN3_CHANNEL
+  #define FAN3_COMMA FAN2_COMMA
+#endif
+
+#if HAS_AUTO_FAN_0
+  #define AUTO_FAN0_COUNT 1
+  #define AUTO_FAN0_INDEX FAN0_COUNT+FAN1_COUNT+FAN2_COUNT+FAN3_COUNT
+  #define AUTO_FAN0_CHANNEL FAN3_COMMA H0_AUTO_FAN_PIN
+  #define AUTO_FAN0_COMMA ,
+#else
+  #define AUTO_FAN0_COUNT 0
+  #define AUTO_FAN0_INDEX
+  #define AUTO_FAN0_CHANNEL
+  #define AUTO_FAN0_COMMA FAN3_COMMA
+#endif
+
+#if HAS_AUTO_FAN_1
+  #define AUTO_FAN1_COUNT 1
+  #define AUTO_FAN1_INDEX FAN0_COUNT+FAN1_COUNT+FAN2_COUNT+FAN3_COUNT+AUTO_FAN0_COUNT
+  #define AUTO_FAN1_CHANNEL AUTO_FAN0_COMMA H1_AUTO_FAN_PIN
+  #define AUTO_FAN1_COMMA ,
+#else
+  #define AUTO_FAN1_COUNT 0
+  #define AUTO_FAN1_INDEX
+  #define AUTO_FAN1_CHANNEL
+  #define AUTO_FAN1_COMMA AUTO_FAN0_COMMA
+#endif
+
+#if HAS_AUTO_FAN_2
+  #define AUTO_FAN2_COUNT 1
+  #define AUTO_FAN2_INDEX FAN0_COUNT+FAN1_COUNT+FAN2_COUNT+FAN3_COUNT+AUTO_FAN0_COUNT+AUTO_FAN1_COUNT
+  #define AUTO_FAN2_CHANNEL AUTO_FAN1_COMMA H2_AUTO_FAN_PIN
+  #define AUTO_FAN2_COMMA ,
+#else
+  #define AUTO_FAN2_COUNT 0
+  #define AUTO_FAN2_INDEX
+  #define AUTO_FAN2_CHANNEL
+  #define AUTO_FAN2_COMMA AUTO_FAN1_COMMA
+#endif
+
+#if HAS_AUTO_FAN_3
+  #define AUTO_FAN3_COUNT 1
+  #define AUTO_FAN3_INDEX FAN0_COUNT+FAN1_COUNT+FAN2_COUNT+FAN3_COUNT+AUTO_FAN0_COUNT+AUTO_FAN1_COUNT+AUTO_FAN2_COUNT
+  #define AUTO_FAN3_CHANNEL AUTO_FAN2_COMMA H3_AUTO_FAN_PIN
+  #define AUTO_FAN3_COMMA ,
+#else
+  #define AUTO_FAN3_COUNT 0
+  #define AUTO_FAN3_INDEX
+  #define AUTO_FAN3_CHANNEL
+  #define AUTO_FAN3_COMMA AUTO_FAN2_COMMA
+#endif
+
+#if HAS_CONTROLLERFAN
+  #define CONTROLLER_COUNT 1
+  #define CONTROLLER_INDEX FAN0_COUNT+FAN1_COUNT+FAN2_COUNT+FAN3_COUNT+AUTO_FAN0_COUNT+AUTO_FAN1_COUNT+AUTO_FAN2_COUNT+AUTO_FAN3_COUNT
+  #define CONTROLLER_CHANNEL AUTO_FAN3_COMMA CONTROLLERFAN_PIN
+  #define CONTROLLER_COMMA ,
+#else
+  #define CONTROLLER_COUNT 0
+  #define CONTROLLER_INDEX
+  #define CONTROLLER_CHANNEL
+  #define CONTROLLER_COMMA AUTO_FAN3_COMMA
+#endif
+
+#define FAN_COUNT       (FAN0_COUNT+FAN1_COUNT+FAN2_COUNT+FAN3_COUNT+AUTO_FAN0_COUNT+AUTO_FAN1_COUNT+AUTO_FAN2_COUNT+AUTO_FAN3_COUNT+CONTROLLER_COUNT)
+#define AUTO_FAN_COUNT  (AUTO_FAN0_COUNT+AUTO_FAN1_COUNT+AUTO_FAN2_COUNT+AUTO_FAN3_COUNT)
+
+#if FAN_COUNT > 0
+  #define FANS_CHANNELS {FAN0_CHANNEL FAN1_CHANNEL FAN2_CHANNEL FAN3_CHANNEL AUTO_FAN0_CHANNEL AUTO_FAN1_CHANNEL AUTO_FAN2_CHANNEL AUTO_FAN3_CHANNEL CONTROLLER_CHANNEL }
+#else
+  #define FANS_CHANNELS { }
 #endif
 
 #if ENABLED(INVERTED_FAN_PINS)
   #define _WRITE_FAN(pin, v) WRITE(pin, !v)
+  #define FAN_INVERTED true
+  #define FAN_ON  LOW
+  #define FAN_OFF HIGH
 #else
   #define _WRITE_FAN(pin, v) WRITE(pin, v)
-#endif
-
-#if HAS_FAN0
-  #define WRITE_FAN(v) _WRITE_FAN(FAN_PIN, v)
-  #define WRITE_FAN0(v) WRITE_FAN(v)
-#endif
-#if HAS_FAN1
-  #define WRITE_FAN1(v) _WRITE_FAN(FAN1_PIN, v)
-#endif
-#if HAS_FAN2
-  #define WRITE_FAN2(v) _WRITE_FAN(FAN2_PIN, v)
-#endif
-#if HAS_FAN3
-  #define WRITE_FAN3(v) _WRITE_FAN(FAN3_PIN, v)
-#endif
-#define WRITE_FAN_N(n, v) WRITE_FAN##n(v)
-
-/**
- * Auto Fans pin
- */
-#if ENABLED(INVERTED_AUTO_FAN_PINS)
-  #define WRITE_AUTO_FAN(pin, v) do{ digitalWrite(pin, v ? 0 : 1); HAL::analogWrite(pin, 255 - v); }while(0)
-#else
-  #define WRITE_AUTO_FAN(pin, v) do{ digitalWrite(pin, v); HAL::analogWrite(pin, v); }while(0)
+  #define FAN_INVERTED false
+  #define FAN_ON  HIGH
+  #define FAN_OFF LOW
 #endif
 
 /**
@@ -1238,6 +1324,15 @@
   #define ANALOG_INPUT_CHANNELS {HOT0_ANALOG_CHANNEL HOT1_ANALOG_CHANNEL HOT2_ANALOG_CHANNEL HOT3_ANALOG_CHANNEL BED_ANALOG_CHANNEL CHAMBER_ANALOG_CHANNEL COOLER_ANALOG_CHANNEL FILAMENT_ANALOG_CHANNEL POWER_ANALOG_CHANNEL MCU_ANALOG_CHANNEL ADC_KEYPAD_ANALOG_CHANNEL}
 #else
   #define ANALOG_INPUT_CHANNELS { }
+#endif
+
+/**
+ * PWM HARDWARE
+ */
+#if ENABLED(PWM_HARDWARE) && ENABLED(SAM3X8E)
+  #define PWM_HARDWARE_ON true
+#else
+  #define PWM_HARDWARE_ON false
 #endif
 
 #endif /* _CONDITIONALS_POST_H_ */

@@ -1,9 +1,9 @@
 /**
- * MK4duo 3D Printer Firmware
+ * MK4duo Firmware for 3D Printer, Laser and CNC
  *
  * Based on Marlin, Sprinter and grbl
  * Copyright (C) 2011 Camiel Gubbels / Erik van der Zalm
- * Copyright (C) 2013 - 2017 Alberto Cotronei @MagoKimbra
+ * Copyright (C) 2013 Alberto Cotronei @MagoKimbra
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -70,8 +70,10 @@
       SERIAL_MSG(",\"params\": {\"NormPower\":");
     #endif
 
-    SERIAL_MSG(",\"fanPercent\":[");
-    SERIAL_VAL(printer.fanSpeeds[0]);
+    #if FAN_COUNT > 0
+      SERIAL_MSG(",\"fanPercent\":[");
+      SERIAL_VAL(fans.Speed[0]);
+    #endif
 
     SERIAL_MV("],\"speedFactor\":", mechanics.feedrate_percentage);
 

@@ -1,9 +1,9 @@
 /**
- * MK4duo 3D Printer Firmware
+ * MK4duo Firmware for 3D Printer, Laser and CNC
  *
  * Based on Marlin, Sprinter and grbl
  * Copyright (C) 2011 Camiel Gubbels / Erik van der Zalm
- * Copyright (C) 2013 - 2017 Alberto Cotronei @MagoKimbra
+ * Copyright (C) 2013 Alberto Cotronei @MagoKimbra
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -194,8 +194,8 @@ void Nozzle::clean(const uint8_t &pattern, const uint8_t &strokes, const float &
                 middle[]= NOZZLE_CLEAN_CIRCLE_MIDDLE;
 
     #if MECH(DELTA)
-      if (mechanics.current_position[Z_AXIS] > mechanics.clip_start_height)
-        mechanics.do_blocking_move_to_z(mechanics.clip_start_height);
+      if (mechanics.current_position[Z_AXIS] > mechanics.delta_clip_start_height)
+        mechanics.do_blocking_move_to_z(mechanics.delta_clip_start_height);
     #endif
 
     switch (pattern) {

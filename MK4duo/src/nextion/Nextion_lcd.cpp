@@ -1,9 +1,9 @@
 /**
- * MK4duo 3D Printer Firmware
+ * MK4duo Firmware for 3D Printer, Laser and CNC
  *
  * Based on Marlin, Sprinter and grbl
  * Copyright (C) 2011 Camiel Gubbels / Erik van der Zalm
- * Copyright (C) 2013 - 2017 Alberto Cotronei @MagoKimbra
+ * Copyright (C) 2013 Alberto Cotronei @MagoKimbra
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1010,8 +1010,8 @@
 
   #if FAN_COUNT > 0
     void setfanPopCallback(void *ptr) {
-      printer.fanSpeeds[0] = printer.fanSpeeds[0] ? 0 : 255;
-      Fantimer.enable(printer.fanSpeeds[0] ? false : true);
+      fans.Speed[0] = (fans.Speed[0] ? 0 : 255);
+      Fantimer.enable(fans.Speed[0] ? false : true);
     }
   #endif
 
@@ -1266,11 +1266,11 @@
         }
 
         #if FAN_COUNT > 0
-          if (PreviousfanSpeed != printer.fanSpeeds[0]) {
-            if (printer.fanSpeeds[0] > 0) {
+          if (PreviousfanSpeed != fans.Speed[0]) {
+            if (fans.Speed[0] > 0) {
               Fantimer.enable();
               ZERO(buffer);
-              temp = itostr3(((float)printer.fanSpeeds[0] / 255) * 100);
+              temp = itostr3(((float)fans.Speed[0] / 255) * 100);
               strcat(buffer, temp);
               strcat(buffer, "%");
               Fanspeed.setText(buffer);
@@ -1279,7 +1279,7 @@
               Fantimer.enable(false);
               Fanspeed.setText("");
             }
-            PreviousfanSpeed = printer.fanSpeeds[0];
+            PreviousfanSpeed = fans.Speed[0];
           }
         #endif
 

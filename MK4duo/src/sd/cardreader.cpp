@@ -1,9 +1,9 @@
 /**
- * MK4duo 3D Printer Firmware
+ * MK4duo Firmware for 3D Printer, Laser and CNC
  *
  * Based on Marlin, Sprinter and grbl
  * Copyright (C) 2011 Camiel Gubbels / Erik van der Zalm
- * Copyright (C) 2013 - 2017 Alberto Cotronei @MagoKimbra
+ * Copyright (C) 2013 Alberto Cotronei @MagoKimbra
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -434,9 +434,9 @@
 
       #if FAN_COUNT > 0
         LOOP_FAN() {
-          if (printer.fanSpeeds[f] > 0) {
+          if (fans.Speed[f] > 0) {
             char fanSp[20];
-            sprintf(fanSp, "M106 S%i P%i\n", (int)printer.fanSpeeds[f], (int)f);
+            sprintf(fanSp, "M106 S%i P%i\n", (int)fans.Speed[f], (int)f);
             fileRestart.write(fanSp);
           }
         }
@@ -456,11 +456,7 @@
       thermalManager.disable_all_heaters();
       thermalManager.disable_all_coolers();
       #if FAN_COUNT > 0
-        #if FAN_COUNT > 1
-          LOOP_FAN() printer.fanSpeeds[f] = 0;
-        #else
-          printer.fanSpeeds[0] = 0;
-        #endif
+        LOOP_FAN() fans.Speed[f] = 0;
       #endif
     }
   }

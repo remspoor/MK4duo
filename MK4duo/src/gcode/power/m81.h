@@ -1,9 +1,9 @@
 /**
- * MK4duo 3D Printer Firmware
+ * MK4duo Firmware for 3D Printer, Laser and CNC
  *
  * Based on Marlin, Sprinter and grbl
  * Copyright (C) 2011 Camiel Gubbels / Erik van der Zalm
- * Copyright (C) 2013 - 2017 Alberto Cotronei @MagoKimbra
+ * Copyright (C) 2013 Alberto Cotronei @MagoKimbra
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,11 +39,11 @@ inline void gcode_M81(void) {
   stepper.finish_and_disable();
 
   #if FAN_COUNT > 0
-    LOOP_FAN() printer.fanSpeeds[f] = 0;
-    #if ENABLED(PROBING_FANS_OFF)
-      printer.fans_paused = false;
-      ZERO(printer.paused_fanSpeeds);
-    #endif
+    LOOP_FAN() {
+      fans.Speed[f] = 0;
+      fans.paused_Speed[f] = 0;
+    }
+    fans.paused = false;
   #endif
 
   #if ENABLED(LASER)
@@ -61,7 +61,7 @@ inline void gcode_M81(void) {
 
   #if HAS(SUICIDE)
     stepper.synchronize();
-    suicide();
+    printer.suicide();
   #elif HAS_POWER_SWITCH
     powerManager.power_off();
   #endif

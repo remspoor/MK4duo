@@ -1,9 +1,9 @@
 /**
- * MK4duo 3D Printer Firmware
+ * MK4duo Firmware for 3D Printer, Laser and CNC
  *
  * Based on Marlin, Sprinter and grbl
  * Copyright (C) 2011 Camiel Gubbels / Erik van der Zalm
- * Copyright (C) 2013 - 2017 Alberto Cotronei @MagoKimbra
+ * Copyright (C) 2013 Alberto Cotronei @MagoKimbra
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -498,7 +498,7 @@ static void lcd_implementation_status_screen() {
 
       u8g.drawBitmapP(9, 1, STATUS_SCREENBYTEWIDTH, STATUS_SCREENHEIGHT,
         #if HAS_FAN0
-          blink && printer.fanSpeeds[0] ? status_screen0_bmp : status_screen1_bmp
+          blink && fans.Speed[0] ? status_screen0_bmp : status_screen1_bmp
         #else
           status_screen0_bmp
         #endif
@@ -524,7 +524,7 @@ static void lcd_implementation_status_screen() {
       #if HAS_FAN0
         if (PAGE_CONTAINS(20, 27)) {
           // Fan
-          const int16_t per = ((printer.fanSpeeds[0] + 1) * 100) / 256;
+          const int16_t per = ((fans.Speed[0] + 1) * 100) / 256;
           if (per) {
             u8g.setPrintPos(104, 27);
             lcd_print(itostr3(per));

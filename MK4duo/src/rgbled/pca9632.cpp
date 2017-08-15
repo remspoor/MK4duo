@@ -1,9 +1,9 @@
 /**
- * MK4duo 3D Printer Firmware
+ * MK4duo Firmware for 3D Printer, Laser and CNC
  *
  * Based on Marlin, Sprinter and grbl
  * Copyright (C) 2011 Camiel Gubbels / Erik van der Zalm
- * Copyright (C) 2013 - 2017 Alberto Cotronei @MagoKimbra
+ * Copyright (C) 2013 Alberto Cotronei @MagoKimbra
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -45,7 +45,7 @@
   #define PCA9632_PWM3        0x05
   #define PCA9632_GRPPWM      0x06
   #define PCA9632_GRPFREQ     0x07
-  #define PCA9632_LEDOUT      0X08
+  #define PCA9632_LEDOUT      0x08
   #define PCA9632_SUBADR1     0x09
   #define PCA9632_SUBADR2     0x0A
   #define PCA9632_SUBADR3     0x0B

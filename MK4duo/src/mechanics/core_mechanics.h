@@ -1,9 +1,9 @@
 /**
- * MK4duo 3D Printer Firmware
+ * MK4duo Firmware for 3D Printer, Laser and CNC
  *
  * Based on Marlin, Sprinter and grbl
  * Copyright (C) 2011 Camiel Gubbels / Erik van der Zalm
- * Copyright (C) 2013 - 2017 Alberto Cotronei @MagoKimbra
+ * Copyright (C) 2013 Alberto Cotronei @MagoKimbra
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -83,7 +83,7 @@
        * Prepare a single move and get ready for the next one
        * If Mesh Bed Leveling is enabled, perform a mesh move.
        */
-      void prepare_move_to_destination();
+      bool prepare_move_to_destination_mech_specific() override;
 
       /**
        * Set an axis' current position to its home position (after homing).

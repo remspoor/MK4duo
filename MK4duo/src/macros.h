@@ -1,9 +1,9 @@
 /**
- * MK4duo 3D Printer Firmware
+ * MK4duo Firmware for 3D Printer, Laser and CNC
  *
  * Based on Marlin, Sprinter and grbl
  * Copyright (C) 2011 Camiel Gubbels / Erik van der Zalm
- * Copyright (C) 2013 - 2017 Alberto Cotronei @MagoKimbra
+ * Copyright (C) 2013 Alberto Cotronei @MagoKimbra
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -52,8 +52,10 @@
 #define MECH(mech)    (MECHANISM == MECH_##mech)
 #define NOMECH(mech)  (MECHANISM != MECH_##mech)
 
-#define IS_SCARA      (MECH(MORGAN_SCARA) || MECH(MAKERARM_SCARA))
+#define IS_CARTESIAN  (MECH(CARTESIAN))
+
 #define IS_DELTA      (MECH(DELTA))
+#define IS_SCARA      (MECH(MORGAN_SCARA) || MECH(MAKERARM_SCARA))
 #define IS_KINEMATIC  (IS_DELTA || IS_SCARA)
 
 #define CORE_IS_XY    (MECH(COREXY) || MECH(COREYX))
@@ -61,7 +63,7 @@
 #define CORE_IS_YZ    (MECH(COREYZ) || MECH(COREZY))
 #define IS_CORE       (CORE_IS_XY || CORE_IS_XZ || CORE_IS_YZ)
 
-#define IS_CARTESIAN  (!IS_KINEMATIC && !IS_CORE)
+#define IS_MUVE3D     (MECH(MUVE3D))
 /********************************************************************/
 
 // Compiler warning on unused varable.

@@ -1,9 +1,9 @@
 /**
- * MK4duo 3D Printer Firmware
+ * MK4duo Firmware for 3D Printer, Laser and CNC
  *
  * Based on Marlin, Sprinter and grbl
  * Copyright (C) 2011 Camiel Gubbels / Erik van der Zalm
- * Copyright (C) 2013 - 2017 Alberto Cotronei @MagoKimbra
+ * Copyright (C) 2013 Alberto Cotronei @MagoKimbra
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -87,7 +87,7 @@
        * This calls buffer_line several times, adding
        * small incremental moves for DELTA.
        */
-      void prepare_move_to_destination();
+      bool prepare_move_to_destination_mech_specific() override;
 
       /**
        *  Plan a move to (X, Y, Z) and set the current_position
@@ -169,6 +169,12 @@
       void Convert_endstop_adj();
       void NormaliseEndstopAdjustments();
       float ComputeDerivative(unsigned int deriv, float ha, float hb, float hc);
+
+      void Calibration_cleanup(
+        #if HOTENDS > 1
+          const uint8_t old_tool_index
+        #endif
+      );
 
       /**
        * Print data

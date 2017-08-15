@@ -1,9 +1,9 @@
 /**
- * MK4duo 3D Printer Firmware
+ * MK4duo Firmware for 3D Printer, Laser and CNC
  *
  * Based on Marlin, Sprinter and grbl
  * Copyright (C) 2011 Camiel Gubbels / Erik van der Zalm
- * Copyright (C) 2013 - 2017 Alberto Cotronei @MagoKimbra
+ * Copyright (C) 2013 Alberto Cotronei @MagoKimbra
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -48,15 +48,15 @@
   #include "Configuration_Basic.h"
   #include "Configuration_Overall.h"
 
-  #if MECH(CARTESIAN)
+  #if IS_CARTESIAN
     #include "Configuration_Cartesian.h"
   #elif IS_CORE
     #include "Configuration_Core.h"
-  #elif MECH(DELTA)
+  #elif IS_DELTA
     #include "Configuration_Delta.h"
   #elif IS_SCARA
     #include "Configuration_Scara.h"
-  #elif MECH(MUVE3D)
+  #elif IS_MUVE3D
     #include "Configuration_Muve3D.h"
   #endif
 
@@ -98,10 +98,11 @@
 
 #include "src/tools/tools.h"
 #include "src/tools/nozzle.h"
+#include "src/fan/fan.h"
 #include "src/commands/commands.h"
 #include "src/mechanics/mechanics.h"
+#include "src/probe/probe.h"
 #include "src/bedlevel/bedlevel.h"
-#include "src/bedlevel/probe.h"
 #include "src/eeprom/eeprom.h"
 #include "src/printcounter/duration_t.h"
 #include "src/printcounter/printcounter.h"
