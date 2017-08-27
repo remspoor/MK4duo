@@ -188,7 +188,7 @@ volatile long Stepper::endstops_trigsteps[XYZ];
 #endif
 
 #if ENABLED(Z_FOUR_STEPPER)
-  #define Z_APPLY_DIR(v,Q) { Z_DIR_WRITE(v); Z2_DIR_WRITE(v); Z3_DIR_WRITE(v); Z4_DIR_WRITE(v); }
+  #define Z_APPLY_DIR(v,Q) { Z_DIR_WRITE(v); Z2_DIR_WRITE(v != INVERT_Z2_VS_Z_DIR); Z3_DIR_WRITE(v != INVERT_Z3_VS_Z_DIR); Z4_DIR_WRITE(v != INVERT_Z4_VS_Z_DIR); }
   #if ENABLED(Z_FOUR_ENDSTOPS)
     #define Z_APPLY_STEP(v,Q) \
     if (performing_homing) { \
@@ -215,7 +215,7 @@ volatile long Stepper::endstops_trigsteps[XYZ];
     #define Z_APPLY_STEP(v,Q) do{ Z_STEP_WRITE(v); Z2_STEP_WRITE(v); Z3_STEP_WRITE(v); Z4_STEP_WRITE(v); }while(0)
   #endif
 #elif ENABLED(Z_THREE_STEPPER)
-  #define Z_APPLY_DIR(v,Q) { Z_DIR_WRITE(v); Z2_DIR_WRITE(v); Z3_DIR_WRITE(v); }
+  #define Z_APPLY_DIR(v,Q) { Z_DIR_WRITE(v); Z2_DIR_WRITE(v != INVERT_Z2_VS_Z_DIR); Z3_DIR_WRITE(v != INVERT_Z3_VS_Z_DIR); }
   #if ENABLED(Z_THREE_ENDSTOPS)
     #define Z_APPLY_STEP(v,Q) \
     if (performing_homing) { \
@@ -459,7 +459,7 @@ void Stepper::isr() {
 
   #if DISABLED(ADVANCE) || DISABLED(LIN_ADVANCE)
     // Allow UART ISRs
-    _DISABLE_ISRs();
+    HAL_DISABLE_ISRs();
   #endif
 
   #define _SPLIT(L) (ocr_val = (HAL_TIMER_TYPE)L)
@@ -498,7 +498,7 @@ void Stepper::isr() {
         NOLESS(OCR1A, TCNT1 + 16);
       #endif
 
-      _ENABLE_ISRs(); // re-enable ISRs
+      HAL_ENABLE_ISRs(); // re-enable ISRs
       return;
     }
   #endif
@@ -511,7 +511,7 @@ void Stepper::isr() {
       if (!cleaning_buffer_counter && (SD_FINISHED_STEPPERRELEASE)) commands.enqueue_and_echo_commands_P(PSTR(SD_FINISHED_RELEASECOMMAND));
     #endif
     _NEXT_ISR(HAL_STEPPER_TIMER_RATE / 10000); // Run at max speed - 10 KHz
-    _ENABLE_ISRs(); // re-enable ISRs
+    HAL_ENABLE_ISRs(); // re-enable ISRs
     return;
   }
 
@@ -574,7 +574,7 @@ void Stepper::isr() {
         if (current_block->steps[Z_AXIS] > 0) {
           enable_Z();
           _NEXT_ISR(HAL_STEPPER_TIMER_RATE / 1000); // Run at slow speed - 1 KHz
-          _ENABLE_ISRs(); // re-enable ISRs
+          HAL_ENABLE_ISRs(); // re-enable ISRs
           return;
         }
       #endif
@@ -589,7 +589,7 @@ void Stepper::isr() {
     }
     else {
       _NEXT_ISR(HAL_STEPPER_TIMER_RATE / 1000); // Run at slow speed - 1 KHz
-      _ENABLE_ISRs(); // re-enable ISRs
+      HAL_ENABLE_ISRs(); // re-enable ISRs
       return;
     }
   }
@@ -1050,7 +1050,7 @@ void Stepper::isr() {
   }
 
   #if DISABLED(ADVANCE) || DISABLED(LIN_ADVANCE)
-    _ENABLE_ISRs(); // re-enable ISRs
+    HAL_ENABLE_ISRs(); // re-enable ISRs
   #endif
 }
 
@@ -1155,7 +1155,7 @@ void Stepper::isr() {
   void Stepper::advance_isr_scheduler() {
 
     // Allow UART ISRs
-    _DISABLE_ISRs();
+    HAL_DISABLE_ISRs();
 
     // Run main stepping ISR if flagged
     if (!nextMainISR) isr();
@@ -1191,7 +1191,7 @@ void Stepper::isr() {
       NOLESS(OCR1A, TCNT1 + 16);
     #endif
 
-    _ENABLE_ISRs(); // re-enable ISRs
+    HAL_ENABLE_ISRs(); // re-enable ISRs
   }
 
 #endif // ADVANCE or LIN_ADVANCE

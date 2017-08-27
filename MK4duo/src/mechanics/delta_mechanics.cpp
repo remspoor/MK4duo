@@ -34,25 +34,25 @@
   Delta_Mechanics mechanics;
 
   void Delta_Mechanics::Init() {
-    delta_diagonal_rod              = DELTA_DIAGONAL_ROD;
-    delta_radius                    = DELTA_RADIUS;
-    delta_segments_per_second       = DELTA_SEGMENTS_PER_SECOND;
-    delta_print_radius              = DELTA_PRINTABLE_RADIUS;
-    delta_probe_radius              = DELTA_PROBEABLE_RADIUS;
-    delta_height                    = DELTA_HEIGHT;
-    delta_endstop_adj[A_AXIS]       = TOWER_A_ENDSTOP_ADJ;
-    delta_endstop_adj[B_AXIS]       = TOWER_B_ENDSTOP_ADJ;
-    delta_endstop_adj[C_AXIS]       = TOWER_C_ENDSTOP_ADJ;
-    delta_tower_radius_adj[A_AXIS]  = TOWER_A_RADIUS_ADJ;
-    delta_tower_radius_adj[B_AXIS]  = TOWER_B_RADIUS_ADJ;
-    delta_tower_radius_adj[C_AXIS]  = TOWER_C_RADIUS_ADJ;
-    delta_tower_pos_adj[A_AXIS]     = TOWER_A_POSITION_ADJ;
-    delta_tower_pos_adj[B_AXIS]     = TOWER_B_POSITION_ADJ;
-    delta_tower_pos_adj[C_AXIS]     = TOWER_C_POSITION_ADJ;
-    delta_diagonal_rod_adj[A_AXIS]  = TOWER_A_DIAGROD_ADJ;
-    delta_diagonal_rod_adj[B_AXIS]  = TOWER_B_DIAGROD_ADJ;
-    delta_diagonal_rod_adj[C_AXIS]  = TOWER_C_DIAGROD_ADJ;
-    delta_clip_start_height         = DELTA_HEIGHT;
+    delta_diagonal_rod              = (float)DELTA_DIAGONAL_ROD;
+    delta_radius                    = (float)DELTA_RADIUS;
+    delta_segments_per_second       = (float)DELTA_SEGMENTS_PER_SECOND;
+    delta_print_radius              = (float)DELTA_PRINTABLE_RADIUS;
+    delta_probe_radius              = (float)DELTA_PROBEABLE_RADIUS;
+    delta_height                    = (float)DELTA_HEIGHT;
+    delta_endstop_adj[A_AXIS]       = (float)TOWER_A_ENDSTOP_ADJ;
+    delta_endstop_adj[B_AXIS]       = (float)TOWER_B_ENDSTOP_ADJ;
+    delta_endstop_adj[C_AXIS]       = (float)TOWER_C_ENDSTOP_ADJ;
+    delta_tower_radius_adj[A_AXIS]  = (float)TOWER_A_RADIUS_ADJ;
+    delta_tower_radius_adj[B_AXIS]  = (float)TOWER_B_RADIUS_ADJ;
+    delta_tower_radius_adj[C_AXIS]  = (float)TOWER_C_RADIUS_ADJ;
+    delta_tower_pos_adj[A_AXIS]     = (float)TOWER_A_POSITION_ADJ;
+    delta_tower_pos_adj[B_AXIS]     = (float)TOWER_B_POSITION_ADJ;
+    delta_tower_pos_adj[C_AXIS]     = (float)TOWER_C_POSITION_ADJ;
+    delta_diagonal_rod_adj[A_AXIS]  = (float)TOWER_A_DIAGROD_ADJ;
+    delta_diagonal_rod_adj[B_AXIS]  = (float)TOWER_B_DIAGROD_ADJ;
+    delta_diagonal_rod_adj[C_AXIS]  = (float)TOWER_C_DIAGROD_ADJ;
+    delta_clip_start_height         = (float)DELTA_HEIGHT;
 
     recalc_delta_settings();
   }
@@ -60,6 +60,17 @@
   void Delta_Mechanics::set_position_mm(ARG_X, ARG_Y, ARG_Z, const float &e) {
     _set_position_mm(lx, ly, lz, e);
   }
+
+  bool Delta_Mechanics::position_is_reachable_raw_xy(const float &rx, const float &ry) {
+    return HYPOT2(rx, ry) <= sq(delta_print_radius);
+  }
+
+  bool Delta_Mechanics::position_is_reachable_by_probe_raw_xy(const float &rx, const float &ry) {
+    // Both the nozzle and the probe must be able to reach the point.
+    return position_is_reachable_raw_xy(rx, ry)
+        && position_is_reachable_raw_xy(rx - probe.offset[X_AXIS], ry - probe.offset[Y_AXIS]);
+  }
+
   void Delta_Mechanics::set_position_mm(const float position[NUM_AXIS]) {
     #if HAS_LEVELING
       float lpos[XYZ] = { position[X_AXIS], position[Y_AXIS], position[Z_AXIS] };
