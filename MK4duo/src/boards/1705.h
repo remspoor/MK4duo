@@ -5,7 +5,7 @@
 
 //###CHIP
 #if DISABLED(ARDUINO_ARCH_SAM)
-  #error Oops!  Make sure you have 'Alligator 3D Printer Board' selected from the 'Tools -> Boards' menu.
+  #error Oops!  Make sure you have 'Arduino Due' selected from the 'Tools -> Boards' menu.
 #endif
 //@@@
 
@@ -132,7 +132,7 @@
 #define ORIG_TEMP_COOLER_PIN -1
 
 //###FAN
-#define ORIG_FAN_PIN 6
+#define ORIG_FAN0_PIN 6
 #define ORIG_FAN1_PIN 5
 #define ORIG_FAN2_PIN -1
 #define ORIG_FAN3_PIN -1

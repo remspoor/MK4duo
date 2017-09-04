@@ -6,7 +6,7 @@
 
 //###CHIP
 #if DISABLED(ARDUINO_ARCH_SAM)
-  #error Oops!  Make sure you have 'Alligator 3D Printer Board' selected from the 'Tools -> Boards' menu.
+  #error Oops!  Make sure you have 'Arduino Due' selected from the 'Tools -> Boards' menu.
 #endif
 //@@@
 
@@ -133,7 +133,7 @@
 #define ORIG_TEMP_COOLER_PIN -1
 
 //###FAN
-#define ORIG_FAN_PIN 9
+#define ORIG_FAN0_PIN 9
 #define ORIG_FAN1_PIN -1
 #define ORIG_FAN2_PIN -1
 #define ORIG_FAN3_PIN -1
@@ -167,6 +167,7 @@
   #endif
 #endif
 //@@@
+
 
 //###IF_BLOCKS
 #if ENABLED(ULTRA_LCD)
@@ -235,7 +236,7 @@
       #define LCD_SDSS          53
       #define SD_DETECT_PIN     49
     #elif ENABLED(VIKI2) || ENABLED(miniVIKI)
-      #define ORIG_BEEPER_PIN        33
+      #define ORIG_BEEPER_PIN   33
 
       // Pins for DOGM SPI LCD Support
       #define DOGLCD_A0         44
@@ -267,7 +268,7 @@
       #define DOGLCD_A0         27
       #define LCD_BACKLIGHT_PIN 33
     #elif ENABLED(MINIPANEL)
-      #define ORIG_BEEPER_PIN        42
+      #define ORIG_BEEPER_PIN   42
       // Pins for DOGM SPI LCD Support
       #define DOGLCD_A0         44
       #define DOGLCD_CS         66
@@ -323,4 +324,3 @@
 
 #endif // ULTRA_LCD
 //@@@
-

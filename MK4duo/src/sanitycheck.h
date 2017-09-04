@@ -240,6 +240,9 @@
   #endif
 #endif
 #if (PIDTEMPBED)
+  #if !HAS_TEMP_BED
+    #error DEPENDENCY ERROR: Missing setting TEMP_SENSOR_BED
+  #endif
   #if DISABLED(DEFAULT_bedKp)
     #error DEPENDENCY ERROR: Missing setting DEFAULT_bedKp
   #endif
@@ -251,6 +254,9 @@
   #endif
 #endif
 #if (PIDTEMPCHAMBER)
+  #if !HAS_TEMP_CHAMBER
+    #error DEPENDENCY ERROR: Missing setting TEMP_SENSOR_CHAMBER
+  #endif
   #if DISABLED(DEFAULT_chamberKp)
     #error DEPENDENCY ERROR: Missing setting DEFAULT_chamberKp
   #endif
@@ -263,6 +269,9 @@
 
 #endif
 #if (PIDTEMPCOOLER)
+  #if !HAS_TEMP_COOLER
+    #error DEPENDENCY ERROR: Missing setting TEMP_SENSOR_COOLER
+  #endif
   #if DISABLED(DEFAULT_coolerKp)
     #error DEPENDENCY ERROR: Missing setting DEFAULT_coolerKp
   #endif
@@ -1598,19 +1607,19 @@ static_assert(1 >= 0
  * Make sure auto fan pins don't conflict with the fan pin
  */
 #if HAS_AUTO_FAN && HAS_FAN
-  #if H0_AUTO_FAN_PIN == FAN_PIN
-    #error CONFLICT ERROR: You cannot set H0_AUTO_FAN_PIN equal to FAN_PIN.
-  #elif H1_AUTO_FAN_PIN == FAN_PIN
-    #error CONFLICT ERROR: You cannot set H1_AUTO_FAN_PIN equal to FAN_PIN.
-  #elif H2_AUTO_FAN_PIN == FAN_PIN
-    #error CONFLICT ERROR: You cannot set H2_AUTO_FAN_PIN equal to FAN_PIN.
-  #elif H3_AUTO_FAN_PIN == FAN_PIN
-    #error CONFLICT ERROR: You cannot set H3_AUTO_FAN_PIN equal to FAN_PIN.
+  #if H0_AUTO_FAN_PIN == FAN0_PIN
+    #error CONFLICT ERROR: You cannot set H0_AUTO_FAN_PIN equal to FAN0_PIN.
+  #elif H1_AUTO_FAN_PIN == FAN0_PIN
+    #error CONFLICT ERROR: You cannot set H1_AUTO_FAN_PIN equal to FAN0_PIN.
+  #elif H2_AUTO_FAN_PIN == FAN0_PIN
+    #error CONFLICT ERROR: You cannot set H2_AUTO_FAN_PIN equal to FAN0_PIN.
+  #elif H3_AUTO_FAN_PIN == FAN0_PIN
+    #error CONFLICT ERROR: You cannot set H3_AUTO_FAN_PIN equal to FAN0_PIN.
   #endif
 #endif
 
-#if HAS_FAN && CONTROLLERFAN_PIN == FAN_PIN
-  #error CONFLICT ERROR: You cannot set CONTROLLERFAN_PIN equal to FAN_PIN.
+#if HAS_FAN && CONTROLLERFAN_PIN == FAN0_PIN
+  #error CONFLICT ERROR: You cannot set CONTROLLERFAN_PIN equal to FAN0_PIN.
 #endif
 
 /**
