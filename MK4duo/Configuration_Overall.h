@@ -343,9 +343,9 @@
 #define DISABLE_Z false
 #define DISABLE_E false
 //#define DISABLE_INACTIVE_EXTRUDER
-#define X_MAX_POS 380
+#define X_MAX_POS 340
 #define X_MIN_POS 0
-#define Y_MAX_POS 415
+#define Y_MAX_POS 410
 #define Y_MIN_POS 0
 #define Z_MAX_POS 300
 #define Z_MIN_POS 0
