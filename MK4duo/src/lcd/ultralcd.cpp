@@ -1956,9 +1956,12 @@ void kill_screen(const char* lcd_msg) {
       MENU_ITEM_EDIT(float43, "Ez", &mechanics.delta_endstop_adj[C_AXIS], -5.0, 0.0);
       MENU_ITEM_EDIT(float52, MSG_DELTA_DIAG_ROG, &mechanics.delta_diagonal_rod, DELTA_DIAGONAL_ROD - 5.0, DELTA_DIAGONAL_ROD + 5.0);
       MENU_ITEM_EDIT(float52, MSG_DELTA_RADIUS, &mechanics.delta_radius, DELTA_RADIUS - 5.0, DELTA_RADIUS + 5.0);
-      MENU_ITEM_EDIT(float43, "Tx", &mechanics.delta_tower_radius_adj[A_AXIS], -5.0, 5.0);
-      MENU_ITEM_EDIT(float43, "Ty", &mechanics.delta_tower_radius_adj[B_AXIS], -5.0, 5.0);
-      MENU_ITEM_EDIT(float43, "Tz", &mechanics.delta_tower_radius_adj[C_AXIS], -5.0, 5.0);
+      MENU_ITEM_EDIT(float43, "Tx (deg)", &mechanics.delta_tower_angle_adj[A_AXIS], -5.0, 5.0);
+      MENU_ITEM_EDIT(float43, "Ty (deg)", &mechanics.delta_tower_angle_adj[B_AXIS], -5.0, 5.0);
+      MENU_ITEM_EDIT(float43, "Tz (deg)", &mechanics.delta_tower_angle_adj[C_AXIS], -5.0, 5.0);
+      MENU_ITEM_EDIT(float43, "Tx (radius)", &mechanics.delta_tower_radius_adj[A_AXIS], -5.0, 5.0);
+      MENU_ITEM_EDIT(float43, "Ty (radius)", &mechanics.delta_tower_radius_adj[B_AXIS], -5.0, 5.0);
+      MENU_ITEM_EDIT(float43, "Tz (radius)", &mechanics.delta_tower_radius_adj[C_AXIS], -5.0, 5.0);
       END_MENU();
     }
 
@@ -4323,29 +4326,4 @@ void lcd_reset_alert_level() { lcd_status_message_level = 0; }
     return 0;
   }
 
-#endif
-
-#if HAS_SDSUPPORT
-  void set_sd_dot() {
-    #if ENABLED(DOGLCD)
-      u8g.firstPage();
-      do {
-        u8g.setColorIndex(1);
-        u8g.drawPixel(0, 0); // draw sd dot
-        u8g.setColorIndex(1); // black on white
-        (*currentScreen)();
-      } while( u8g.nextPage() );
-    #endif
-  }
-  void unset_sd_dot() {
-    #if ENABLED(DOGLCD)
-      u8g.firstPage();
-      do {
-        u8g.setColorIndex(0);
-        u8g.drawPixel(0, 0); // draw sd dot
-        u8g.setColorIndex(1); // black on white
-        (*currentScreen)();
-      } while( u8g.nextPage() );
-    #endif
-  }
 #endif

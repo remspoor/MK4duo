@@ -711,7 +711,7 @@ void Temperature::print_heaterstates() {
       #if ENABLED(SHOW_TEMP_ADC_VALUES)
         heaters[TRG_EXTRUDER_IDX].current_temperature_raw,
       #endif
-      TRG_EXTRUDER_IDX
+      -1
     );
   #endif
 
@@ -1229,12 +1229,12 @@ void Temperature::print_heater_state(const float &c, const int16_t &t,
   const int8_t h
 ) {
   SERIAL_CHR(' ');
-  
+
   #if HAS_TEMP_HOTEND
     if (h < HOTENDS) {
       SERIAL_CHR('T');
       #if HOTENDS > 1
-        SERIAL_CHR('0' + h);
+        if (h >= 0) SERIAL_VAL((int)h);
       #endif
     }
   #endif

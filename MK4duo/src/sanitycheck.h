@@ -1430,15 +1430,6 @@ static_assert(1 >= 0
   #if DISABLED(TOWER_C_ENDSTOP_ADJ)
     #error DEPENDENCY ERROR: Missing setting TOWER_C_ENDSTOP_ADJ
   #endif
-  #if DISABLED(TOWER_A_POSITION_ADJ)
-    #error DEPENDENCY ERROR: Missing setting TOWER_A_POSITION_ADJ
-  #endif
-  #if DISABLED(TOWER_B_POSITION_ADJ)
-    #error DEPENDENCY ERROR: Missing setting TOWER_B_POSITION_ADJ
-  #endif
-  #if DISABLED(TOWER_C_POSITION_ADJ)
-    #error DEPENDENCY ERROR: Missing setting TOWER_C_POSITION_ADJ
-  #endif
   #if DISABLED(TOWER_A_RADIUS_ADJ)
     #error DEPENDENCY ERROR: Missing setting TOWER_A_RADIUS_ADJ
   #endif
@@ -1447,6 +1438,15 @@ static_assert(1 >= 0
   #endif
   #if DISABLED(TOWER_C_RADIUS_ADJ)
     #error DEPENDENCY ERROR: Missing setting TOWER_C_RADIUS_ADJ
+  #endif
+  #if DISABLED(TOWER_A_ANGLE_ADJ)
+    #error DEPENDENCY ERROR: Missing setting TOWER_A_ANGLE_ADJ
+  #endif
+  #if DISABLED(TOWER_B_ANGLE_ADJ)
+    #error DEPENDENCY ERROR: Missing setting TOWER_B_ANGLE_ADJ
+  #endif
+  #if DISABLED(TOWER_C_ANGLE_ADJ)
+    #error DEPENDENCY ERROR: Missing setting TOWER_C_ANGLE_ADJ
   #endif
   #if DISABLED(TOWER_A_DIAGROD_ADJ)
     #error DEPENDENCY ERROR: Missing setting TOWER_A_DIAGROD_ADJ
@@ -1653,13 +1653,8 @@ static_assert(1 >= 0
 /**
  * EEPROM test
  */
-#if ENABLED(EEPROM_SETTINGS) && ENABLED(EEPROM_SD)
-  #if DISABLED(SDSUPPORT)
-    #error DEPENDENCY ERROR: You have to enable SDSUPPORT to use EEPROM_SD
-  #endif
-  #if ENABLED(SD_SETTINGS)
-    #error CONFLICT ERROR: "One for EEPROM_SD and SD_SETTINGS can is enable"
-  #endif
+#if DISABLED(SDSUPPORT) && ENABLED(EEPROM_SETTINGS) && ENABLED(EEPROM_SD)
+  #error DEPENDENCY ERROR: You have to enable SDSUPPORT to use EEPROM_SD
 #endif
 
 #if MECH(COREXZ) && ENABLED(Z_LATE_ENABLE)
