@@ -35,7 +35,7 @@
 
     public: /** Constructor */
 
-      Core_Mechanics() {};
+      Core_Mechanics() {}
 
     public: /** Public Parameters */
 
@@ -99,14 +99,12 @@
         float x_home_pos(const int extruder);
       #endif
 
-    private: /** Private Parameters */
-
     private: /** Private Function */
 
       /**
        *  Home axis
        */
-      void homeaxis(const AxisEnum axis);
+      void homeaxis(const AxisEnum axis) override;
 
       /**
        * Prepare a linear move in a Cartesian setup.

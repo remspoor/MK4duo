@@ -449,8 +449,8 @@ static bool report_pin_name(int8_t pin, bool &pin_is_analog) {
   #if PIN_EXISTS(MAIN_VOLTAGE_MEASURE)
     PIN_SAY(MAIN_VOLTAGE_MEASURE_PIN);
   #endif
-  #if ENABLED(MAX6675_SS) && MAX6675_SS >= 0
-    PIN_SAY(MAX6675_SS);
+  #if PIN_EXISTS(MAX6675_SS)
+    PIN_SAY(MAX6675_SS_PIN);
   #endif
   #if PIN_EXISTS(MISO)
     PIN_SAY(MISO_PIN);
@@ -564,7 +564,7 @@ static bool report_pin_name(int8_t pin, bool &pin_is_analog) {
     PIN_SAY(SUICIDE_PIN);
   #endif
 
-  #if ENABLED(ARDUINO_ARCH_AVR)
+  #if ENABLED(__AVR__)
     #if ENABLED(TC1) && TC1 >= 0
       ANALOG_PIN_SAY(TC1);
     #endif

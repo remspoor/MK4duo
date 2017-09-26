@@ -78,13 +78,13 @@ void Mechanics::set_position_mm(const AxisEnum axis, const float &v) {
 
 }
 void Mechanics::set_position_mm(ARG_X, ARG_Y, ARG_Z, const float &e) {
-  #if HAS_LEVELING
+  #if PLANNER_LEVELING
     bedlevel.apply_leveling(lx, ly, lz);
   #endif
   _set_position_mm(lx, ly, lz, e);
 }
 void Mechanics::set_position_mm(const float position[NUM_AXIS]) {
-  #if HAS_LEVELING
+  #if PLANNER_LEVELING
     float lpos[XYZ] = { position[X_AXIS], position[Y_AXIS], position[Z_AXIS] };
     bedlevel.apply_leveling(lpos);
   #else
@@ -114,7 +114,7 @@ void Mechanics::get_cartesian_from_steppers() {
  */
 void Mechanics::set_current_from_steppers_for_axis(const AxisEnum axis) {
   get_cartesian_from_steppers();
-  #if HAS_LEVELING
+  #if PLANNER_LEVELING
     bedlevel.unapply_leveling(cartesian_position);
   #endif
   if (axis == ALL_AXES)
@@ -167,7 +167,13 @@ void Mechanics::prepare_move_to_destination() {
     }
   #endif
 
-  if (mechanics.prepare_move_to_destination_mech_specific()) return;
+  if (
+    #if UBL_DELTA
+      ubl.prepare_segmented_line_to(destination, feedrate_mm_s)
+    #else
+      mechanics.prepare_move_to_destination_mech_specific()
+    #endif
+  ) return;
 
   set_current_to_destination();
 }
@@ -200,7 +206,7 @@ void Mechanics::do_blocking_move_to(const float &lx, const float &ly, const floa
   const float old_feedrate_mm_s = feedrate_mm_s;
 
   #if ENABLED(DEBUG_LEVELING_FEATURE)
-    if (DEBUGGING(LEVELING)) bedlevel.print_xyz(PSTR(">>> do_blocking_move_to"), NULL, lx, ly, lz);
+    if (DEBUGGING(LEVELING)) print_xyz(PSTR(">>> do_blocking_move_to"), NULL, lx, ly, lz);
   #endif
 
   // If Z needs to raise, do it before moving XY
@@ -266,7 +272,6 @@ void Mechanics::manual_goto_xy(const float &x, const float &y) {
   #endif
 
   feedrate_mm_s = old_feedrate_mm_s;
-  stepper.synchronize();
 
   #if ENABLED(PROBE_MANUALLY) && ENABLED(LCD_BED_LEVELING) && ENABLED(ULTRA_LCD)
     lcd_wait_for_move = false;
@@ -327,6 +332,11 @@ void Mechanics::do_homing_move(const AxisEnum axis, const float distance, const 
     }
   #endif
 
+  #if HOMING_Z_WITH_PROBE && ENABLED(BLTOUCH)
+    const bool deploy_bltouch = (axis == Z_AXIS && distance < 0.0);
+    if (deploy_bltouch) probe.set_bltouch_deployed(true);
+  #endif
+
   #if QUIET_PROBING
     if (axis == Z_AXIS) probe.probing_pause(true);
   #endif
@@ -344,6 +354,10 @@ void Mechanics::do_homing_move(const AxisEnum axis, const float distance, const 
     if (axis == Z_AXIS) probe.probing_pause(false);
   #endif
 
+  #if HOMING_Z_WITH_PROBE && ENABLED(BLTOUCH)
+    if (deploy_bltouch) probe.set_bltouch_deployed(false);
+  #endif
+
   endstops.hit_on_purpose();
 
   #if ENABLED(DEBUG_LEVELING_FEATURE)
@@ -358,12 +372,10 @@ void Mechanics::do_homing_move(const AxisEnum axis, const float distance, const 
  * Report current position to host
  */
 void Mechanics::report_current_position() {
-  SERIAL_MV( "X:", current_position[X_AXIS]);
-  SERIAL_MV(" Y:", current_position[Y_AXIS]);
-  SERIAL_MV(" Z:", current_position[Z_AXIS]);
-  SERIAL_MV(" E:", current_position[E_AXIS]);
-
-  stepper.report_positions();
+  SERIAL_MV( "X:", current_position[X_AXIS], 2);
+  SERIAL_MV(" Y:", current_position[Y_AXIS], 2);
+  SERIAL_MV(" Z:", current_position[Z_AXIS], 3);
+  SERIAL_EMV(" E:", current_position[E_AXIS], 4);
 }
 void Mechanics::report_current_position_detail() {
 
@@ -378,7 +390,7 @@ void Mechanics::report_current_position_detail() {
 
   float leveled[XYZ] = { current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS] };
 
-  #if HAS_LEVELING
+  #if PLANNER_LEVELING
 
     SERIAL_MSG("Leveled:");
     bedlevel.apply_leveling(leveled);

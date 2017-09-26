@@ -38,10 +38,10 @@
 
 #include "../../base.h"
 
-#define EEPROM_VERSION "MKV36"
+#define EEPROM_VERSION "MKV37"
 
 /**
- * MKV431 EEPROM Layout:
+ * MKV437 EEPROM Layout:
  *
  *  Version (char x6)
  *  EEPROM Checksum (uint16_t)
@@ -60,7 +60,7 @@
  *  M205  Z               mechanics.max_jerk[Z_AXIS]            (float)
  *  M205  E   E0 ...      mechanics.max_jerk[E_AXIS * EXTRDURES](float x6)
  *  M206  XYZ             mechanics.home_offset                 (float x3)
- *  M218  T   XY          printer.hotend_offset                 (float x6)
+ *  M218  T   XY          tools.hotend_offset                   (float x6)
  *
  * Global Leveling:
  *                        z_fade_height                         (float)
@@ -73,7 +73,7 @@
  *  G29   S3  XYZ         z_values[][]                          (float x9, by default, up to float x 81) +288
  *
  * ABL_PLANAR:
- *                        bedlevel.matrix             (matrix_3x3 = float x9)
+ *                        bedlevel.matrix                       (matrix_3x3 = float x9)
  *
  * AUTO_BED_LEVELING_BILINEAR:
  *                        GRID_MAX_POINTS_X                     (uint8_t)
@@ -81,6 +81,11 @@
  *                        bedlevel.bilinear_grid_spacing        (int x2)   from G29: (B-F)/X, (R-L)/Y
  *  G29   L F             bedlevel.bilinear_start               (int x2)
  *                        bedlevel.z_values[][]                 (float x9, up to float x256)
+ *
+ * AUTO_BED_LEVELING_UBL:
+ *  G29 A                 ubl.state.active                      (bool)
+ *  G29 Z                 ubl.state.z_offset                    (float)
+ *  G29 S                 ubl.state.storage_slot                (int8_t)
  *
  * HAS_BED_PROBE:
  *  M851  XYZ             probe.offset                          (float x3)
@@ -220,6 +225,10 @@ void EEPROM::Postprocess() {
 
   bool EEPROM::eeprom_error = false;
 
+  #if ENABLED(AUTO_BED_LEVELING_UBL)
+    int EEPROM::meshes_begin = 0;
+  #endif
+
   void EEPROM::crc16(uint16_t *crc, const void * const data, uint16_t cnt) {
     uint8_t *ptr = (uint8_t *)data;
     while (cnt--) {
@@ -328,7 +337,7 @@ void EEPROM::Postprocess() {
     #if ENABLED(WORKSPACE_OFFSETS)
       EEPROM_WRITE(mechanics.home_offset);
     #endif
-    EEPROM_WRITE(printer.hotend_offset);
+    EEPROM_WRITE(tools.hotend_offset);
 
     //
     // General Leveling
@@ -376,6 +385,12 @@ void EEPROM::Postprocess() {
       EEPROM_WRITE(bedlevel.bilinear_start);         // 2 ints
       EEPROM_WRITE(bedlevel.z_values);               // 9-256 floats
     #endif // AUTO_BED_LEVELING_BILINEAR
+
+    #if ENABLED(AUTO_BED_LEVELING_UBL)
+      EEPROM_WRITE(ubl.state.active);
+      EEPROM_WRITE(ubl.state.z_offset);
+      EEPROM_WRITE(ubl.state.storage_slot);
+    #endif
 
     #if HAS_BED_PROBE
       EEPROM_WRITE(probe.offset);
@@ -641,7 +656,7 @@ void EEPROM::Postprocess() {
       #if ENABLED(WORKSPACE_OFFSETS)
         EEPROM_READ(mechanics.home_offset);
       #endif
-      EEPROM_READ(printer.hotend_offset);
+      EEPROM_READ(tools.hotend_offset);
 
       //
       // General Leveling
@@ -701,6 +716,12 @@ void EEPROM::Postprocess() {
           for (uint16_t q = grid_max_x * grid_max_y; q--;) EEPROM_READ(dummy);
         }
       #endif // AUTO_BED_LEVELING_BILINEAR
+
+      #if ENABLED(AUTO_BED_LEVELING_UBL)
+        EEPROM_READ(ubl.state.active);
+        EEPROM_READ(ubl.state.z_offset);
+        EEPROM_READ(ubl.state.storage_slot);
+      #endif
 
       #if HAS_BED_PROBE
         EEPROM_READ(probe.offset);
@@ -884,6 +905,44 @@ void EEPROM::Postprocess() {
         }
 
       #endif
+
+      #if ENABLED(AUTO_BED_LEVELING_UBL)
+
+        meshes_begin = (eeprom_index + 32) & 0xFFF8;  // Pad the end of configuration data so it
+                                                      // can float up or down a little bit without
+                                                      // disrupting the mesh data
+        ubl.report_state();
+
+        if (!ubl.sanity_check()) {
+          SERIAL_EOL();
+          #if ENABLED(EEPROM_CHITCHAT)
+            ubl.echo_name();
+            SERIAL_EM(" initialized.");
+          #endif
+        }
+        else {
+          #if ENABLED(EEPROM_CHITCHAT)
+            SERIAL_MSG("?Can't enable ");
+            ubl.echo_name();
+            SERIAL_EM(".");
+          #endif
+          ubl.reset();
+        }
+
+        if (ubl.state.storage_slot >= 0) {
+          load_mesh(ubl.state.storage_slot);
+          #if ENABLED(EEPROM_CHITCHAT)
+            SERIAL_MV("Mesh ", ubl.state.storage_slot);
+            SERIAL_EM(" loaded from storage.");
+          #endif
+        }
+        else {
+          ubl.reset();
+          #if ENABLED(EEPROM_CHITCHAT)
+            SERIAL_EM("UBL System reset()");
+          #endif
+        }
+      #endif
     }
 
     #if ENABLED(EEPROM_CHITCHAT)
@@ -892,6 +951,89 @@ void EEPROM::Postprocess() {
 
     return !eeprom_error;
   }
+
+  #if ENABLED(AUTO_BED_LEVELING_UBL)
+
+    #if ENABLED(EEPROM_CHITCHAT)
+      void ubl_invalid_slot(const int s) {
+        SERIAL_EM("?Invalid slot.");
+        SERIAL_VAL(s);
+        SERIAL_EM(" mesh slots available.");
+      }
+    #endif
+
+    int EEPROM::calc_num_meshes() {
+      if (meshes_begin <= 0) return 0;
+      return (meshes_end - meshes_begin) / sizeof(ubl.z_values);
+    }
+
+    void EEPROM::store_mesh(int8_t slot) {
+
+      #if ENABLED(AUTO_BED_LEVELING_UBL)
+        const int a = calc_num_meshes();
+        if (!WITHIN(slot, 0, a - 1)) {
+          #if ENABLED(EEPROM_CHITCHAT)
+            ubl_invalid_slot(a);
+            SERIAL_MV("E2END=", E2END);
+            SERIAL_MV(" meshes_end=", meshes_end);
+            SERIAL_EMV(" slot=", slot);
+          #endif
+          return;
+        }
+
+        uint16_t crc = 0;
+        int pos = meshes_end - (slot + 1) * sizeof(ubl.z_values);
+
+        write_data(pos, (uint8_t *)&ubl.z_values, sizeof(ubl.z_values), &crc);
+
+        // Write crc to MAT along with other data, or just tack on to the beginning or end
+
+        #if ENABLED(EEPROM_CHITCHAT)
+          SERIAL_EMV("Mesh saved in slot ", slot);
+        #endif
+
+      #else
+
+        // Other mesh types
+
+      #endif
+    }
+
+    void EEPROM::load_mesh(int8_t slot, void *into /* = 0 */) {
+
+      #if ENABLED(AUTO_BED_LEVELING_UBL)
+
+        const int16_t a = calc_num_meshes();
+
+        if (!WITHIN(slot, 0, a - 1)) {
+          #if ENABLED(EEPROM_CHITCHAT)
+            ubl_invalid_slot(a);
+          #endif
+          return;
+        }
+
+        uint16_t crc = 0;
+        int pos = meshes_end - (slot + 1) * sizeof(ubl.z_values);
+        uint8_t * const dest = into ? (uint8_t*)into : (uint8_t*)&ubl.z_values;
+        read_data(pos, dest, sizeof(ubl.z_values), &crc);
+
+        // Compare crc with crc from MAT, or read from end
+
+        #if ENABLED(EEPROM_CHITCHAT)
+          SERIAL_EMV("Mesh loaded from slot ", slot);
+        #endif
+
+      #else
+
+        // Other mesh types
+
+      #endif
+    }
+
+    //void MarlinSettings::delete_mesh() { return; }
+    //void MarlinSettings::defrag_meshes() { return; }
+
+  #endif // AUTO_BED_LEVELING_UBL
 
 #else // !EEPROM_SETTINGS
 
@@ -945,7 +1087,7 @@ void EEPROM::Factory_Settings() {
     "Offsets for the first hotend must be 0.0."
   );
   LOOP_XYZ(i) {
-    LOOP_HOTEND() printer.hotend_offset[i][h] = tmp10[i][h];
+    LOOP_HOTEND() tools.hotend_offset[i][h] = tmp10[i][h];
   }
 
   mechanics.acceleration = DEFAULT_ACCELERATION;
@@ -966,7 +1108,7 @@ void EEPROM::Factory_Settings() {
   #endif
 
   #if HAS_LEVELING
-    bedlevel.reset_bed_level();
+    bedlevel.reset();
   #endif
 
   #if HAS_BED_PROBE
@@ -1239,9 +1381,9 @@ void EEPROM::Factory_Settings() {
       CONFIG_MSG_START("Hotend offset (mm):");
       for (int8_t h = 1; h < HOTENDS; h++) {
         SERIAL_SMV(CFG, "  M218 H", h);
-        SERIAL_MV(" X", LINEAR_UNIT(printer.hotend_offset[X_AXIS][h]), 3);
-        SERIAL_MV(" Y", LINEAR_UNIT(printer.hotend_offset[Y_AXIS][h]), 3);
-        SERIAL_EMV(" Z", LINEAR_UNIT(printer.hotend_offset[Z_AXIS][h]), 3);
+        SERIAL_MV(" X", LINEAR_UNIT(tools.hotend_offset[X_AXIS][h]), 3);
+        SERIAL_MV(" Y", LINEAR_UNIT(tools.hotend_offset[Y_AXIS][h]), 3);
+        SERIAL_EMV(" Z", LINEAR_UNIT(tools.hotend_offset[Z_AXIS][h]), 3);
       }
     #endif
 

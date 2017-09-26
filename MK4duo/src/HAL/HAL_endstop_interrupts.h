@@ -33,7 +33,7 @@ void endstop_ISR(void) { endstop_ISR_worker(); }
 
 #if ENABLED(ARDUINO_ARCH_SAM)
   #include "HAL_DUE/endstop_interrupts.h"
-#elif ENABLED(ARDUINO_ARCH_AVR)
+#elif ENABLED(__AVR__)
   #include "HAL_AVR/endstop_interrupts.h"
 #else
   #error "Unsupported Platform!"

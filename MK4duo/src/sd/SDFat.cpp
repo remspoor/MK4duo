@@ -844,7 +844,7 @@ bool SdBaseFile::make83Name(const char* str, uint8_t* name, const char** ptr) {
     }
     else {
       // illegal FAT characters
-      #if ENABLED(ARDUINO_ARCH_AVR)
+      #if ENABLED(__AVR__)
         // store chars in flash
         PGM_P p = PSTR("|<>^+=?/[];,*\"\\");
         uint8_t b;
@@ -854,13 +854,13 @@ bool SdBaseFile::make83Name(const char* str, uint8_t* name, const char** ptr) {
             goto FAIL;
           }
         }
-      #else  // ARDUINO_ARCH_AVR
+      #else  // __AVR__
         // store chars in RAM
         if (strchr("|<>^+=?/[];,*\"\\", c)) {
           DBG_FAIL_MACRO;
           goto FAIL;
         }
-      #endif  // ARDUINO_ARCH_AVR
+      #endif  // __AVR__
       // check size and only allow ASCII printable characters
       if (i > n || c < 0x20 || c > 0x7E) {
         c = '_';
@@ -1893,6 +1893,21 @@ FAIL:
   return -1;
 }
 
+/** 
+ * Convert the dir_t name field of the file (which contains blank fills)
+ * into a proper filename string without spaces inside.
+ *
+ * buffer MUST be at least a 13 char array!
+ */
+void SdBaseFile::createFilename(char* buffer, const dir_t &dirEntry) {
+  const uint8_t* src = dirEntry.name;
+  for (uint8_t i = 0; i < 11; i++, src++) {
+    if (*src == ' ') continue; // ignore spaces
+    if (i == 8) *buffer++ = '.';
+    *buffer++ = *src;
+  }
+  *buffer = 0; // close the string
+}
 
 //------------------------------------------------------------------------------
 /** Read the next directory entry from a directory file with the long filename
@@ -1967,7 +1982,7 @@ dir_t *SdBaseFile::getLongFilename(dir_t *dir, char *longFilename, int8_t cVFATN
       }
       if (DIR_IS_FILE(dir) || DIR_IS_SUBDIR(dir)) {
         if (longFilename && (bLastPart || checksum != lfn_checksum((unsigned char *)dir->name))) {
-          card.createFilename(longFilename, *dir);
+          createFilename(longFilename, *dir);
         }
         return dir;
       }
@@ -2978,24 +2993,24 @@ uint8_t Sd2Card::cardCommand(const uint8_t cmd, uint32_t arg) {
   d[5] = CRC7(d, 5);
 
   // send message
-  for (uint8_t k = 0; k < 6; k++) spiSend(d[k]);
+  for (uint8_t k = 0; k < 6; k++) HAL::spiSend(d[k]);
 #else  // SD_CHECK_AND_RETRY
   // send command
-  spiSend(cmd | 0x40);
+  HAL::spiSend(cmd | 0x40);
 
   // send argument
-  for (int8_t i = 3; i >= 0; i--) spiSend(pa[i]);
+  for (int8_t i = 3; i >= 0; i--) HAL::spiSend(pa[i]);
 
   // send CRC - correct for CMD0 with arg zero or CMD8 with arg 0x1AA
-  spiSend(cmd == CMD0 ? 0x95 : 0x87);
+  HAL::spiSend(cmd == CMD0 ? 0x95 : 0x87);
 #endif  // SD_CHECK_AND_RETRY
   // additional delay for CMD0
   if (cmd == CMD0) HAL::delayMilliseconds(100);
   // skip stuff byte for stop read
-  if (cmd == CMD12) spiReceive();
+  if (cmd == CMD12) HAL::spiReceive();
 
   // wait for response
-  for (uint8_t i = 0; ((status_ = spiReceive()) & 0x80) && i != 0xFF; i++);
+  for (uint8_t i = 0; ((status_ = HAL::spiReceive()) & 0x80) && i != 0xFF; i++);
   return status_;
 }
 //------------------------------------------------------------------------------
@@ -3030,12 +3045,12 @@ uint32_t Sd2Card::cardSize() {
 void Sd2Card::chipSelectHigh() {
   HAL::digitalWrite(chipSelectPin_, HIGH);
   // insure MISO goes high impedance
-  spiSend(0xFF);
+  HAL::spiSend(0xFF);
 }
 //------------------------------------------------------------------------------
 void Sd2Card::chipSelectLow() {
   #if DISABLED(SOFTWARE_SPI)
-    spiInit(spiRate_);
+    HAL::spiInit(spiRate_);
   #endif  // SOFTWARE_SPI
   HAL::digitalWrite(chipSelectPin_, LOW);
 }
@@ -3121,16 +3136,16 @@ bool Sd2Card::init(uint8_t sckRateID, uint8_t chipSelectPin) {
 
   HAL::pinMode(chipSelectPin_, OUTPUT);
   HAL::digitalWrite(chipSelectPin_, HIGH);
-  spiBegin();
+  HAL::spiBegin();
 
   #if DISABLED(SOFTWARE_SPI)
     // set SCK rate for initialization commands
     spiRate_ = SPI_SD_INIT_RATE;
-    spiInit(spiRate_);
+    HAL::spiInit(spiRate_);
   #endif  // SOFTWARE_SPI
 
   // must supply min of 74 clock cycles with CS high.
-  for (uint8_t i = 0; i < 20; i++) spiSend(0xFF);
+  for (uint8_t i = 0; i < 20; i++) HAL::spiSend(0xFF);
 
   // command to go idle in SPI mode
   while (cardCommand(CMD0, 0) != R1_IDLE_STATE) {
@@ -3145,7 +3160,7 @@ bool Sd2Card::init(uint8_t sckRateID, uint8_t chipSelectPin) {
       type(SD_CARD_TYPE_SD1);
       break;
     }
-    for (uint8_t i = 0; i < 4; i++) status_ = spiReceive();
+    for (uint8_t i = 0; i < 4; i++) status_ = HAL::spiReceive();
     if (status_ == 0xAA) {
       type(SD_CARD_TYPE_SD2);
       break;
@@ -3171,9 +3186,9 @@ bool Sd2Card::init(uint8_t sckRateID, uint8_t chipSelectPin) {
       error(SD_CARD_ERROR_CMD58);
       goto FAIL;
     }
-    if ((spiReceive() & 0xC0) == 0xC0) type(SD_CARD_TYPE_SDHC);
+    if ((HAL::spiReceive() & 0xC0) == 0xC0) type(SD_CARD_TYPE_SDHC);
     // discard rest of ocr - contains allowed voltage range
-    for (uint8_t i = 0; i < 3; i++) spiReceive();
+    for (uint8_t i = 0; i < 3; i++) HAL::spiReceive();
   }
   #if ENABLED(SD_CHECK_AND_RETRY)
     if (cardCommand(CMD59, 1) > 1) {
@@ -3247,9 +3262,10 @@ bool Sd2Card::readData(uint8_t* dst) {
 }
 //------------------------------------------------------------------------------
 bool Sd2Card::readData(uint8_t* dst, size_t count) {
+  uint16_t crc;
   // wait for start block token
   uint16_t t0 = HAL::timeInMilliseconds();
-  while ((status_ = spiReceive()) == 0xFF) {
+  while ((status_ = HAL::spiReceive()) == 0xFF) {
     if (((uint16_t)HAL::timeInMilliseconds() - t0) > SD_READ_TIMEOUT) {
       error(SD_CARD_ERROR_READ_TIMEOUT);
       goto FAIL;
@@ -3261,31 +3277,26 @@ bool Sd2Card::readData(uint8_t* dst, size_t count) {
   }
 
   // transfer data
-  spiRead(dst, count);
+  HAL::spiReadBlock(dst, count);
 
+  // get crc
+  crc = (HAL::spiReceive() << 8) | HAL::spiReceive();
   #if ENABLED(SD_CHECK_AND_RETRY)
-    uint16_t calcCrc = CRC_CCITT(dst, count);
-    uint16_t recvCrc = spiReceive() << 8;
-    recvCrc |= spiReceive();
-    if (calcCrc != recvCrc) {
-      error(SD_CARD_ERROR_CRC);
+    if (crc != CRC_CCITT(dst, count)) {
+      error(SD_CARD_ERROR_READ_CRC);
       goto FAIL;
     }
-  #else
-    // discard CRC
-    spiReceive();
-    spiReceive();
-  #endif  // SD_CHECK_AND_RETRY
+  #endif
 
   chipSelectHigh();
   // Send an additional dummy byte, required by Toshiba Flash Air SD Card
-  spiSend(0xFF);
+  HAL::spiSend(0xFF);
   return true;
 
 FAIL:
   chipSelectHigh();
   // Send an additional dummy byte, required by Toshiba Flash Air SD Card
-  spiSend(0xFF);
+  HAL::spiSend(0xFF);
   return false;
 }
 //------------------------------------------------------------------------------
@@ -3375,7 +3386,7 @@ bool Sd2Card::setSckRate(uint8_t sckRateID) {
 // wait for card to go not busy
 bool Sd2Card::waitNotBusy(uint32_t timeoutMillis) {
   uint32_t t0 = HAL::timeInMilliseconds();
-  while (spiReceive() != 0xFF) {
+  while (HAL::spiReceive() != 0xFF) {
     if (((uint32_t)HAL::timeInMilliseconds() - t0) >= timeoutMillis) goto FAIL;
   }
   return true;
@@ -3408,7 +3419,7 @@ bool Sd2Card::writeBlock(uint32_t blockNumber, const uint8_t* src) {
     goto FAIL;
   }
   // response is r2 so get and check two bytes for nonzero
-  if (cardCommand(CMD13, 0) || spiReceive()) {
+  if (cardCommand(CMD13, 0) || HAL::spiReceive()) {
     error(SD_CARD_ERROR_WRITE_PROGRAMMING);
     goto FAIL;
   }
@@ -3447,12 +3458,12 @@ bool Sd2Card::writeData(uint8_t token, const uint8_t* src) {
     uint16_t crc = 0xFFFF;
   #endif  // SD_CHECK_AND_RETRY
 
-  spiSend(token);
-  spiSend(src, 512);
-  spiSend(crc >> 8);
-  spiSend(crc & 0xFF);
+  HAL::spiSend(token);
+  HAL::spiSend(src, 512);
+  HAL::spiSend(crc >> 8);
+  HAL::spiSend(crc & 0xFF);
 
-  status_ = spiReceive();
+  status_ = HAL::spiReceive();
   if ((status_ & DATA_RES_MASK) != DATA_RES_ACCEPTED) {
     error(SD_CARD_ERROR_WRITE);
     goto FAIL;
@@ -3504,7 +3515,7 @@ FAIL:
 bool Sd2Card::writeStop() {
   chipSelectLow();
   if (!waitNotBusy(SD_WRITE_TIMEOUT)) goto FAIL;
-  spiSend(STOP_TRAN_TOKEN);
+  HAL::spiSend(STOP_TRAN_TOKEN);
   if (!waitNotBusy(SD_WRITE_TIMEOUT)) goto FAIL;
   chipSelectHigh();
   return true;

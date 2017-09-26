@@ -64,8 +64,8 @@
  * Please choose the one that matches your setup and set to TEMP_SENSOR_.                            *
  *                                                                                                   *
  * Temperature sensor settings (4.7kohm PULLUP):                                                     *
- *  -3 is thermocouple with MAX31855 (only for sensor 0)                                             *
- *  -2 is thermocouple with MAX6675 (only for sensor 0)                                              *
+ *  -3 is thermocouple with MAX31855 (only Hotends)                                             *
+ *  -2 is thermocouple with MAX6675 (only Hotends)                                              *
  *  -1 is thermocouple with AD595 or AD597                                                           *
  *   0 is not used                                                                                   *
  *   1 is 100k thermistor - best choice for EPCOS 100k (4.7k pullup)                                 *
@@ -304,7 +304,7 @@
 #define DEFAULT_bedKi    0.1
 #define DEFAULT_bedKd  300.0
 
-// FIND YOUR OWN: "M303 E-1 C8 S90" to run autotune on the bed at 90 degreesC for 8 cycles.
+// FIND YOUR OWN: "M303 H-1 C8 S90" to run autotune on the bed at 90 degreesC for 8 cycles.
 /***********************************************************************/
 
 

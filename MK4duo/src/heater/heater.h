@@ -37,6 +37,13 @@
   #define TRG_EXTRUDER_IDX  tools.target_extruder
 #endif
 
+typedef enum {
+  IS_HOTEND   = 0,
+  IS_BED      = 1,
+  IS_CHAMBER  = 2,
+  IS_COOLER   = 3
+} Heater_type;
+
 #if HEATER_COUNT > 0
 
   class Heater {
@@ -46,6 +53,9 @@
       Heater_type type;
       Pin         output_pin,
                   sensor_pin;
+      #if HEATER_USES_MAX
+        Pin       sensor_cs_pin;
+      #endif
       int16_t     sensor_type;
       uint8_t     soft_pwm,
                   pwm_pos,

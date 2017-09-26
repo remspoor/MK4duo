@@ -124,17 +124,6 @@ void Temperature::init() {
     last_e_position = 0;
   #endif
 
-  #if ENABLED(HEATER_0_USES_MAX6675)
-
-    OUT_WRITE(SCK_PIN, LOW);
-    OUT_WRITE(MOSI_PIN, HIGH);
-    SET_INPUT_PULLUP(MISO_PIN);
-    OUT_WRITE(SS_PIN, HIGH);
-
-    OUT_WRITE(MAX6675_SS, HIGH);
-
-  #endif // HEATER_0_USES_MAX6675
-
   HAL::analogStart();
 
   // Use timer for temperature measurement
@@ -285,14 +274,18 @@ void Temperature::wait_heater(const uint8_t h, bool no_wait_for_cooling/*=true*/
 
 void Temperature::set_current_temp_raw() {
 
-  LOOP_HEATER() heaters[h].current_temperature_raw = HAL::AnalogInputValues[h];
+  LOOP_HEATER() heaters[h].current_temperature_raw = HAL::AnalogInputValues[heaters[h].sensor_pin];
 
   #if HAS_POWER_CONSUMPTION_SENSOR
-    powerManager.current_raw_powconsumption = HAL::AnalogInputValues[POWER_ANALOG_INDEX];
+    powerManager.current_raw_powconsumption = HAL::AnalogInputValues[POWER_CONSUMPTION_PIN];
   #endif
 
   #if ENABLED(ARDUINO_ARCH_SAM) && !MB(RADDS)
-    mcu_current_temperature_raw = HAL::AnalogInputValues[MCU_ANALOG_INDEX];
+    mcu_current_temperature_raw = HAL::AnalogInputValues[ADC_TEMPERATURE_SENSOR];
+  #endif
+
+  #if HAS_FILAMENT_SENSOR
+    current_raw_filwidth = HAL::AnalogInputValues[FILWIDTH_PIN];
   #endif
 
 }
@@ -310,11 +303,6 @@ void Temperature::set_current_temp_raw() {
 void Temperature::manage_temp_controller() {
 
   updateTemperaturesFromRawValues(); // also resets the watchdog
-
-  #if ENABLED(HEATER_0_USES_MAX6675)
-    if (heaters[0].current_temperature > min(HEATER_0_MAXTEMP, MAX6675_TMAX - 1.0)) max_temp_error(0);
-    if (heaters[0].current_temperature < max(HEATER_0_MINTEMP, MAX6675_TMIN + .01)) min_temp_error(0);
-  #endif
 
   millis_t ms = millis();
 
@@ -757,6 +745,10 @@ void Temperature::print_heaterstates() {
     SERIAL_MV(MSG_BAT, (int)heaters[BED_INDEX].soft_pwm);
   #endif
 
+  #if HAS_TEMP_CHAMBER
+    SERIAL_MV(MSG_CAT, (int)heaters[CHAMBER_INDEX].soft_pwm);
+  #endif
+  
   #if HOTENDS > 1
     LOOP_HOTEND() {
       SERIAL_MV(MSG_AT, h);
@@ -786,10 +778,6 @@ void Temperature::print_heaterstates() {
  * as it would block the stepper routine.
  */
 void Temperature::updateTemperaturesFromRawValues() {
-
-  #if ENABLED(HEATER_0_USES_MAX6675)
-    heaters[0].current_temperature_raw = read_max6675();
-  #endif
 
   LOOP_HEATER() heaters[h].current_temperature = analog2temp(h);
 
@@ -835,13 +823,19 @@ float Temperature::analog2temp(const uint8_t h) {
   int16_t type  = heaters[h].sensor_type;
   int16_t raw   = heaters[h].current_temperature_raw;
 
-  if (type == -2)
-    return 0.25 * raw;
+  #if ENABLED(SUPPORT_MAX31855)
+    if (type == -3)
+      return read_max31855(heaters[h].sensor_cs_pin);
+  #endif
+  #if ENABLED(SUPPORT_MAX6675)
+    if (type == -2)
+      return read_max6675(heaters[h].sensor_cs_pin, h);
+  #endif
   #if HEATER_USES_AD595
-    else if (type == -1)
+    if (type == -1)
       return ((raw * (((HAL_VOLTAGE_PIN) * 100.0) / 1024.0)) * heaters[h].ad595_gain) + heaters[h].ad595_offset;
   #endif
-  else if (type > 0) {
+  if (type > 0) {
 
     float celsius = 0;
     uint8_t i;
@@ -1004,87 +998,98 @@ uint8_t Temperature::get_pid_output(const int8_t h) {
   return pid_output;
 }
 
-#if ENABLED(HEATER_0_USES_MAX6675)
+#if ENABLED(SUPPORT_MAX6675)
 
-  #define MAX6675_HEAT_INTERVAL 250u
+  #define MAX6675_ERROR_MASK 4
+  #define MAX6675_DISCARD_BITS 3
 
-  #if ENABLED(MAX6675_IS_MAX31855)
-    uint32_t max6675_temp = 2000;
-    #define MAX6675_ERROR_MASK 7
-    #define MAX6675_DISCARD_BITS 18
-    #define MAX6675_SPEED_BITS (_BV(SPR1)) // clock รท 64
-  #else
-    uint16_t max6675_temp = 2000;
-    #define MAX6675_ERROR_MASK 4
-    #define MAX6675_DISCARD_BITS 3
-    #define MAX6675_SPEED_BITS (_BV(SPR0)) // clock รท 16
-  #endif
+  int16_t Temperature::read_max6675(const Pin cs_pin, const int8_t h) {
 
-  int Temperature::read_max6675() {
+    static millis_t last_max6675_read[HOTENDS]  = ARRAY_BY_HOTENDS(0);
+    static int16_t  max6675_temp[HOTENDS]       = ARRAY_BY_HOTENDS(2000);
 
-    static millis_t next_max6675_ms = 0;
+    if (HAL::timeInMilliseconds() - last_max6675_read[h] > 230) {
 
-    millis_t ms = millis();
+      HAL::spiBegin();
+      HAL::spiInit(2);
 
-    if (PENDING(ms, next_max6675_ms)) return (int)max6675_temp;
+      HAL::digitalWrite(cs_pin, LOW); // enable TT_MAX6675
 
-    next_max6675_ms = ms + MAX6675_HEAT_INTERVAL;
-
-    spiBegin();
-    spiInit(2);
-
-    HAL::digitalWrite(MAX6675_SS, 0);  // enable TT_MAX6675
-
-    // ensure 100ns delay - a bit extra is fine
-    #if ENABLED(CPU_32_BIT)
-      HAL::delayMicroseconds(1);
-    #else
-      asm("nop");//50ns on 20Mhz, 62.5ns on 16Mhz
-      asm("nop");//50ns on 20Mhz, 62.5ns on 16Mhz
-    #endif
-
-    // Read a big-endian temperature value
-    max6675_temp = 0;
-    for (uint8_t i = sizeof(max6675_temp); i--;) {
-      #if ENABLED(CPU_32_BIT)
-        max6675_temp |= HAL::spiReceive();
+      // ensure 100ns delay - a bit extra is fine
+      #if ENABLED(ARDUINO_ARCH_SAM)
+        HAL::delayMicroseconds(1);
       #else
-        SPDR = 0;
-        for (;!TEST(SPSR, SPIF););
-        max6675_temp |= SPDR;
+        asm("nop"); // 50ns on 20Mhz, 62.5ns on 16Mhz
+        asm("nop"); // 50ns on 20Mhz, 62.5ns on 16Mhz
       #endif
-      if (i > 0) max6675_temp <<= 8; // shift left if not the last byte
+
+      max6675_temp[h] = HAL::spiReceive(0);
+      max6675_temp[h] <<= 8;
+      max6675_temp[h] |= HAL::spiReceive(0);
+
+      HAL::digitalWrite(cs_pin, HIGH); // disable TT_MAX6675
+      last_max6675_read[h] = millis();
     }
 
-    HAL::digitalWrite(MAX6675_SS, 1); // disable TT_MAX6675
-
-    if (max6675_temp & MAX6675_ERROR_MASK) {
-      SERIAL_SM(ER, "Temp measurement error! ");
-      #if MAX6675_ERROR_MASK == 7
-        SERIAL_MSG("MAX31855 ");
-        if (max6675_temp & 1)
-          SERIAL_EM("Open Circuit");
-        else if (max6675_temp & 2)
-          SERIAL_EM("Short to GND");
-        else if (max6675_temp & 4)
-          SERIAL_EM("Short to VCC");
-      #else
-        SERIAL_EM("MAX6675");
-      #endif
-      max6675_temp = MAX6675_TMAX * 4; // thermocouple open
+    if (max6675_temp[h] & MAX6675_ERROR_MASK) {
+      SERIAL_LM(ER, "MAX6675 Temp measurement error!");
+      max6675_temp[h] = 2000; // thermocouple open
     }
     else {
-      max6675_temp >>= MAX6675_DISCARD_BITS;
-      #if ENABLED(MAX6675_IS_MAX31855)
-        // Support negative temperature
-        if (max6675_temp & 0x00002000) max6675_temp |= 0xFFFFC000;
-      #endif
+      max6675_temp[h] >> MAX6675_DISCARD_BITS;
     }
 
-    return (int)max6675_temp;
+    return max6675_temp[h];
   }
 
 #endif //HEATER_0_USES_MAX6675
+
+#if ENABLED(SUPPORT_MAX31855)
+
+  #define MAX31855_DISCARD_BITS 18
+
+  int16_t Temperature::read_max31855(const Pin cs_pin) {
+
+    uint32_t data = 0;
+    int16_t temperature;
+
+    HAL::spiBegin();
+    HAL::spiInit(2);
+
+    HAL::digitalWrite(cs_pin, LOW); // enable TT_MAX31855
+
+    // ensure 100ns delay - a bit extra is fine
+    #if ENABLED(ARDUINO_ARCH_SAM)
+      HAL::delayMicroseconds(1);
+    #else
+      asm("nop"); // 50ns on 20Mhz, 62.5ns on 16Mhz
+      asm("nop"); // 50ns on 20Mhz, 62.5ns on 16Mhz
+    #endif
+
+    for (uint16_t byte = 0; byte < 4; byte++) {
+      data <<= 8;
+      data |= HAL::spiReceive();
+    }
+
+    HAL::digitalWrite(cs_pin, 1); // disable TT_MAX31855
+
+    // Process temp
+    if (data & 0x00010000)
+      return 20000; // Some form of error.
+    else {
+      data = data >> MAX31855_DISCARD_BITS;
+      temperature = data & 0x00001FFF;
+
+      if (data & 0x00002000) {
+        data = ~data;
+        temperature = -1 * ((data & 0x00001FFF) + 1);
+      }
+    }
+
+    return temperature;
+  }
+
+#endif
 
 #if HAS_AUTO_FAN
 
@@ -1244,11 +1249,11 @@ void Temperature::print_heater_state(const float &c, const int16_t &t,
   #endif
 
   #if HAS_TEMP_CHAMBER
-    if (h == CHAMBER_INDEX) SERIAL_CHR('CHAMBER');
+    if (h == CHAMBER_INDEX) SERIAL_CHR('C');
   #endif
 
   #if HAS_TEMP_COOLER
-    if (h == COOLER_INDEX) SERIAL_CHR('COOLER');
+    if (h == COOLER_INDEX) SERIAL_CHR('C');
   #endif
 
   SERIAL_CHR(':');

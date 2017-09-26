@@ -29,13 +29,30 @@
 #ifndef _PRINTER_H_
 #define _PRINTER_H_
 
+enum PrinterMode {
+  PRINTER_MODE_FFF,           // M450 S0 or M451
+  PRINTER_MODE_LASER,         // M450 S1 or M452
+  PRINTER_MODE_CNC,           // M450 S2 or M453
+  PRINTER_MODE_PICKER,        // M450 S3 or M454
+  PRINTER_MODE_SOLDER,        // M450 S4
+  PRINTER_MODE_PLOTTER,
+  PRINTER_MODE_COUNT
+};
+
+enum MK4duoInterruptEvent {
+  INTERRUPT_EVENT_NONE,
+  INTERRUPT_EVENT_FIL_RUNOUT,
+  INTERRUPT_EVENT_DAV_SYSTEM,
+  INTERRUPT_EVENT_ENC_DETECT
+};
+
 extern const char axis_codes[NUM_AXIS];
 
 class Printer {
 
   public: /** Constructor */
 
-    Printer() {};
+    Printer() {}
 
   public: /** Public Parameters */
 
@@ -53,9 +70,6 @@ class Printer {
     static bool relative_mode,
                 axis_relative_modes[];
 
-    // Hotend offset
-    static float  hotend_offset[XYZ][HOTENDS];
-
     static long   currentLayer,
                   maxLayer;       // -1 = unknown
     static char   printName[21];  // max. 20 chars + 0
@@ -67,20 +81,26 @@ class Printer {
     static PrinterMode          mode;
     static PrintCounter         print_job_counter;
 
-    #if ENABLED(COLOR_MIXING_EXTRUDER)
-      static float mixing_factor[MIXING_STEPPERS];
-      #if MIXING_VIRTUAL_TOOLS  > 1
-        static float mixing_virtual_tool_mix[MIXING_VIRTUAL_TOOLS][MIXING_STEPPERS];
-      #endif
-    #endif
-
     #if HAS_SDSUPPORT
       static bool sd_print_paused;
     #endif
 
     #if ENABLED(HOST_KEEPALIVE_FEATURE)
+      /**
+       * States for managing MK4duo and host communication
+       * MK4duo sends messages if blocked or busy
+       */
+      enum MK4duoBusyState {
+        NOT_BUSY,           // Not in a handler
+        IN_HANDLER,         // Processing a GCode
+        IN_PROCESS,         // Known to be blocking command input (as in G29)
+        WAIT_HEATER,        // Wait heater
+        PAUSED_FOR_USER,    // Blocking pending any input
+        PAUSED_FOR_INPUT,   // Blocking pending text input (concept)
+        DOOR_OPEN           // Door open
+      };
       static MK4duoBusyState busy_state;
-      #define KEEPALIVE_STATE(n) do{ printer.busy_state = n; }while(0)
+      #define KEEPALIVE_STATE(n) do{ printer.busy_state = printer.n; }while(0)
     #else
       #define KEEPALIVE_STATE(n) NOOP
     #endif
@@ -113,11 +133,6 @@ class Printer {
                       Spool_must_write[EXTRUDERS];
     #endif
 
-    #if HAS_CASE_LIGHT
-      static int case_light_brightness;
-      static bool case_light_on;
-    #endif
-
     #if ENABLED(NPR2)
       static uint8_t old_color; // old color for system NPR2
     #endif
@@ -145,6 +160,13 @@ class Printer {
       static bool chdkActive;
     #endif
 
+  private: /** Private Parameters */
+
+    #if ENABLED(IDLE_OOZING_PREVENT)
+      static millis_t axis_last_activity;
+      static bool     IDLE_OOZING_retracted[EXTRUDERS];
+    #endif
+
   public: /** Public Function */
 
     static void setup();
@@ -168,23 +190,8 @@ class Printer {
     static void setInterruptEvent(const MK4duoInterruptEvent event);
     static void handle_Interrupt_Event();
 
-    static void tool_change(const uint8_t tmp_extruder, const float fr_mm_s=0.0, bool no_move=false);
-
-    #if HAS_MKMULTI_TOOLS
-      static void MK_multi_tool_change(const uint8_t &e);
-    #endif
-
-    #if ENABLED(CNCROUTER)
-      static void tool_change_cnc(const uint8_t tool_id, bool wait=true, bool raise_z=true);
-    #endif
-
     #if ENABLED(SDSUPPORT)
       static void stopSDPrint(const bool store_location);
-    #endif
-
-    #if ENABLED(COLOR_MIXING_EXTRUDER)
-      static void store_normalized_mixing_factors(uint8_t tool_index);
-      static void get_mix_from_command();
     #endif
 
     #if ENABLED(FWRETRACT)
@@ -197,16 +204,12 @@ class Printer {
       #endif
       static void ensure_safe_temperature();
       static bool pause_print(const float &retract, const float &retract2, const float &z_lift, const float &x_pos, const float &y_pos,
-                              const float &unload_length=0, const int8_t max_beep_count=0, const bool show_lcd=false);
+                              const float &unload_length=0, const int16_t new_temp=0, const int8_t max_beep_count=0, const bool show_lcd=false);
       static void wait_for_filament_reload(const int8_t max_beep_count=0);
       static void resume_print(const float &load_length=0, const float &initial_extrude_length=0, const int8_t max_beep_count=0);
       #if ENABLED(PARK_HEAD_ON_PAUSE)
         static void park_head_on_pause();
       #endif
-    #endif
-
-    #if HAS_CASE_LIGHT
-      static void update_case_light();
     #endif
 
     #if HAS_COLOR_LEDS
@@ -228,18 +231,6 @@ class Printer {
     FORCE_INLINE static bool IsRunning() { return  Running; }
     FORCE_INLINE static bool IsStopped() { return !Running; }
 
-  private: /** Private Parameters */
-
-    #if ENABLED(IDLE_OOZING_PREVENT)
-      static millis_t axis_last_activity;
-      static bool     IDLE_OOZING_retracted[EXTRUDERS];
-    #endif
-
-    #if ENABLED(CNCROUTER)
-      static uint8_t active_cnc_tool;
-      #define CNC_M6_TOOL_ID 255
-    #endif
-
   private: /** Private Function */
 
     #if HAS_FIL_RUNOUT
@@ -248,17 +239,7 @@ class Printer {
 
     static void setup_powerhold();
 
-    #if HAS_CONTROLLERFAN
-      static void controllerFan();
-    #endif
-
     static float calculate_volumetric_multiplier(const float diameter);
-
-    static void invalid_extruder_error(const uint8_t e);
-
-    #if HAS_DONDOLO
-      static void move_extruder_servo(const uint8_t e);
-    #endif
 
     #if ENABLED(IDLE_OOZING_PREVENT)
       static void IDLE_OOZING_retract(bool retracting);

@@ -56,14 +56,14 @@
 
 #include "../../../base.h"
 
-#if ENABLED(ARDUINO_ARCH_AVR)
+#if ENABLED(__AVR__)
 
 #if ANALOG_INPUTS > 0
   int32_t AnalogInputRead[ANALOG_INPUTS];
   uint8_t adcCounter[ANALOG_INPUTS],
           adcSamplePos = 0;
 
-  int16_t HAL::AnalogInputValues[ANALOG_INPUTS] = { 0 };
+  int16_t HAL::AnalogInputValues[NUM_ANALOG_INPUTS] = { 0 };
   bool    HAL::Analog_is_ready = false;
 #endif
 
@@ -157,7 +157,7 @@ void HAL::analogStart() {
 
     while (ADCSRA & _BV(ADSC) ) {} // wait for conversion
 
-    uint8_t channel = pgm_read_byte(&AnalogInputChannels[adcSamplePos]);
+    const uint8_t channel = pgm_read_byte(&AnalogInputChannels[adcSamplePos]);
 
     #if ENABLED(ADCSRB) && ENABLED(MUX5)
       if (channel & 8)  // Reading channel 0-7 or 8-15?
@@ -255,7 +255,8 @@ HAL_TEMP_TIMER_ISR {
   TEMP_TIMER += 64;
 
   static uint8_t  pwm_count_heater        = 0,
-                  pwm_count_fan           = 0;
+                  pwm_count_fan           = 0,
+                  channel                 = 0;
 
   #if ENABLED(FILAMENT_SENSOR)
     static unsigned long raw_filwidth_value = 0;
@@ -291,10 +292,8 @@ HAL_TEMP_TIMER_ISR {
 
   #if FAN_COUNT > 0
     LOOP_FAN() {
-      if (fans[f].Kickstart == 0) {
-        if (fans[f].pwm_pos == pwm_count_fan && fans[f].pwm_pos != FAN_PWM_MASK)
-          HAL::digitalWrite(fans[f].pin, fans[f].hardwareInverted ? HIGH : LOW);
-      }
+      if (fans[f].Kickstart == 0 && fans[f].pwm_pos == pwm_count_fan && fans[f].pwm_pos != FAN_PWM_MASK)
+        HAL::digitalWrite(fans[f].pin, fans[f].hardwareInverted ? HIGH : LOW);
     }
   #endif
 
@@ -313,9 +312,10 @@ HAL_TEMP_TIMER_ISR {
   #if ANALOG_INPUTS > 0
 
     if ((ADCSRA & _BV(ADSC)) == 0) {  // Conversion finished?
+      channel = pgm_read_byte(&AnalogInputChannels[adcSamplePos]);
       AnalogInputRead[adcSamplePos] += ADCW;
       if (++adcCounter[adcSamplePos] >= _BV(OVERSAMPLENR)) {
-        HAL::AnalogInputValues[adcSamplePos] =
+        HAL::AnalogInputValues[channel] =
           AnalogInputRead[adcSamplePos] >> (OVERSAMPLENR);
         AnalogInputRead[adcSamplePos] = 0;
         adcCounter[adcSamplePos] = 0;
@@ -324,7 +324,7 @@ HAL_TEMP_TIMER_ISR {
           adcSamplePos = 0;
           HAL::Analog_is_ready = true;
         }
-        uint8_t channel = pgm_read_byte(&AnalogInputChannels[adcSamplePos]);
+        channel = pgm_read_byte(&AnalogInputChannels[adcSamplePos]);
         #if ENABLED(ADCSRB) && ENABLED(MUX5)
           if (channel & 8)  // Reading channel 0-7 or 8-15?
             ADCSRB |= _BV(MUX5);
@@ -380,4 +380,4 @@ HAL_TEMP_TIMER_ISR {
   HAL_ENABLE_ISRs(); // re-enable ISRs
 }
 
-#endif // ARDUINO_ARCH_AVR
+#endif // __AVR__

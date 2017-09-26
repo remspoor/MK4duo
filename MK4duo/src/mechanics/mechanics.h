@@ -29,12 +29,6 @@
 #ifndef _MECHANICS_H_
 #define _MECHANICS_H_
 
-// DEBUG LEVELING
-#if ENABLED(DEBUG_LEVELING_FEATURE)
-  #define DEBUG_POS(SUFFIX,VAR)       do{ \
-    bedlevel.print_xyz(PSTR("  " STRINGIFY(VAR) "="), PSTR(" : " SUFFIX "\n"), VAR); } while(0)
-#endif
-
 // Workspace offsets
 #if ENABLED(WORKSPACE_OFFSETS)
   #define WORKSPACE_OFFSET(AXIS) mechanics.workspace_offset[AXIS]
@@ -63,7 +57,7 @@
 
 #define RAW_CURRENT_POSITION(A)     RAW_##A##_POSITION(mechanics.current_position[A##_AXIS])
 
-#if HAS_LEVELING || ENABLED(ZWOBBLE) || ENABLED(HYSTERESIS)
+#if PLANNER_LEVELING || ENABLED(ZWOBBLE) || ENABLED(HYSTERESIS)
   #define ARG_X float lx
   #define ARG_Y float ly
   #define ARG_Z float lz
@@ -77,7 +71,7 @@ class Mechanics {
 
   public: /** Constructor */
 
-    Mechanics() {};
+    Mechanics() {}
 
   public: /** Public Parameters */
 
@@ -179,6 +173,11 @@ class Mechanics {
     #endif
 
     #if ENABLED(CNC_WORKSPACE_PLANES)
+      /**
+       * Workspace planes only apply to G2/G3 moves
+       * (and "canned cycles" - not a current feature)
+       */
+      enum WorkspacePlane { PLANE_XY, PLANE_ZX, PLANE_YZ };
       WorkspacePlane workspace_plane = PLANE_XY;
     #endif
 
@@ -298,12 +297,12 @@ class Mechanics {
     /**
      * Home an individual linear axis
      */
-    void do_homing_move(const AxisEnum axis, const float distance, const float fr_mm_s=0.0);
+    virtual void do_homing_move(const AxisEnum axis, const float distance, const float fr_mm_s=0.0);
 
     /**
      * Report current position to host
      */
-            void report_current_position();
+    virtual void report_current_position();
     virtual void report_current_position_detail();
 
     FORCE_INLINE void report_xyz(const float pos[XYZ]) { report_xyze(pos, 3); }
@@ -334,13 +333,18 @@ class Mechanics {
       void log_machine_info();
     #endif
 
-  private: /** Private Function */
-
   protected: /** Protected Function */
 
     void report_xyze(const float pos[XYZE], const uint8_t n=4, const uint8_t precision=3);
 
     float get_homing_bump_feedrate(const AxisEnum axis);
+
+  private: /** Private Function */
+
+    /**
+     *  Home axis
+     */
+    virtual void homeaxis(const AxisEnum axis) = 0;
 
 };
 

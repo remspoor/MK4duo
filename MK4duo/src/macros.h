@@ -32,6 +32,12 @@
 
 // Function macro
 #define FORCE_INLINE  __attribute__((always_inline)) inline
+#define _UNUSED       __attribute__((unused))
+#define _O0           __attribute__((optimize("O0")))
+#define _Os           __attribute__((optimize("Os")))
+#define _O1           __attribute__((optimize("O1")))
+#define _O2           __attribute__((optimize("O2")))
+#define _O3           __attribute__((optimize("O3")))
 
 /**
  * Macros for mechanics type
@@ -115,9 +121,6 @@
 #define COUNT(a)          (sizeof(a) / sizeof(*a))
 #define ZERO(a)           memset(a, 0, sizeof(a))
 #define COPY_ARRAY(a,b)   memcpy(a, b, min(sizeof(a), sizeof(b)))
-
-// Macro for debugging
-#define DEBUGGING(F) (commands.mk_debug_flags & (DEBUG_## F))
 
 // Macros for initializing arrays
 #define ARRAY_12(v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, ...)  { v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12 }

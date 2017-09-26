@@ -43,7 +43,7 @@
 #ifndef _STEPPER_H_
 #define _STEPPER_H_
 
-#if ENABLED(ARDUINO_ARCH_AVR)
+#if ENABLED(__AVR__)
   #include "speed_lookuptable.h"
 #endif
 
@@ -117,7 +117,7 @@ class Stepper {
     // SCARA AB axes are in degrees, not mm
     //
     #if IS_SCARA
-      static FORCE_INLINE float get_axis_position_degrees(AxisEnum axis) { return get_axis_position_mm(axis); }
+      static FORCE_INLINE float get_axis_position_degrees(AxisEnum axis) { return mechanics.get_axis_position_mm(axis); }
     #endif
 
     //
@@ -286,7 +286,7 @@ class Stepper {
 
       NOMORE(step_rate, MAX_STEP_FREQUENCY);
 
-      #if ENABLED(ARDUINO_ARCH_AVR)
+      #if ENABLED(__AVR__)
         if (step_rate > (2 * DOUBLE_STEP_FREQUENCY)) { // If steprate > 2*DOUBLE_STEP_FREQUENCY >> step 4 times
           step_rate >>= 2;
           step_loops = 4;

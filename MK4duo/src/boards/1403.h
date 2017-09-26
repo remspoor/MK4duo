@@ -124,11 +124,11 @@
 #define ORIG_COOLER_PIN -1
 
 //###TEMPERATURE
-#define ORIG_TEMP_0_PIN 6
-#define ORIG_TEMP_1_PIN 5
-#define ORIG_TEMP_2_PIN 4
+#define ORIG_TEMP_0_PIN 1
+#define ORIG_TEMP_1_PIN 2
+#define ORIG_TEMP_2_PIN 3
 #define ORIG_TEMP_3_PIN -1
-#define ORIG_TEMP_BED_PIN 7
+#define ORIG_TEMP_BED_PIN 0
 #define ORIG_TEMP_CHAMBER_PIN -1
 #define ORIG_TEMP_COOLER_PIN -1
 
@@ -169,7 +169,8 @@
 //@@@
 
 //###UNKNOWN_PINS
-#define MAX6675_SS              53
+#define MAX6675_SS_PIN  53
+#define I2C_EEPROM
 //@@@
 
 //###IF_BLOCKS

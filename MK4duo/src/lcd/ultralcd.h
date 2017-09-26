@@ -74,6 +74,13 @@
 
   #if ENABLED(ULTIPANEL)
 
+    extern bool defer_return_to_status;
+
+    // Function pointer to menu functions.
+    typedef void (*screenFunc_t)();
+
+    void lcd_goto_screen(screenFunc_t screen, const uint32_t encoder=0);
+
     #define BLEN_A 0
     #define BLEN_B 1
     // Encoder click is directly connected
@@ -100,7 +107,14 @@
 
     #if ENABLED(ADVANCED_PAUSE_FEATURE)
       void lcd_advanced_pause_show_message(const AdvancedPauseMessage message);
-    #endif // ADVANCED_PAUSE_FEATURE
+    #endif
+
+    #if ENABLED(AUTO_BED_LEVELING_UBL)
+      void lcd_mesh_edit_setup(float initial);
+      float lcd_mesh_edit();
+      void lcd_z_offset_edit_setup(float);
+      float lcd_z_offset_edit();
+    #endif
 
   #else
 
@@ -138,10 +152,10 @@
 
     #define REPRAPWORLD_KEYPAD_MOVE_Z_DOWN  (buttons_reprapworld_keypad & EN_REPRAPWORLD_KEYPAD_F3)
     #define REPRAPWORLD_KEYPAD_MOVE_Z_UP    (buttons_reprapworld_keypad & EN_REPRAPWORLD_KEYPAD_F2)
-    #define REPRAPWORLD_KEYPAD_MOVE_HOME    (buttons_reprapworld_keypad & EN_REPRAPWORLD_KEYPAD_F1)
+    #define REPRAPWORLD_KEYPAD_MOVE_MENU    (buttons_reprapworld_keypad & EN_REPRAPWORLD_KEYPAD_F1)
     #define REPRAPWORLD_KEYPAD_MOVE_Y_DOWN  (buttons_reprapworld_keypad & EN_REPRAPWORLD_KEYPAD_DOWN)
     #define REPRAPWORLD_KEYPAD_MOVE_X_RIGHT (buttons_reprapworld_keypad & EN_REPRAPWORLD_KEYPAD_RIGHT)
-    #define REPRAPWORLD_KEYPAD_MOVE_MENU    (buttons_reprapworld_keypad & EN_REPRAPWORLD_KEYPAD_MIDDLE)
+    #define REPRAPWORLD_KEYPAD_MOVE_HOME    (buttons_reprapworld_keypad & EN_REPRAPWORLD_KEYPAD_MIDDLE)
     #define REPRAPWORLD_KEYPAD_MOVE_Y_UP    (buttons_reprapworld_keypad & EN_REPRAPWORLD_KEYPAD_UP)
     #define REPRAPWORLD_KEYPAD_MOVE_X_LEFT  (buttons_reprapworld_keypad & EN_REPRAPWORLD_KEYPAD_LEFT)
 
@@ -170,7 +184,7 @@
                                               EN_REPRAPWORLD_KEYPAD_UP | \
                                               EN_REPRAPWORLD_KEYPAD_LEFT) \
                                             )
- 
+
   #elif ENABLED(NEWPANEL)
     #if ENABLED(INVERT_CLICK_BUTTON)
       #define LCD_CLICKED !(buttons & EN_C)

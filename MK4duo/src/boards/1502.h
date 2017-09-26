@@ -177,14 +177,35 @@
 #define Y_MS1_PIN             10  // PC29
 #define Z_MS1_PIN             44  // PC19
 #define E0_MS1_PIN            45  // PC18
-#define MOTOR_FAULT_PIN       22 // PB26 , motor X-Y-Z-E0 motor FAULT
+#define MOTOR_FAULT_PIN       22  // PB26 , motor X-Y-Z-E0 motor FAULT
 #define EXP_VOLTAGE_LEVEL_PIN 65
-#define DAC0_SYNC             53 // PB14
-#define DAC1_SYNC              6 // PC24
+#define DAC0_SYNC             53  // PB14
+#define DAC1_SYNC              6  // PC24
 #define SPI_EEPROM
 #define SPI_CHAN_EEPROM1       2
-#define SPI_EEPROM1_CS        25 // PD0
-#define SPI_EEPROM2_CS        26 // PD1
-#define SPI_FLASH_CS          23 //PA14
+#define SPI_EEPROM1_CS        25  // PD0
+#define SPI_EEPROM2_CS        26  // PD1
+#define SPI_FLASH_CS          23  // PA14
+#define E2END                 0x2000
 //@@@
 
+//###IF_BLOCKS
+// GLCD on expansion port
+#if ENABLED(REPRAP_DISCOUNT_FULL_GRAPHIC_SMART_CONTROLLER)
+
+  #define LCD_PINS_RS         18
+  #define LCD_PINS_ENABLE     15
+  #define LCD_PINS_D4         19
+  #define ORIG_BEEPER_PIN     64
+
+  #define BTN_EN1             14
+  #define BTN_EN2             16
+  #define BTN_ENC             17
+
+  #if UI_VOLTAGE_LEVEL != 1
+    #undef UI_VOLTAGE_LEVEL
+    #define UI_VOLTAGE_LEVEL  1
+  #endif
+
+#endif //REPRAP_DISCOUNT_FULL_GRAPHIC_SMART_CONTROLLER
+//@@@

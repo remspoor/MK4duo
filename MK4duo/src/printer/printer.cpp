@@ -38,8 +38,6 @@ bool    Printer::Running        = true,
 
 volatile bool Printer::wait_for_user = false;
 
-float   Printer::hotend_offset[XYZ][HOTENDS];
-
 // Print status related
 long    Printer::currentLayer  = 0,
         Printer::maxLayer      = -1;   // -1 = unknown
@@ -78,19 +76,12 @@ PrinterMode Printer::mode =
 // Print Job Timer
 PrintCounter Printer::print_job_counter = PrintCounter();
 
-#if ENABLED(COLOR_MIXING_EXTRUDER)
-  float Printer::mixing_factor[MIXING_STEPPERS]; // Mix proportion. 0.0 = off
-  #if MIXING_VIRTUAL_TOOLS  > 1
-    float Printer::mixing_virtual_tool_mix[MIXING_VIRTUAL_TOOLS][MIXING_STEPPERS];
-  #endif
-#endif
-
 #if HAS_SDSUPPORT
   bool Printer::sd_print_paused = false;
 #endif
 
 #if ENABLED(HOST_KEEPALIVE_FEATURE)
-  MK4duoBusyState Printer::busy_state = NOT_BUSY;
+  Printer::MK4duoBusyState Printer::busy_state = NOT_BUSY;
 #endif
 
 #if ENABLED(ADVANCED_PAUSE_FEATURE)
@@ -121,11 +112,6 @@ PrintCounter Printer::print_job_counter = PrintCounter();
             Printer::Spool_must_write[EXTRUDERS] = ARRAY_BY_EXTRUDERS(false);
 #endif
 
-#if HAS_CASE_LIGHT
-  int   Printer::case_light_brightness;
-  bool  Printer::case_light_on;
-#endif
-
 #if ENABLED(NPR2)
   uint8_t Printer::old_color = 99;
 #endif
@@ -153,10 +139,6 @@ PrintCounter Printer::print_job_counter = PrintCounter();
 #if HAS_CHDK
   millis_t  Printer::chdkHigh   = 0;
   bool      Printer::chdkActive = false;
-#endif
-
-#if ENABLED(CNCROUTER)
-  uint8_t   Printer::active_cnc_tool = 0;
 #endif
 
 /**
@@ -964,23 +946,11 @@ void Printer::handle_Interrupt_Event() {
         if (!filament_ran_out && (IS_SD_PRINTING || print_job_counter.isRunning())) {
           filament_ran_out = true;
           stepper.synchronize();
-          #if HAS_SDSUPPORT
-            if (IS_SD_FILE_OPEN && IS_SD_PRINTING) {
-              card.pauseSDPrint();
-              print_job_counter.pause();
-              SERIAL_LM(REQUEST_PAUSE, "SD pause");
 
-              #if ENABLED(PARK_HEAD_ON_PAUSE)
-                park_head_on_pause();
-              #endif
-            }
-            else
+          #if ENABLED(ADVANCED_PAUSE_FEATURE)
+            commands.enqueue_and_echo_commands_P(PSTR("M600"));
           #endif
-          if (print_job_counter.isRunning()) {
-            #if ENABLED(PARK_HEAD_ON_PAUSE)
-              park_head_on_pause();
-            #endif
-          }
+
           SERIAL_LM(REQUEST_PAUSE, "Extruder jam detected");
         }
         break;
@@ -990,634 +960,6 @@ void Printer::handle_Interrupt_Event() {
       break;
   }
 }
-
-#if EXTRUDERS > 1 || ENABLED(COLOR_MIXING_EXTRUDER)
-
-  void Printer::tool_change(const uint8_t tmp_extruder, const float fr_mm_s/*=0.0*/, bool no_move/*=false*/) {
-
-    #if ENABLED(COLOR_MIXING_EXTRUDER) && MIXING_VIRTUAL_TOOLS > 1
-      // T0-T15: Switch virtual tool by changing the mix
-      if (tmp_extruder >= MIXING_VIRTUAL_TOOLS)
-        return invalid_extruder_error(tmp_extruder);
-    #else
-      if (tmp_extruder >= EXTRUDERS)
-        return invalid_extruder_error(tmp_extruder);
-    #endif
-
-    #if HOTENDS == 1
-
-      #if ENABLED(COLOR_MIXING_EXTRUDER) && MIXING_VIRTUAL_TOOLS > 1
-
-        // T0-Tnnn: Switch virtual tool by changing the mix
-        for (uint8_t j = 0; j < MIXING_STEPPERS; j++)
-          mixing_factor[j] = mixing_virtual_tool_mix[tmp_extruder][j];
-
-        SERIAL_EMV(MSG_ACTIVE_COLOR, (int)tmp_extruder);
-
-      #elif HAS_MKMULTI_TOOLS
-
-        UNUSED(fr_mm_s);
-        UNUSED(no_move);
-
-        MK_multi_tool_change(tmp_extruder);
-
-      #else
-
-        UNUSED(fr_mm_s);
-        UNUSED(no_move);
-
-        // Set the new active extruder
-        tools.previous_extruder = tools.active_extruder;
-        tools.active_driver = tools.active_extruder = tmp_extruder;
-
-      #endif
-
-    #else // HOTENDS > 1
-
-      const float old_feedrate_mm_s = fr_mm_s > 0.0 ? fr_mm_s : mechanics.feedrate_mm_s;
-
-      mechanics.feedrate_mm_s = fr_mm_s > 0.0 ? fr_mm_s : XY_PROBE_FEEDRATE_MM_S;
-
-      if (tmp_extruder != tools.active_extruder) {
-        if (!no_move && mechanics.axis_unhomed_error()) {
-          SERIAL_EM("No move on toolchange");
-          no_move = true;
-        }
-
-        // Save current position to mechanics.destination, for use later
-        mechanics.set_destination_to_current();
-
-        #if ENABLED(DUAL_X_CARRIAGE)
-
-          #if ENABLED(DEBUG_LEVELING_FEATURE)
-            if (DEBUGGING(LEVELING)) {
-              SERIAL_MSG("Dual X Carriage Mode ");
-              switch (mechanics.dual_x_carriage_mode) {
-                case DXC_DUPLICATION_MODE: SERIAL_EM("DXC_DUPLICATION_MODE"); break;
-                case DXC_AUTO_PARK_MODE: SERIAL_EM("DXC_AUTO_PARK_MODE"); break;
-                case DXC_FULL_CONTROL_MODE: SERIAL_EM("DXC_FULL_CONTROL_MODE"); break;
-              }
-            }
-          #endif
-
-          const float xhome = mechanics.x_home_pos(tools.active_extruder);
-          if (mechanics.dual_x_carriage_mode == DXC_AUTO_PARK_MODE
-              && IsRunning()
-              && (mechanics.delayed_move_time || mechanics.current_position[X_AXIS] != xhome)
-          ) {
-            float raised_z = mechanics.current_position[Z_AXIS] + TOOLCHANGE_PARK_ZLIFT;
-            #if ENABLED(MAX_SOFTWARE_ENDSTOPS)
-              NOMORE(raised_z, endstops.soft_endstop_max[Z_AXIS]);
-            #endif
-            #if ENABLED(DEBUG_LEVELING_FEATURE)
-              if (DEBUGGING(LEVELING)) {
-                SERIAL_EMV("Raise to ", raised_z);
-                SERIAL_EMV("MoveX to ", xhome);
-                SERIAL_EMV("Lower to ", mechanics.current_position[Z_AXIS]);
-              }
-            #endif
-            // Park old head: 1) raise 2) move to park position 3) lower
-            for (uint8_t i = 0; i < 3; i++)
-              planner.buffer_line(
-                i == 0 ? mechanics.current_position[X_AXIS] : xhome,
-                mechanics.current_position[Y_AXIS],
-                i == 2 ? mechanics.current_position[Z_AXIS] : raised_z,
-                mechanics.current_position[E_AXIS],
-                mechanics.max_feedrate_mm_s[i == 1 ? X_AXIS : Z_AXIS],
-                tools.active_extruder
-              );
-            stepper.synchronize();
-          }
-
-          // apply Y & Z extruder offset (x offset is already used in determining home pos)
-          mechanics.current_position[Y_AXIS] -= hotend_offset[Y_AXIS][tools.active_extruder] - hotend_offset[Y_AXIS][tmp_extruder];
-          mechanics.current_position[Z_AXIS] -= hotend_offset[Z_AXIS][tools.active_extruder] - hotend_offset[Z_AXIS][tmp_extruder];
-
-          // Activate the new extruder
-          tools.active_extruder = tools.active_driver = tmp_extruder;
-
-          // This function resets the max/min values - the current position may be overwritten below.
-          mechanics.set_axis_is_at_home(X_AXIS);
-
-          #if ENABLED(DEBUG_LEVELING_FEATURE)
-            if (DEBUGGING(LEVELING)) DEBUG_POS("New Extruder", mechanics.current_position);
-          #endif
-
-          // Only when auto-parking are carriages safe to move
-          if (mechanics.dual_x_carriage_mode != DXC_AUTO_PARK_MODE) no_move = true;
-
-          switch (mechanics.dual_x_carriage_mode) {
-            case DXC_FULL_CONTROL_MODE:
-              // New current position is the position of the activated hotend
-              mechanics.current_position[X_AXIS] = LOGICAL_X_POSITION(mechanics.inactive_hotend_x_pos);
-              // Save the inactive hotend's position (from the old mechanics.current_position)
-              mechanics.inactive_hotend_x_pos = RAW_X_POSITION(mechanics.destination[X_AXIS]);
-              break;
-            case DXC_AUTO_PARK_MODE:
-              // record raised toolhead position for use by unpark
-              COPY_ARRAY(mechanics.raised_parked_position, mechanics.current_position);
-              mechanics.raised_parked_position[Z_AXIS] += TOOLCHANGE_UNPARK_ZLIFT;
-              #if ENABLED(MAX_SOFTWARE_ENDSTOPS)
-                NOMORE(mechanics.raised_parked_position[Z_AXIS], endstops.soft_endstop_max[Z_AXIS]);
-              #endif
-              mechanics.active_hotend_parked = true;
-              mechanics.delayed_move_time = 0;
-              break;
-            case DXC_DUPLICATION_MODE:
-              // If the new hotend is the left one, set it "parked"
-              // This triggers the second hotend to move into the duplication position
-              mechanics.active_hotend_parked = (tools.active_extruder == 0);
-
-              if (mechanics.active_hotend_parked)
-                mechanics.current_position[X_AXIS] = LOGICAL_X_POSITION(mechanics.inactive_hotend_x_pos);
-              else
-                mechanics.current_position[X_AXIS] = mechanics.destination[X_AXIS] + mechanics.duplicate_hotend_x_offset;
-              mechanics.inactive_hotend_x_pos = RAW_X_POSITION(mechanics.destination[X_AXIS]);
-              mechanics.hotend_duplication_enabled = false;
-              #if ENABLED(DEBUG_LEVELING_FEATURE)
-                if (DEBUGGING(LEVELING)) {
-                  SERIAL_EMV("Set inactive_hotend_x_pos=", mechanics.inactive_hotend_x_pos);
-                  SERIAL_EM("Clear hotend_duplication_enabled");
-                }
-              #endif
-              break;
-          }
-
-          #if ENABLED(DEBUG_LEVELING_FEATURE)
-            if (DEBUGGING(LEVELING)) {
-              SERIAL_EMV("Active hotend parked: ", mechanics.active_hotend_parked ? "yes" : "no");
-              DEBUG_POS("New hotend (parked)", mechanics.current_position);
-            }
-          #endif
-
-          // No extra case for HAS_ABL in DUAL_X_CARRIAGE. Does that mean they don't work together?
-        #else // !DUAL_X_CARRIAGE
-
-          #if HAS_DONDOLO
-            // <0 if the new nozzle is higher, >0 if lower. A bigger raise when lower.
-            float z_diff = hotend_offset[Z_AXIS][tools.active_extruder] - hotend_offset[Z_AXIS][tmp_extruder],
-                  z_raise = 0.3 + (z_diff > 0.0 ? z_diff : 0.0),
-                  z_back  = 0.3 - (z_diff < 0.0 ? z_diff : 0.0);
-
-            // Always raise by some amount (mechanics.destination copied from current_position earlier)
-            mechanics.destination[Z_AXIS] += z_raise;
-            planner.buffer_line_kinematic(mechanics.destination, mechanics.max_feedrate_mm_s[Z_AXIS], tools.active_extruder);
-            stepper.synchronize();
-
-            move_extruder_servo(tmp_extruder);
-            HAL::delayMilliseconds(500);
-
-            // Move back down
-            mechanics.destination[Z_AXIS] = mechanics.current_position[Z_AXIS] - z_back;
-            planner.buffer_line_kinematic(mechanics.destination, mechanics.max_feedrate_mm_s[Z_AXIS], tools.active_extruder);
-            stepper.synchronize();
-          #endif
-
-          /**
-           * Set current_position to the position of the new nozzle.
-           * Offsets are based on linear distance, so we need to get
-           * the resulting position in coordinate space.
-           *
-           * - With grid or 3-point leveling, offset XYZ by a tilted vector
-           * - With mesh leveling, update Z for the new position
-           * - Otherwise, just use the raw linear distance
-           *
-           * Software endstops are altered here too. Consider a case where:
-           *   E0 at X=0 ... E1 at X=10
-           * When we switch to E1 now X=10, but E1 can't move left.
-           * To express this we apply the change in XY to the software endstops.
-           * E1 can move farther right than E0, so the right limit is extended.
-           *
-           * Note that we don't adjust the Z software endstops. Why not?
-           * Consider a case where Z=0 (here) and switching to E1 makes Z=1
-           * because the bed is 1mm lower at the new position. As long as
-           * the first nozzle is out of the way, the carriage should be
-           * allowed to move 1mm lower. This technically "breaks" the
-           * Z software endstop. But this is technically correct (and
-           * there is no viable alternative).
-           */
-          #if ABL_PLANAR
-            // Offset extruder, make sure to apply the bed level rotation matrix
-            vector_3 tmp_offset_vec = vector_3(hotend_offset[X_AXIS][tmp_extruder],
-                                               hotend_offset[Y_AXIS][tmp_extruder],
-                                               0),
-                     act_offset_vec = vector_3(hotend_offset[X_AXIS][tools.active_extruder],
-                                               hotend_offset[Y_AXIS][tools.active_extruder],
-                                               0),
-                     offset_vec = tmp_offset_vec - act_offset_vec;
-
-            #if ENABLED(DEBUG_LEVELING_FEATURE)
-              if (DEBUGGING(LEVELING)) {
-                tmp_offset_vec.debug("tmp_offset_vec");
-                act_offset_vec.debug("act_offset_vec");
-                offset_vec.debug("offset_vec (BEFORE)");
-              }
-            #endif
-
-            offset_vec.apply_rotation(bedlevel.matrix.transpose(bedlevel.matrix));
-
-            #if ENABLED(DEBUG_LEVELING_FEATURE)
-              if (DEBUGGING(LEVELING)) offset_vec.debug("offset_vec (AFTER)");
-            #endif
-
-            // Adjustments to the current position
-            float xydiff[2] = { offset_vec.x, offset_vec.y };
-            mechanics.current_position[Z_AXIS] += offset_vec.z;
-
-          #else // !ABL_PLANAR
-
-            float xydiff[2] = {
-              hotend_offset[X_AXIS][tmp_extruder] - hotend_offset[X_AXIS][tools.active_extruder],
-              hotend_offset[Y_AXIS][tmp_extruder] - hotend_offset[Y_AXIS][tools.active_extruder]
-            };
-
-            #if ENABLED(MESH_BED_LEVELING)
-
-              if (mbl.active()) {
-                #if ENABLED(DEBUG_LEVELING_FEATURE)
-                  if (DEBUGGING(LEVELING)) SERIAL_MV("Z before MBL: ", mechanics.current_position[Z_AXIS]);
-                #endif
-                float x2 = mechanics.current_position[X_AXIS] + xydiff[X_AXIS],
-                      y2 = mechanics.current_position[Y_AXIS] + xydiff[Y_AXIS],
-                      z1 = mechanics.current_position[Z_AXIS], z2 = z1;
-                bedlevel.apply_leveling(mechanics.current_position[X_AXIS], mechanics.current_position[Y_AXIS], z1);
-                bedlevel.apply_leveling(x2, y2, z2);
-                mechanics.current_position[Z_AXIS] += z2 - z1;
-                #if ENABLED(DEBUG_LEVELING_FEATURE)
-                  if (DEBUGGING(LEVELING))
-                    SERIAL_EMV(" after: ", mechanics.current_position[Z_AXIS]);
-                #endif
-              }
-
-            #endif // MESH_BED_LEVELING
-
-          #endif // !AUTO_BED_LEVELING_FEATURE
-
-          #if ENABLED(DEBUG_LEVELING_FEATURE)
-            if (DEBUGGING(LEVELING)) {
-              SERIAL_MV("Offset Tool XY by { ", xydiff[X_AXIS]);
-              SERIAL_MV(", ", xydiff[Y_AXIS]);
-              SERIAL_EM(" }");
-            }
-          #endif
-
-          // The newly-selected extruder XY is actually at...
-          mechanics.current_position[X_AXIS] += xydiff[X_AXIS];
-          mechanics.current_position[Y_AXIS] += xydiff[Y_AXIS];
-          #if ENABLED(WORKSPACE_OFFSETS) || ENABLED(DUAL_X_CARRIAGE)
-            LOOP_XY(i) {
-              mechanics.position_shift[i] += xydiff[i];
-              endstops.update_software_endstops((AxisEnum)i);
-            }
-          #endif
-
-          // Set the new active extruder
-          tools.previous_extruder = tools.active_extruder;
-
-          #if ENABLED(DONDOLO_SINGLE_MOTOR)
-            tools.active_extruder = tmp_extruder;
-            tools.active_driver = 0;
-          #else
-            tools.active_extruder = tools.active_driver = tmp_extruder;
-          #endif
-
-        #endif // !DUAL_X_CARRIAGE
-
-        #if ENABLED(DEBUG_LEVELING_FEATURE)
-          if (DEBUGGING(LEVELING)) DEBUG_POS("Sync After Toolchange", mechanics.current_position);
-        #endif
-
-        // Tell the planner the new "current position"
-        mechanics.sync_plan_position();
-
-        // Move to the "old position" (move the extruder into place)
-        if (!no_move && IsRunning()) {
-          #if ENABLED(DEBUG_LEVELING_FEATURE)
-            if (DEBUGGING(LEVELING)) DEBUG_POS("Move back", mechanics.destination);
-          #endif
-          mechanics.prepare_move_to_destination();
-        }
-
-      } // (tmp_extruder != tools.active_extruder)
-
-      stepper.synchronize();
-
-      #if ENABLED(EXT_SOLENOID)
-        disable_all_solenoids();
-        enable_solenoid_on_active_extruder();
-      #endif // EXT_SOLENOID
-
-      mechanics.feedrate_mm_s = old_feedrate_mm_s;
-
-    #endif // HOTENDS > 1
-
-    SERIAL_LMV(ECHO, MSG_ACTIVE_DRIVER, (int)tools.active_driver);
-    SERIAL_LMV(ECHO, MSG_ACTIVE_EXTRUDER, (int)tools.active_extruder);
-  }
-
-#endif // EXTRUDERS > 1
-
-#if ENABLED(NPR2)
-
-  void Printer::MK_multi_tool_change(const uint8_t &e) {
-
-    const float color_position[] = COLOR_STEP,
-                color_step_moltiplicator = (DRIVER_MICROSTEP / MOTOR_ANGLE) * CARTER_MOLTIPLICATOR;
-
-    if (e != old_color) {
-      long csteps;
-      stepper.synchronize(); // Finish all movement
-
-      if (old_color == 99)
-        csteps = (color_position[e]) * color_step_moltiplicator;
-      else
-        csteps = (color_position[e] - color_position[old_color]) * color_step_moltiplicator;
-
-      if (csteps < 0) stepper.colorstep(-csteps, false);
-      if (csteps > 0) stepper.colorstep(csteps, true);
-
-      // Set the new active extruder
-      tools.previous_extruder = tools.active_extruder;
-      old_color = tools.active_extruder = e;
-      tools.active_driver = 0;
-      SERIAL_EMV(MSG_ACTIVE_COLOR, (int)tools.active_extruder);
-    }
-  }
-
-#elif ENABLED(MKSE6)
-
-  void Printer::MK_multi_tool_change(const uint8_t e) {
-
-    stepper.synchronize(); // Finish all movement
-
-    const int angles[EXTRUDERS] = ARRAY_BY_EXTRUDERS_N (
-      MKSE6_SERVOPOS_E0, MKSE6_SERVOPOS_E1,
-      MKSE6_SERVOPOS_E2, MKSE6_SERVOPOS_E3,
-      MKSE6_SERVOPOS_E4, MKSE6_SERVOPOS_E5
-    );
-    MOVE_SERVO(MKSE6_SERVO_INDEX, angles[e]);
-
-    #if (MKSE6_SERVO_DELAY > 0)
-      safe_delay(MKSE6_SERVO_DELAY);
-    #endif
-
-    // Set the new active extruder
-    tools.previous_extruder = tools.active_extruder;
-    tools.active_extruder = e;
-    tools.active_driver = 0;
-  }
-
-#elif ENABLED(MKR4)
-
-  void Printer::MK_multi_tool_change(const uint8_t &e) {
-
-    stepper.synchronize(); // Finish all movement
-    stepper.disable_e_steppers();
-
-    #if (EXTRUDERS == 4) && HAS_E0E2 && HAS_E1E3 && (DRIVER_EXTRUDERS == 2)
-
-      switch(e) {
-        case 0:
-          WRITE_RELE(E0E2_CHOICE_PIN, LOW);
-          WRITE_RELE(E1E3_CHOICE_PIN, LOW);
-          tools.active_driver = 0;
-          safe_delay(500); // 500 microseconds delay for relay
-          enable_E0();
-          break;
-        case 1:
-          WRITE_RELE(E0E2_CHOICE_PIN, LOW);
-          WRITE_RELE(E1E3_CHOICE_PIN, LOW);
-          tools.active_driver = 1;
-          safe_delay(500); // 500 microseconds delay for relay
-          enable_E1();
-          break;
-        case 2:
-          WRITE_RELE(E0E2_CHOICE_PIN, HIGH);
-          WRITE_RELE(E1E3_CHOICE_PIN, LOW);
-          tools.active_driver = 0;
-          safe_delay(500); // 500 microseconds delay for relay
-          enable_E2();
-          break;
-        case 3:
-          WRITE_RELE(E0E2_CHOICE_PIN, LOW);
-          WRITE_RELE(E1E3_CHOICE_PIN, HIGH);
-          tools.active_driver = 1;
-          safe_delay(500); // 500 microseconds delay for relay
-          enable_E3();
-          break;
-      }
-
-    #elif (EXTRUDERS == 3) && HAS_E0E2 && (DRIVER_EXTRUDERS == 2)
-
-      switch(e) {
-        case 0:
-          WRITE_RELE(E0E2_CHOICE_PIN, LOW);
-          tools.active_driver = 0;
-          safe_delay(500); // 500 microseconds delay for relay
-          enable_E0();
-          break;
-        case 1:
-          WRITE_RELE(E0E2_CHOICE_PIN, LOW);
-          tools.active_driver = 1;
-          safe_delay(500); // 500 microseconds delay for relay
-          enable_E1();
-          break;
-        case 2:
-          WRITE_RELE(E0E2_CHOICE_PIN, HIGH);
-          tools.active_driver = 0;
-          safe_delay(500); // 500 microseconds delay for relay
-          enable_E0();
-          break;
-      }
-
-    #elif (EXTRUDERS == 2) && HAS_E0E1 && (DRIVER_EXTRUDERS == 1)
-
-      switch(e) {
-        case 0:
-          WRITE_RELE(E0E1_CHOICE_PIN, LOW);
-          tools.active_driver = 0;
-          safe_delay(500); // 500 microseconds delay for relay
-          enable_E0();
-          break;
-        case 1:
-          WRITE_RELE(E0E1_CHOICE_PIN, HIGH);
-          tools.active_driver = 0;
-          safe_delay(500); // 500 microseconds delay for relay
-          enable_E0();
-          break;
-      }
-
-    #endif // E0E1_CHOICE_PIN E0E2_CHOICE_PIN E1E3_CHOICE_PIN
-
-    // Set the new active extruder
-    tools.previous_extruder = tools.active_extruder;
-    tools.active_extruder = e;
-  }
-
-#elif ENABLED(MKR6) || ENABLED(MKR12)
-
-  void Printer::MK_multi_tool_change(const uint8_t &e) {
-
-    stepper.synchronize(); // Finish all movement
-    stepper.disable_e_steppers();
-
-    #if (EXTRUDERS == 2) && HAS_EX1 && (DRIVER_EXTRUDERS == 1)
-
-      switch(e) {
-        case 0:
-          WRITE_RELE(EX1_CHOICE_PIN, LOW);
-          tools.active_driver = 0;
-          safe_delay(500); // 500 microseconds delay for relay
-          enable_E0();
-          break;
-        case 1:
-          WRITE_RELE(EX1_CHOICE_PIN, HIGH);
-          tools.active_driver = 0;
-          safe_delay(500); // 500 microseconds delay for relay
-          enable_E0();
-          break;
-      }
-
-    #elif (EXTRUDERS == 3) && HAS_EX1 && HAS_EX2 && (DRIVER_EXTRUDERS == 1)
-
-      switch(e) {
-        case 0:
-          WRITE_RELE(EX1_CHOICE_PIN, LOW);
-          WRITE_RELE(EX2_CHOICE_PIN, LOW);
-          tools.active_driver = 0;
-          safe_delay(500); // 500 microseconds delay for relay
-          enable_E0();
-          break;
-        case 1:
-          WRITE_RELE(EX1_CHOICE_PIN, HIGH);
-          WRITE_RELE(EX2_CHOICE_PIN, LOW);
-          tools.active_driver = 0;
-          safe_delay(500); // 500 microseconds delay for relay
-          enable_E0();
-          break;
-        case 2:
-          WRITE_RELE(EX1_CHOICE_PIN, HIGH);
-          WRITE_RELE(EX2_CHOICE_PIN, HIGH);
-          tools.active_driver = 0;
-          safe_delay(500); // 500 microseconds delay for relay
-          enable_E0();
-          break;
-      }
-
-    #elif (EXTRUDERS > 3) && HAS_EX1 && HAS_EX2
-
-      uint8_t multiply = e, driver;
-
-      for (driver = 0; driver < DRIVER_EXTRUDERS; driver++) {
-        if (multiply < 3) break;
-        multiply -= 3;
-      }
-
-      switch(multiply) {
-        case 0:
-          WRITE_RELE(EX1_CHOICE_PIN, LOW);
-          WRITE_RELE(EX2_CHOICE_PIN, LOW);
-          tools.active_driver = driver;
-          safe_delay(500); // 500 microseconds delay for relay
-          enable_E0();
-          break;
-        case 1:
-          WRITE_RELE(EX1_CHOICE_PIN, HIGH);
-          WRITE_RELE(EX2_CHOICE_PIN, LOW);
-          tools.active_driver = driver;
-          safe_delay(500); // 500 microseconds delay for relay
-          enable_E0();
-          break;
-        case 2:
-          WRITE_RELE(EX1_CHOICE_PIN, HIGH);
-          WRITE_RELE(EX2_CHOICE_PIN, HIGH);
-          tools.active_driver = driver;
-          safe_delay(500); // 500 microseconds delay for relay
-          enable_E0();
-          break;
-        default:
-          SERIAL_LM(ER, "More Driver Extruders");
-          break;
-      }
-
-    #endif
-
-    // Set the new active extruder
-    tools.previous_extruder = tools.active_extruder;
-    tools.active_extruder = e;
-  }
-
-#endif
-
-#if ENABLED(CNCROUTER)
-
-  void Printer::tool_change_cnc(uint8_t tool_id, bool wait/*=true*/, bool raise_z/*=true*/) {
-
-    #if !ENABLED(CNCROUTER_AUTO_TOOL_CHANGE)
-      unsigned long saved_speed;
-      float saved_z;
-    #endif
-
-    if (tool_id != active_cnc_tool) {
-
-      if (wait) {
-        SERIAL_STR(PAUSE);
-        SERIAL_EOL();
-      }
-
-      stepper.synchronize();
-
-      #if !ENABLED(CNCROUTER_AUTO_TOOL_CHANGE)
-        if (raise_z) {
-          saved_speed = cnc.get_Speed();
-          saved_z = mechanics.current_position[Z_AXIS];
-          mechanics.do_blocking_move_to_z(CNCROUTER_SAFE_Z);
-        }
-      #endif
-
-      cnc.disable_router();
-      safe_delay(300);
-
-      if (wait) {
-        // LCD click or M108 will clear this
-        wait_for_user = true;
-
-        KEEPALIVE_STATE(PAUSED_FOR_USER);
-
-        #if HAS_BUZZER
-          millis_t next_buzz = millis();
-        #endif
-
-        while (wait_for_user) {
-          #if HAS_BUZZER
-            if (millis() - next_buzz > 60000) {
-              for (uint8_t i = 0; i < 3; i++) BUZZ(300, 1000);
-              next_buzz = millis();
-            }
-          #endif
-          idle(true);
-        } // while (wait_for_user)
-      } // if (wait)
-
-      if (tool_id != CNC_M6_TOOL_ID) active_cnc_tool = tool_id;
-      #if !ENABLED(CNCROUTER_AUTO_TOOL_CHANGE)
-        else cnc.setRouterSpeed(saved_speed);
-        if (raise_z)
-          mechanics.do_blocking_move_to_z(saved_z);
-      #endif
-
-      stepper.synchronize();
-
-      if (wait) {
-        KEEPALIVE_STATE(IN_HANDLER);
-
-        SERIAL_STR(RESUME);
-        SERIAL_EOL();
-      }
-    }
-  }
-
-#endif
 
 #if HAS_SDSUPPORT
 
@@ -1644,46 +986,6 @@ void Printer::handle_Interrupt_Event() {
   }
 
 #endif // HAS_SDSUPPORT
-
-#if ENABLED(COLOR_MIXING_EXTRUDER)
-
-  /** Normalize mixing factors with a very simple math
-   *
-   *  F1 + ... + Fn == factors_sum
-   *
-   * (F1/factors_sum) + ... + (Fn/factors_sum) == (factors_sum/factors_sum) == 1.0
-   *
-   * This means that (F1/factors_sum), ... , (Fn/factors_sum) are normalized values!
-   *
-   * If factors_sum == 0, it means that F1 == ... == Fn == 0.0 (already normalized values)
-   */
-  void Printer::store_normalized_mixing_factors(uint8_t tool_index) {
-    float factors_sum = 0.0;
-
-    // We calculate the sum of all factors
-    for(uint8_t index= 0; index < MIXING_STEPPERS; ++index)
-      factors_sum += mixing_factor[index];
-
-    if(factors_sum <= 0.0001) return;
-
-    // We normalize values
-    for(uint8_t index= 0; index < MIXING_STEPPERS; ++index){
-      mixing_virtual_tool_mix[tool_index][index] = mixing_factor[index] / factors_sum;
-    }
-  }
-
-  void Printer::get_mix_from_command() {
-    if (MIXING_STEPPERS >= 1) mixing_factor[0] = parser.floatval('A');
-    if (MIXING_STEPPERS >= 2) mixing_factor[1] = parser.floatval('B');
-    if (MIXING_STEPPERS >= 3) mixing_factor[2] = parser.floatval('C');
-    if (MIXING_STEPPERS >= 4) mixing_factor[3] = parser.floatval('D');
-    if (MIXING_STEPPERS >= 5) mixing_factor[4] = parser.floatval('H');
-    if (MIXING_STEPPERS == 6) mixing_factor[5] = parser.floatval('I');
-
-    for (uint8_t i = 0; i < MIXING_STEPPERS; ++i) NOLESS(mixing_factor[i], 0.0);
-  }
-
-#endif // ENABLED(COLOR_MIXING_EXTRUDER)
 
 #if ENABLED(FWRETRACT)
 
@@ -1769,7 +1071,7 @@ void Printer::handle_Interrupt_Event() {
     while (thermalManager.wait_for_heatup && heaters_heating) {
       idle();
       heaters_heating = false;
-      LOOP_HEATER() {
+      LOOP_HOTEND() {
         if (heaters[h].target_temperature && abs(heaters[h].current_temperature - heaters[h].target_temperature) > TEMP_HYSTERESIS) {
           heaters_heating = true;
           #if HAS_LCD
@@ -1782,7 +1084,7 @@ void Printer::handle_Interrupt_Event() {
   }
 
   bool Printer::pause_print(const float &retract, const float &retract2, const float &z_lift, const float &x_pos, const float &y_pos,
-                          const float &unload_length/*=0*/, const int8_t max_beep_count/*=0*/, const bool show_lcd/*=false*/) {
+                          const float &unload_length/*=0*/, const int16_t new_temp/*=0*/, const int8_t max_beep_count/*=0*/, const bool show_lcd/*=false*/) {
 
     if (move_away_flag) return false; // already paused
 
@@ -1793,7 +1095,6 @@ void Printer::handle_Interrupt_Event() {
           return false;
         }
       #endif
-
       ensure_safe_temperature(); // wait for hotend to heat up before unloading
     }
 
@@ -1837,22 +1138,24 @@ void Printer::handle_Interrupt_Event() {
 
     // Store in old temperature the target temperature for hotend and bed
     int16_t old_target_temperature[HOTENDS];
-    LOOP_HOTEND() old_target_temperature[h] = heaters[h].target_temperature; // Save nozzle temps
+    LOOP_HOTEND()
+      old_target_temperature[h] = (new_temp != 0) ? new_temp : heaters[h].target_temperature; // Save nozzle temps
 
     // Second retract filament with Cool Down
-    if (retract2) {
-      // Cool Down hotend
-      #if ENABLED(PAUSE_PARK_COOLDOWN_TEMP) && PAUSE_PARK_COOLDOWN_TEMP > 0
+    #if ENABLED(PAUSE_PARK_COOLDOWN_TEMP) && PAUSE_PARK_COOLDOWN_TEMP > 0
+      if (retract2) {
+        // Cool Down hotend
         lcd_advanced_pause_show_message(ADVANCED_PAUSE_MESSAGE_COOLDOWN);
         heaters[tools.active_extruder].setTarget(PAUSE_PARK_COOLDOWN_TEMP);
         thermalManager.wait_heater(false);
-      #endif
 
-      // Second retract filament
-      mechanics.destination[E_AXIS] -= retract2;
-      RUNPLAN(PAUSE_PARK_RETRACT_2_FEEDRATE);
-      stepper.synchronize();
-    }
+        // Second retract filament
+        mechanics.set_destination_to_current();
+        mechanics.destination[E_AXIS] += retract2;
+        RUNPLAN(PAUSE_PARK_RETRACT_2_FEEDRATE);
+        stepper.synchronize();
+      }
+    #endif
 
     if (unload_length != 0) {
       if (show_lcd) {
@@ -1883,11 +1186,8 @@ void Printer::handle_Interrupt_Event() {
 
     idle();
 
-    // Disable extruders steppers for manual filament changing (only on boards that have separate ENABLE_PINS)
-    #if E0_ENABLE_PIN != X_ENABLE_PIN && E1_ENABLE_PIN != Y_ENABLE_PIN
-      stepper.disable_e_steppers();
-      safe_delay(100);
-    #endif
+    stepper.disable_e_steppers();
+    safe_delay(100);
 
     // Start the heater idle timers
     const millis_t nozzle_timeout = (millis_t)(PAUSE_PARK_NOZZLE_TIMEOUT) * 1000UL;
@@ -2091,7 +1391,7 @@ void Printer::handle_Interrupt_Event() {
     mechanics.do_blocking_move_to_xy(resume_position[X_AXIS], resume_position[Y_AXIS], PAUSE_PARK_XY_FEEDRATE);
     mechanics.do_blocking_move_to_z(resume_position[Z_AXIS], PAUSE_PARK_Z_FEEDRATE);
 
-    #if ENABLED(FILAMENT_RUNOUT_SENSOR)
+    #if HAS_FIL_RUNOUT || HAS_EXT_ENCODER
       filament_ran_out = false;
     #endif
 
@@ -2134,7 +1434,7 @@ void Printer::handle_Interrupt_Event() {
           + PAUSE_PARK_X_POS
         #endif
         #if HOTENDS > 1 && DISABLED(DUAL_X_CARRIAGE)
-          + (tools.active_extruder ? hotend_offset[X_AXIS][tools.active_extruder] : 0)
+          + (tools.active_extruder ? tools.hotend_offset[X_AXIS][tools.active_extruder] : 0)
         #endif
       ;
       const float y_pos = parser.linearval('Y')
@@ -2142,7 +1442,7 @@ void Printer::handle_Interrupt_Event() {
           + PAUSE_PARK_Y_POS
         #endif
         #if HOTENDS > 1 && DISABLED(DUAL_X_CARRIAGE)
-          + (tools.active_extruder ? hotend_offset[Y_AXIS][tools.active_extruder] : 0)
+          + (tools.active_extruder ? tools.hotend_offset[Y_AXIS][tools.active_extruder] : 0)
         #endif
       ;
 
@@ -2150,7 +1450,7 @@ void Printer::handle_Interrupt_Event() {
         const bool job_running = print_job_counter.isRunning();
       #endif
 
-      if (pause_print(retract, 0, z_lift, x_pos, y_pos)) {
+      if (pause_print(retract, 0.0, z_lift, x_pos, y_pos)) {
         #if DISABLED(SDSUPPORT)
           // Wait for lcd click or M108
           wait_for_filament_reload();
@@ -2166,20 +1466,6 @@ void Printer::handle_Interrupt_Event() {
   #endif // ENABLED(PARK_HEAD_ON_PAUSE)
 
 #endif // ADVANCED_PAUSE_FEATURE
-
-#if HAS_CASE_LIGHT
-
-  void Printer::update_case_light() {
-    HAL::pinMode(CASE_LIGHT_PIN, OUTPUT);
-    uint8_t case_light_bright = (uint8_t)case_light_brightness;
-    if (case_light_on) {
-      HAL::analogWrite(CASE_LIGHT_PIN, INVERT_CASE_LIGHT ? 255 - case_light_brightness : case_light_brightness );
-      HAL::digitalWrite(CASE_LIGHT_PIN, INVERT_CASE_LIGHT ? LOW : HIGH);
-    }
-    else HAL::digitalWrite(CASE_LIGHT_PIN, INVERT_CASE_LIGHT ? HIGH : LOW);
-  }
-  
-#endif
 
 #if HAS_COLOR_LEDS
 
@@ -2323,68 +1609,11 @@ void Printer::setup_powerhold() {
   #endif
 }
 
-#if HAS_CONTROLLERFAN
-
-  void Printer::controllerFan() {
-    static millis_t lastMotorOn = 0,    // Last time a motor was turned on
-                    nextMotorCheck = 0; // Last time the state was checked
-    millis_t ms = millis();
-    if (ELAPSED(ms, nextMotorCheck)) {
-      nextMotorCheck = ms + 2500UL; // Not a time critical function, so only check every 2.5s
-      if (X_ENABLE_READ == X_ENABLE_ON || Y_ENABLE_READ == Y_ENABLE_ON || Z_ENABLE_READ == Z_ENABLE_ON
-        || E0_ENABLE_READ == E_ENABLE_ON // If any of the drivers are enabled...
-        #if EXTRUDERS > 1
-          || E1_ENABLE_READ == E_ENABLE_ON
-          #if HAS_X2_ENABLE
-            || X2_ENABLE_READ == X_ENABLE_ON
-          #endif
-          #if EXTRUDERS > 2
-            || E2_ENABLE_READ == E_ENABLE_ON
-            #if EXTRUDERS > 3
-              || E3_ENABLE_READ == E_ENABLE_ON
-              #if EXTRUDERS > 4
-                || E4_ENABLE_READ == E_ENABLE_ON
-                #if EXTRUDERS > 5
-                  || E5_ENABLE_READ == E_ENABLE_ON
-                #endif
-              #endif
-            #endif
-          #endif
-        #endif
-      ) {
-        lastMotorOn = ms; //... set time to NOW so the fan will turn on
-      }
-
-      // Fan off if no steppers have been enabled for CONTROLLERFAN_SECS seconds
-      fans[CONTROLLER_INDEX].Speed = (!lastMotorOn || ELAPSED(ms, lastMotorOn + (CONTROLLERFAN_SECS) * 1000UL)) ? 0 : CONTROLLERFAN_SPEED;
-    }
-  }
-
-#endif // HAS_CONTROLLERFAN
-
 float Printer::calculate_volumetric_multiplier(const float diameter) {
   if (!tools.volumetric_enabled || diameter == 0) return 1.0;
   float d2 = diameter * 0.5;
   return 1.0 / (M_PI * d2 * d2);
 }
-
-void Printer::invalid_extruder_error(const uint8_t e) {
-  SERIAL_SMV(ER, "T", (int)e);
-  SERIAL_EM(" " MSG_INVALID_EXTRUDER);
-}
-
-#if HAS_DONDOLO
-
-  void Printer::move_extruder_servo(const uint8_t e) {
-    const int angles[2] = { DONDOLO_SERVOPOS_E0, DONDOLO_SERVOPOS_E1 };
-    MOVE_SERVO(DONDOLO_SERVO_INDEX, angles[e]);
-
-    #if (DONDOLO_SERVO_DELAY > 0)
-      printer.safe_delay(DONDOLO_SERVO_DELAY);
-    #endif
-  }
-
-#endif
 
 #if ENABLED(IDLE_OOZING_PREVENT)
 
