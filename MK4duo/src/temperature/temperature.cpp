@@ -54,10 +54,6 @@ volatile bool Temperature::wait_for_heatup = true;
   float Temperature::redundant_temperature = 0.0;
 #endif
 
-#if ENABLED(BABYSTEPPING)
-  volatile int Temperature::babystepsTodo[XYZ] = { 0 };
-#endif
-
 #if HAS_TEMP_HOTEND && ENABLED(PREVENT_COLD_EXTRUSION)
   bool    Temperature::allow_cold_extrude = false;
   int16_t Temperature::extrude_min_temp   = EXTRUDE_MINTEMP;
@@ -641,7 +637,7 @@ void Temperature::disable_all_heaters() {
   #endif
 
   // If all heaters go down then for sure our print job has stopped
-  printer.print_job_counter.stop();
+  print_job_counter.stop();
 }
 
 #if WATCH_THE_HEATER
@@ -825,11 +821,11 @@ float Temperature::analog2temp(const uint8_t h) {
 
   #if ENABLED(SUPPORT_MAX31855)
     if (type == -3)
-      return read_max31855(heaters[h].sensor_cs_pin);
+      return read_max31855(heaters[h].sensor_pin);
   #endif
   #if ENABLED(SUPPORT_MAX6675)
     if (type == -2)
-      return read_max6675(heaters[h].sensor_cs_pin, h);
+      return read_max6675(heaters[h].sensor_pin, h);
   #endif
   #if HEATER_USES_AD595
     if (type == -1)

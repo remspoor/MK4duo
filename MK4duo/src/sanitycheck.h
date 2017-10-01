@@ -102,18 +102,6 @@
     #define DUMMY_THERMISTOR_999_VALUE 25
   #endif
 #endif
-#if TEMP_SENSOR_0 < -1 && !PIN_EXISTS(TEMP_CS0)
-  #error DEPENDENCY ERROR: Missing setting TEMP_CS0_PIN
-#endif
-#if TEMP_SENSOR_1 < -1 && !PIN_EXISTS(TEMP_CS1)
-  #error DEPENDENCY ERROR: Missing setting TEMP_CS1_PIN
-#endif
-#if TEMP_SENSOR_2 < -1 && !PIN_EXISTS(TEMP_CS2)
-  #error DEPENDENCY ERROR: Missing setting TEMP_CS2_PIN
-#endif
-#if TEMP_SENSOR_3 < -1 && !PIN_EXISTS(TEMP_CS3)
-  #error DEPENDENCY ERROR: Missing setting TEMP_CS3_PIN
-#endif
 
 // Temperature
 /**
@@ -718,8 +706,11 @@ static_assert(1 >= 0
 
 // Firmware Retract
 #if ENABLED(FWRETRACT)
-  #if DISABLED(MIN_RETRACT)
-    #error DEPENDENCY ERROR: Missing setting MIN_RETRACT
+  #if DISABLED(MIN_AUTORETRACT)
+    #error DEPENDENCY ERROR: Missing setting MIN_AUTORETRACT
+  #endif
+  #if DISABLED(MAX_AUTORETRACT)
+    #error DEPENDENCY ERROR: Missing setting MAX_AUTORETRACT
   #endif
   #if DISABLED(RETRACT_LENGTH)
     #error DEPENDENCY ERROR: Missing setting RETRACT_LENGTH
@@ -741,6 +732,9 @@ static_assert(1 >= 0
   #endif
   #if DISABLED(RETRACT_RECOVER_FEEDRATE)
     #error DEPENDENCY ERROR: Missing setting RETRACT_RECOVER_FEEDRATE
+  #endif
+  #if DISABLED(RETRACT_RECOVER_FEEDRATE_SWAP)
+    #error DEPENDENCY ERROR: Missing setting RETRACT_RECOVER_FEEDRATE_SWAP
   #endif
 #endif
 
