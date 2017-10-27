@@ -24,8 +24,8 @@
  * heater.h - heater object
  */
 
-#ifndef _HEATER_H
-#define _HEATER_H
+#ifndef _HEATER_H_
+#define _HEATER_H_
 
 #if HOTENDS <= 1
   #define HOTEND_INDEX      0
@@ -37,29 +37,23 @@
   #define TRG_EXTRUDER_IDX  tools.target_extruder
 #endif
 
-typedef enum {
-  IS_HOTEND   = 0,
-  IS_BED      = 1,
-  IS_CHAMBER  = 2,
-  IS_COOLER   = 3
-} Heater_type;
+#include "sensor/sensor.h"
 
 #if HEATER_COUNT > 0
+
+  typedef enum { IS_HOTEND = 0, IS_BED = 1, IS_CHAMBER = 2, IS_COOLER = 3 } Heater_type;
 
   class Heater {
 
     public: /** Public Parameters */
 
       Heater_type type;
-      Pin         output_pin,
-                  sensor_pin;
-      int16_t     sensor_type;
+      Pin         pin;
       uint8_t     soft_pwm,
                   pwm_pos,
                   pid_min,
                   pid_max;
-      int16_t     current_temperature_raw,
-                  target_temperature,
+      int16_t     target_temperature,
                   mintemp,
                   maxtemp;
       float       current_temperature,
@@ -68,35 +62,33 @@ typedef enum {
                   Kd,
                   Kc;
       bool        use_pid,
-                  pwm_hardware,
                   hardwareInverted;
-
-      #if HEATER_USES_AD595
-        float     ad595_offset,
-                  ad595_gain;
-      #endif
 
       #if WATCH_THE_HEATER
         uint16_t  watch_target_temp;
         millis_t  watch_next_ms;
       #endif
 
+      TemperatureSensor sensor;
+
+    private: /** Private Parameters */
+
     public: /** Public Function */
 
       void init();
 
-      #if PWM_HARDWARE
+      #if HARDWARE_PWM
         void SetHardwarePwm();
       #endif
 
       void setTarget(int16_t celsius);
+      void print_PID(const uint8_t h=0);
+      void sensor_print_parameters(const uint8_t h=0);
 
-      bool isON()         { return this->sensor_type != 0; }
+      bool isON()         { return (this->sensor.type != 0 && this->target_temperature > 0); }
       bool tempisrange()  { return (WITHIN(this->current_temperature, this->mintemp, this->maxtemp)); }
       bool isHeating()    { return this->target_temperature > this->current_temperature; }
       bool isCooling()    { return this->target_temperature < this->current_temperature; }
-
-    private: /** Private Parameters */
 
     private: /** Private Function */
 
@@ -106,4 +98,4 @@ typedef enum {
 
 #endif // HEATER_COUNT > 0
 
-#endif /* _HEATER_H */
+#endif /* _HEATER_H_ */

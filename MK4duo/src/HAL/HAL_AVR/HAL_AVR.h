@@ -73,9 +73,7 @@
 // Types
 // --------------------------------------------------------------------------
 typedef uint16_t  HAL_TIMER_TYPE;
-typedef uint32_t  millis_t;
-typedef int8_t    Pin;
-
+typedef uint16_t  ptr_int_t;
 
 // --------------------------------------------------------------------------
 // Includes
@@ -133,7 +131,7 @@ typedef int8_t    Pin;
 // Voltage for Pin
 #define HAL_VOLTAGE_PIN 5.0
 
-#define ADV_NEVER 65535
+#define ADV_NEVER 0xFFFF
 
 /**
  * Optimized math functions for AVR
@@ -228,16 +226,21 @@ typedef int8_t    Pin;
 #define ANALOG_REF_AVCC _BV(REFS0)
 #define ANALOG_REF ANALOG_REF_AVCC
 #define ANALOG_PRESCALER _BV(ADPS0)|_BV(ADPS1)|_BV(ADPS2)
+#define MAX_ANALOG_PIN_NUMBER 11
 #define OVERSAMPLENR 5
+#define ABS_ZERO  -273.15
+#define AD_RANGE  1023
 
+#define HARDWARE_PWM false
 // --------------------------------------------------------------------------
 // Timer
 // --------------------------------------------------------------------------
 
-#define HAL_STEPPER_TIMER_RATE  ((F_CPU) / 8.0)
-#define TEMP_TIMER_FREQUENCY    ((F_CPU) / 64.0 / 64.0) // 3096 Hz
+#define HAL_STEPPER_TIMER_RATE      ((F_CPU) / 8.0)
+#define STEPPER_TIMER_PRESCALE      64
+#define STEPPER_TIMER_TICKS_PER_US  (HAL_STEPPER_TIMER_RATE / 1000000)
 
-#define STEPPER_TIMER_PRESCALE  64
+#define TEMP_TIMER_FREQUENCY        ((F_CPU) / 64.0 / 64.0) // 3096 Hz
 
 #define STEPPER_TIMER OCR1A
 #define STEPPER_TCCR  TCCR1A
@@ -370,7 +373,11 @@ class HAL {
 
   public: /** Public Function */
 
-    // do any hardware-specific initialization here
+    #if ANALOG_INPUTS > 0
+      static void analogStart();
+      static void AdcChangeChannel(const Pin old_pin, const Pin new_pin);
+    #endif
+
     static void hwSetup();
 
     static void showStartReason();
@@ -378,9 +385,7 @@ class HAL {
     static int getFreeRam();
     static void resetHardware();
 
-    static void analogStart();
-
-    static void setPwmFrequency(uint8_t pin, uint8_t val);
+    static void setPwmFrequency(const Pin pin, uint8_t val);
 
     static inline void analogWrite(const Pin pin, const uint8_t value) {
       ::analogWrite(pin, value);
@@ -470,5 +475,6 @@ class HAL {
 #define FMOD(x, y)  fmod(x, y)
 #define COS(x)      cos(x)
 #define SIN(x)      sin(x)
+#define LOG(x)      log(x)
 
 #endif // HAL_AVR_H

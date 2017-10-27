@@ -27,17 +27,16 @@
  */
 
 // Bedlevel Commands
+#include "bedlevel/g42.h"                 // Move to mesh
+#include "bedlevel/m420.h"                // Set ABL, MBL and UBL
 #include "bedlevel/abl/g29.h"             // ABL
-#include "bedlevel/abl/m320.h"            // Set ABL
-#include "bedlevel/abl/m321.h"            // Set Bilinear Bed Level Manual
-#include "bedlevel/abl/m322.h"            // Reset ABL
+#include "bedlevel/abl/m421.h"            // Set ABL Manual
 #include "bedlevel/mbl/g29.h"             // MBL
-#include "bedlevel/mbl/m420_m421.h"       // Set MBL
+#include "bedlevel/mbl/m421.h"            // Set MBL Manual
 #include "bedlevel/ubl/g26.h"             // UBL Mesh Validation
 #include "bedlevel/ubl/g29.h"             // UBL
 #include "bedlevel/ubl/m49.h"             // UBL Mesh Validation
-#include "bedlevel/ubl/m420_m421.h"       // Set UBL
-#include "bedlevel/g42.h"                 // Move to mesh
+#include "bedlevel/ubl/m421.h"            // Set UBL Manual
 
 // Calibrate Commands
 #include "calibrate/g28.h"                // Home
@@ -55,11 +54,9 @@
 #include "config/m220.h"                  // Set speed percentage
 #include "config/m221.h"                  // Set extrusion percentage
 #include "config/m222.h"                  // Set density
-#include "config/m301.h"                  // Set PID parameters Hotends
+#include "config/m301.h"                  // Set PID parameters Heater
 #include "config/m302.h"                  // Allow cold extrudes
-#include "config/m304.h"                  // Set PID parameters Bed
-#include "config/m305.h"                  // Set PID parameters Chamber
-#include "config/m306.h"                  // Set PID parameters Cooler
+#include "config/m305.h"                  // Set thermistor and ADC parameters
 #include "config/m595.h"                  // Set AD595 offset & Gain
 #include "config/m900.h"                  // Set and/or Get advance K factor
 #include "config/m906.h"                  // Set Alliagtor motor currents or Set motor current in milliamps with have a TMC2130 driver
@@ -94,7 +91,8 @@
 #include "debug/m44_pre_table.h"          // Debug Code Info
 
 // Delta Commands
-#include "delta/g33.h"                    // Autocalibration
+#include "delta/g33_type1.h"              // Autocalibration 7 point
+#include "delta/g33_type2.h"              // Autocalibration matrix
 #include "delta/m666.h"                   // Set delta parameters
 
 // EEPROM Commands
@@ -172,7 +170,7 @@
 
 // Probe Commands
 #include "probe/g30.h"
-#include "probe/g31.h"
+#include "probe/g31_g32.h"
 #include "probe/g38.h"
 #include "probe/m401_m402.h"              // Lower e Raise probe
 #include "probe/m851.h"                   // Set probe offset

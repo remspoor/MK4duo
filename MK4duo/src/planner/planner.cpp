@@ -58,7 +58,7 @@
  *
  */
 
-#include "../../base.h"
+#include "../../MK4duo.h"
 
 Planner planner;
 
@@ -149,18 +149,14 @@ void Planner::calculate_trapezoid_for_block(block_t* const block, const float &e
   // block->accelerate_until = accelerate_steps;
   // block->decelerate_after = accelerate_steps+plateau_steps;
 
-  CRITICAL_SECTION_START;  // Fill variables used by the stepper in a critical section
-  if (!TEST(block->flag, BLOCK_BIT_BUSY)) { // Don't update variables if block is busy.
-    block->accelerate_until = accelerate_steps;
-    block->decelerate_after = accelerate_steps + plateau_steps;
-    block->initial_rate = initial_rate;
-    block->final_rate = final_rate;
-    #if ENABLED(ADVANCE)
-      block->initial_advance = block->advance * sq(entry_factor);
-      block->final_advance = block->advance * sq(exit_factor);
-    #endif
-  }
-  CRITICAL_SECTION_END;
+  CRITICAL_SECTION_START
+    if (!TEST(block->flag, BLOCK_BIT_BUSY)) { // Don't update variables if block is busy.
+      block->accelerate_until = accelerate_steps;
+      block->decelerate_after = accelerate_steps + plateau_steps;
+      block->initial_rate = initial_rate;
+      block->final_rate = final_rate;
+    }
+  CRITICAL_SECTION_END
 }
 
 // The kernel called by recalculate() when scanning the plan from last to first entry.
@@ -191,7 +187,7 @@ void Planner::reverse_pass() {
     block_t* block[3] = { NULL, NULL, NULL };
 
     // Make a local copy of block_buffer_tail, because the interrupt can alter it
-    //CRITICAL_SECTION_START;
+    //CRITICAL_SECTION_START
     uint8_t tail = block_buffer_tail;
     //CRITICAL_SECTION_END
 
@@ -579,7 +575,7 @@ void Planner::_buffer_line(const float &a, const float &b, const float &c, const
   // For a mixing extruder, get steps for each
   #if ENABLED(COLOR_MIXING_EXTRUDER)
     for (uint8_t i = 0; i < MIXING_STEPPERS; i++)
-      block->mix_event_count[i] = tools.mixing_factor[i] * block->step_event_count;
+      block->mix_event_count[i] = mixing_factor[i] * block->step_event_count;
   #endif
 
   #if ENABLED(BARICUDA)
@@ -1253,24 +1249,7 @@ void Planner::_buffer_line(const float &a, const float &b, const float &c, const
         * mechanics.axis_steps_per_mm[E_AXIS_N] * 256.0
       );
 
-  #elif ENABLED(ADVANCE)
-
-    // Calculate advance rate
-    if (esteps && (block->steps[X_AXIS] || block->steps[Y_AXIS] || block->steps[Z_AXIS])) {
-      const long acc_dist = estimate_acceleration_distance(0, block->nominal_rate, block->acceleration_steps_per_s2);
-      const float advance = ((STEPS_PER_CUBIC_MM_E) * (EXTRUDER_ADVANCE_K)) * HYPOT(current_speed[E_AXIS], EXTRUSION_AREA) * 256;
-      block->advance = advance;
-      block->advance_rate = acc_dist ? advance / (float)acc_dist : 0;
-    }
-    else
-      block->advance_rate = block->advance = 0;
-
-    /**
-    SERIAL_SMV(ECHO, "advance :", block->advance/256);
-    SERIAL_EMV("advance rate :", block->advance_rate/256);
-    */
-
-  #endif // ADVANCE or LIN_ADVANCE
+  #endif // LIN_ADVANCE
 
   calculate_trapezoid_for_block(block, block->entry_speed / block->nominal_speed, safe_speed / block->nominal_speed);
 

@@ -26,30 +26,30 @@
  * Copyright (C) 2017 Alberto Cotronei @MagoKimbra
  */
 
-#include "../../base.h"
+#include "../../MK4duo.h"
 
 const char axis_codes[XYZE] = {'X', 'Y', 'Z', 'E'};
 
 Printer printer;
 
-bool    Printer::Running        = true,
-        Printer::relative_mode  = false,
-        Printer::pos_saved      = false;
+bool  Printer::pos_saved              = false,
+      Printer::relative_mode          = false,
+      Printer::Running                = false,
+      Printer::axis_relative_modes[]  = AXIS_RELATIVE_MODES;
 
 volatile bool Printer::wait_for_user = false;
 
 // Print status related
 long    Printer::currentLayer  = 0,
         Printer::maxLayer      = -1;   // -1 = unknown
+
 char    Printer::printName[21] = "";   // max. 20 chars + 0
-float   Printer::progress      = 0.0;
 
-uint8_t Printer::host_keepalive_interval = DEFAULT_KEEPALIVE_INTERVAL;
-
-bool    Printer::axis_relative_modes[] = AXIS_RELATIVE_MODES;
+uint8_t Printer::progress                 = 0,
+        Printer::host_keepalive_interval  = DEFAULT_KEEPALIVE_INTERVAL;
 
 // Inactivity shutdown
-millis_t  Printer::max_inactive_time      = 0;
+millis_t  Printer::max_inactive_time  = 0;
 
 // Interrupt Event
 MK4duoInterruptEvent Printer::interruptEvent = INTERRUPT_EVENT_NONE;
@@ -74,13 +74,7 @@ PrinterMode Printer::mode =
   Printer::MK4duoBusyState Printer::busy_state = NOT_BUSY;
 #endif
 
-#if HAS_FIL_RUNOUT || HAS_EXT_ENCODER
-  bool Printer::filament_ran_out = false;
-#endif
-
-#if MB(ALLIGATOR) || MB(ALLIGATOR_V3)
-  float Printer::motor_current[3 + DRIVER_EXTRUDERS];
-#endif
+bool Printer::filament_out = false;
 
 #if ENABLED(RFID_MODULE)
   uint32_t  Printer::Spool_ID[EXTRUDERS] = ARRAY_BY_EXTRUDERS(0);
@@ -124,7 +118,7 @@ PrinterMode Printer::mode =
 
 /**
  * MK4duo entry-point: Set up before the program loop
- *  - Set up Alligator Board
+ *  - Set up Hardware Board
  *  - Set up the kill pin, filament runout, power hold
  *  - Start the serial port
  *  - Print startup messages and diagnostics
@@ -147,8 +141,8 @@ void Printer::setup() {
 
   HAL::hwSetup();
 
-  #if ENABLED(FILAMENT_RUNOUT_SENSOR)
-    setup_filrunoutpin();
+  #if HAS_FIL_RUNOUT
+    filamentrunout.Init();
   #endif
 
   #if HAS_KILL
@@ -210,13 +204,7 @@ void Printer::setup() {
   // Vital to init stepper/planner equivalent for current_position
   mechanics.sync_plan_position();
 
-  LOOP_HEATER() heaters[h].init();  // Initialize all Heater
-
   thermalManager.init();  // Initialize temperature loop
-
-  #if FAN_COUNT > 0
-    fan_init(); // Initialize Fans
-  #endif
 
   #if ENABLED(CNCROUTER)
     cnc.init();
@@ -282,8 +270,7 @@ void Printer::setup() {
     OUT_WRITE(STAT_LED_BLUE_PIN, LOW); // turn it off
   #endif
 
-  #if HAS_NEOPIXEL
-    SET_OUTPUT(NEOPIXEL_PIN);
+  #if ENABLED(NEOPIXEL_LED)
     setup_neopixel();
   #endif
 
@@ -330,13 +317,7 @@ void Printer::setup() {
   #endif
 
   #if ENABLED(COLOR_MIXING_EXTRUDER) && MIXING_VIRTUAL_TOOLS > 1
-    // Initialize mixing to 100% color 1
-    mixing_factor[0] = 1.0;
-    for (uint8_t i = 1; i < MIXING_STEPPERS; ++i) mixing_factor[i] = 0.0;
-
-    for (uint8_t t = 0; t < MIXING_VIRTUAL_TOOLS; ++t)
-      for (uint8_t i = 0; i < MIXING_STEPPERS; ++i)
-        mixing_virtual_tool_mix[t][i] = mixing_factor[i];
+    mixing_tools_init();
   #endif
 
   #if ENABLED(BLTOUCH)
@@ -357,6 +338,31 @@ void Printer::setup() {
   #if FAN_COUNT > 0
     LOOP_FAN() fans[f].Speed = 0;
   #endif
+}
+
+/**
+ * The main MK4duo program loop
+ *
+ *  - Save or log commands to SD
+ *  - Process available commands (if not saving)
+ *  - Call heater manager
+ *  - Call Fans manager
+ *  - Call inactivity manager
+ *  - Call endstop manager
+ *  - Call LCD update
+ */
+void Printer::loop() {
+
+  commands.get_available_commands();
+
+  #if HAS_SDSUPPORT
+    card.checkautostart(false);
+  #endif
+
+  commands.advance_command_queue();
+
+  endstops.report_state();
+  idle();
 }
 
 void Printer::safe_delay(millis_t ms) {
@@ -556,24 +562,11 @@ void Printer::Stop() {
 
   if (IsRunning()) {
     Running = false;
-    commands.save_last_gcode(); // Save last g_code for restart
     SERIAL_LM(ER, MSG_ERR_STOPPED);
     SERIAL_STR(PAUSE);
     SERIAL_EOL();
     LCD_MESSAGEPGM(MSG_STOPPED);
   }
-}
-
-void Printer::quickstop_stepper() {
-  stepper.quick_stop();
-  stepper.synchronize();
-  mechanics.set_current_from_steppers_for_axis(ALL_AXES);
-  mechanics.sync_plan_position();
-}
-
-void Printer::calculate_volumetric_multipliers() {
-  for (uint8_t e = 0; e < EXTRUDERS; e++)
-    tools.volumetric_multiplier[e] = calculate_volumetric_multiplier(tools.filament_size[e]);
 }
 
 void Printer::idle(bool no_stepper_sleep/*=false*/) {
@@ -610,6 +603,10 @@ void Printer::idle(bool no_stepper_sleep/*=false*/) {
 
   print_job_counter.tick();
 
+  #if FAN_COUNT > 0
+    LOOP_FAN() fans[f].Check();
+  #endif
+
   if (HAL::execute_100ms) {
     // Event 100 Ms
     HAL::execute_100ms = false;
@@ -640,24 +637,8 @@ void Printer::idle(bool no_stepper_sleep/*=false*/) {
  */
 void Printer::manage_inactivity(bool ignore_stepper_queue/*=false*/) {
 
-  #if HAS_FIL_RUNOUT && FILAMENT_RUNOUT_DOUBLE_CHECK > 0
-    static bool filament_double_check = false;
-    static millis_t filament_switch_time = 0;
-    if ((IS_SD_PRINTING || print_job_counter.isRunning()) && READ(FIL_RUNOUT_PIN) == FIL_RUNOUT_PIN_INVERTING) {
-      if (filament_double_check) {
-        if (ELAPSED(millis(), filament_switch_time) {
-          setInterruptEvent(INTERRUPT_EVENT_FIL_RUNOUT);
-          filament_double_check = false;
-        }
-      }
-      else {
-        filament_double_check = true;
-        filament_switch_time = millis() + FILAMENT_RUNOUT_DOUBLE_CHECK;
-      }
-    }
-  #elif HAS_FIL_RUNOUT
-    if ((IS_SD_PRINTING || print_job_counter.isRunning()) && READ(FIL_RUNOUT_PIN) == FIL_RUNOUT_PIN_INVERTING)
-      setInterruptEvent(INTERRUPT_EVENT_FIL_RUNOUT);
+  #if HAS_FIL_RUNOUT
+    filamentrunout.Check();
   #endif
 
   commands.get_available_commands();
@@ -752,10 +733,6 @@ void Printer::manage_inactivity(bool ignore_stepper_queue/*=false*/) {
       else
         homeDebounceCount = 0;
     }
-  #endif
-
-  #if HAS_CONTROLLERFAN
-    controllerFan(); // Check if fan should be turned on to cool stepper drivers down
   #endif
 
   #if HAS_POWER_SWITCH
@@ -887,7 +864,7 @@ void Printer::manage_inactivity(bool ignore_stepper_queue/*=false*/) {
   #endif
 
   #if ENABLED(HAVE_TMC2130)
-    checkOverTemp();
+    tmc2130_checkOverTemp();
   #endif
 
   planner.check_axes_activity();
@@ -906,11 +883,10 @@ void Printer::handle_Interrupt_Event() {
   interruptEvent = INTERRUPT_EVENT_NONE;
 
   switch(event) {
-    #if HAS_FIL_RUNOUT || HAS_DAV_SYSTEM
+    #if HAS_FIL_RUNOUT
       case INTERRUPT_EVENT_FIL_RUNOUT:
-      case INTERRUPT_EVENT_DAV_SYSTEM:
-        if (!filament_ran_out) {
-          filament_ran_out = true;
+        if (!filament_out && (IS_SD_PRINTING || print_job_counter.isRunning())) {
+          filament_out = true;
           commands.enqueue_and_echo_commands_P(PSTR(FILAMENT_RUNOUT_SCRIPT));
           SERIAL_LM(REQUEST_PAUSE, "End Filament detect");
           stepper.synchronize();
@@ -920,8 +896,8 @@ void Printer::handle_Interrupt_Event() {
 
     #if HAS_EXT_ENCODER
       case INTERRUPT_EVENT_ENC_DETECT:
-        if (!filament_ran_out && (IS_SD_PRINTING || print_job_counter.isRunning())) {
-          filament_ran_out = true;
+        if (!filament_out && (IS_SD_PRINTING || print_job_counter.isRunning())) {
+          filament_out = true;
           stepper.synchronize();
 
           #if ENABLED(ADVANCED_PAUSE_FEATURE)
@@ -938,139 +914,13 @@ void Printer::handle_Interrupt_Event() {
   }
 }
 
-#if HAS_SDSUPPORT
-
-  /**
-   * SD Stop & Store location
-   */
-  void Printer::stopSDPrint(const bool store_location) {
-    if (IS_SD_FILE_OPEN && IS_SD_PRINTING) {
-      if (store_location) SERIAL_EM("Close file and save restart.gcode");
-      card.stopSDPrint(store_location);
-      commands.clear_command_queue();
-      quickstop_stepper();
-      print_job_counter.stop();
-      thermalManager.wait_for_heatup = false;
-      thermalManager.disable_all_heaters();
-      #if FAN_COUNT > 0
-        LOOP_FAN() fans[f].Speed = 0;
-      #endif
-      lcd_setstatus(MSG_PRINT_ABORTED, true);
-      #if HAS_POWER_SWITCH
-        powerManager.power_off();
-      #endif
-    }
-  }
-
-#endif // HAS_SDSUPPORT
-
-#if HAS_COLOR_LEDS
-
-  #if HAS_NEOPIXEL
-
-    #if ENABLED(NEOPIXEL_RGB_LED)
-      Adafruit_NeoPixel strip = Adafruit_NeoPixel(NEOPIXEL_PIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
-    #else
-      Adafruit_NeoPixel strip = Adafruit_NeoPixel(NEOPIXEL_PIXELS, NEOPIXEL_PIN, NEO_GRBW + NEO_KHZ800);
-    #endif
-
-    void Printer::set_neopixel_color(const uint32_t color) {
-      for (uint16_t i = 0; i < strip.numPixels(); ++i)
-        strip.setPixelColor(i, color);
-      strip.show();
-    }
-
-    void Printer::setup_neopixel() {
-      strip.setBrightness(255); // 0 - 255 range
-      strip.begin();
-      strip.show(); // initialize to all off
-
-      #if ENABLED(NEOPIXEL_STARTUP_TEST)
-        delay(2000);
-        set_neopixel_color(strip.Color(255, 0, 0, 0));  // red
-        delay(2000);
-        set_neopixel_color(strip.Color(0, 255, 0, 0));  // green
-        delay(2000);
-        set_neopixel_color(strip.Color(0, 0, 255, 0));  // blue
-        delay(2000);
-      #endif
-      set_neopixel_color(strip.Color(0, 0, 0, 255));    // white
-    }
-
-  #endif
-
-  void Printer::set_led_color(
-    const uint8_t r, const uint8_t g, const uint8_t b
-      #if ENABLED(RGBW_LED) || ENABLED(NEOPIXEL_RGBW_LED)
-        , const uint8_t w/*=0*/
-      #endif
-      #if HAS_NEOPIXEL
-        , bool isSequence/*=false*/
-      #endif
-  ) {
-
-    #if HAS_NEOPIXEL
-
-      #if ENABLED(NEOPIXEL_RGBW_LED)
-        const uint32_t color = strip.Color(r, g, b, w);
-      #else
-        const uint32_t color = strip.Color(r, g, b);
-      #endif
-
-      static uint16_t nextLed = 0;
-
-      if (!isSequence)
-        set_neopixel_color(color);
-      else {
-        strip.setPixelColor(nextLed, color);
-        strip.show();
-        if (++nextLed >= strip.numPixels()) nextLed = 0;
-        return;
-      }
-
-    #endif
-
-    #if ENABLED(BLINKM)
-
-      // This variant uses i2c to send the RGB components to the device.
-      SendColors(r, g, b);
-
-    #endif
-
-    #if ENABLED(RGB_LED) || ENABLED(RGBW_LED)
-
-      // This variant uses 3 separate pins for the RGB components.
-      // If the pins can do PWM then their intensity will be set.
-      WRITE(RGB_LED_R_PIN, r ? HIGH : LOW);
-      WRITE(RGB_LED_G_PIN, g ? HIGH : LOW);
-      WRITE(RGB_LED_B_PIN, b ? HIGH : LOW);
-      analogWrite(RGB_LED_R_PIN, r);
-      analogWrite(RGB_LED_G_PIN, g);
-      analogWrite(RGB_LED_B_PIN, b);
-
-      #if ENABLED(RGBW_LED)
-        WRITE(RGB_LED_W_PIN, w ? HIGH : LOW);
-        analogWrite(RGB_LED_W_PIN, w);
-      #endif
-
-    #endif
-
-    #if ENABLED(PCA9632)
-      // Update I2C LED driver
-      PCA9632_SetColor(r, g, b);
-    #endif
-
-  }
-
-#endif // HAS_COLOR_LEDS
-
 /**
  * Sensitive pin test for M42, M226
  */
-bool Printer::pin_is_protected(uint8_t pin) {
+bool Printer::pin_is_protected(const Pin pin) {
   static const int8_t sensitive_pins[] PROGMEM = SENSITIVE_PINS;
   for (uint8_t i = 0; i < COUNT(sensitive_pins); i++)
-    if (pin == (int8_t)pgm_read_byte(&sensitive_pins[i])) return true;
+    if (pin == pgm_read_byte(&sensitive_pins[i])) return true;
   return false;
 }
 
@@ -1080,18 +930,15 @@ void Printer::suicide() {
   #endif
 }
 
+char Printer::GetStatusCharacter(){
+  return  print_job_counter.isRunning() ? 'P'   // Printing
+        : print_job_counter.isPaused()  ? 'A'   // Paused / Stopped
+        :                                 'I';  // Idle
+}
+
 /**
  * Private Function
  */
-#if HAS_FIL_RUNOUT
-  void Printer::setup_filrunoutpin() {
-    #if ENABLED(ENDSTOPPULLUP_FIL_RUNOUT)
-      SET_INPUT_PULLUP(FIL_RUNOUT_PIN);
-    #else
-      SET_INPUT(FIL_RUNOUT_PIN);
-    #endif
-  }
-#endif
 
 void Printer::setup_powerhold() {
   #if HAS_SUICIDE
@@ -1108,8 +955,11 @@ void Printer::setup_powerhold() {
 
 float Printer::calculate_volumetric_multiplier(const float diameter) {
   if (!tools.volumetric_enabled || diameter == 0) return 1.0;
-  float d2 = diameter * 0.5;
-  return 1.0 / (M_PI * d2 * d2);
+  return 1.0 / CIRCLE_AREA(diameter * 0.5);
+}
+void Printer::calculate_volumetric_multipliers() {
+  for (uint8_t e = 0; e < EXTRUDERS; e++)
+    tools.volumetric_multiplier[e] = calculate_volumetric_multiplier(tools.filament_size[e]);
 }
 
 #if ENABLED(IDLE_OOZING_PREVENT)
@@ -1211,104 +1061,3 @@ float Printer::calculate_volumetric_multiplier(const float diameter) {
   }
 
 #endif
-
-#if ENABLED(HAVE_TMC2130)
-
-  void automatic_current_control(TMC2130Stepper &st, String axisID) {
-    // Check otpw even if we don't use automatic control. Allows for flag inspection.
-    const bool is_otpw = st.checkOT();
-
-    // Report if a warning was triggered
-    static bool previous_otpw = false;
-    if (is_otpw && !previous_otpw) {
-      char timestamp[10];
-      duration_t elapsed = print_job_counter.duration();
-      const bool has_days = (elapsed.value > 60*60*24L);
-      (void)elapsed.toDigital(timestamp, has_days);
-      SERIAL_TXT(timestamp);
-      SERIAL_TXT(": ");
-      SERIAL_TXT(axisID);
-      SERIAL_EM(" driver overtemperature warning!");
-    }
-    previous_otpw = is_otpw;
-
-    #if CURRENT_STEP > 0 && ENABLED(AUTOMATIC_CURRENT_CONTROL)
-      // Return if user has not enabled current control start with M906 S1.
-      if (!auto_current_control) return;
-
-      /**
-       * Decrease current if is_otpw is true.
-       * Bail out if driver is disabled.
-       * Increase current if OTPW has not been triggered yet.
-       */
-      uint16_t current = st.getCurrent();
-      if (is_otpw) {
-        st.setCurrent(current - CURRENT_STEP, R_SENSE, HOLD_MULTIPLIER);
-        #if ENABLED(REPORT_CURRENT_CHANGE)
-          SERIAL_TXT(axisID);
-          SERIAL_MV(" current decreased to ", st.getCurrent());
-        #endif
-      }
-
-      else if (!st.isEnabled())
-        return;
-
-      else if (!is_otpw && !st.getOTPW()) {
-        current += CURRENT_STEP;
-        if (current <= AUTO_ADJUST_MAX) {
-          st.setCurrent(current, R_SENSE, HOLD_MULTIPLIER);
-          #if ENABLED(REPORT_CURRENT_CHANGE)
-            SERIAL_TXT(axisID);
-            SERIAL_MV(" current increased to ", st.getCurrent());
-          #endif
-        }
-      }
-      SERIAL_EOL();
-    #endif
-  }
-
-  void Printer::checkOverTemp() {
-
-    static millis_t next_cOT = 0;
-    if (ELAPSED(millis(), next_cOT)) {
-      next_cOT = millis() + 5000;
-      #if ENABLED(X_IS_TMC2130)
-        automatic_current_control(stepperX, "X");
-      #endif
-      #if ENABLED(Y_IS_TMC2130)
-        automatic_current_control(stepperY, "Y");
-      #endif
-      #if ENABLED(Z_IS_TMC2130)
-        automatic_current_control(stepperZ, "Z");
-      #endif
-      #if ENABLED(X2_IS_TMC2130)
-        automatic_current_control(stepperX2, "X2");
-      #endif
-      #if ENABLED(Y2_IS_TMC2130)
-        automatic_current_control(stepperY2, "Y2");
-      #endif
-      #if ENABLED(Z2_IS_TMC2130)
-        automatic_current_control(stepperZ2, "Z2");
-      #endif
-      #if ENABLED(E0_IS_TMC2130)
-        automatic_current_control(stepperE0, "E0");
-      #endif
-      #if ENABLED(E1_IS_TMC2130)
-        automatic_current_control(stepperE1, "E1");
-      #endif
-      #if ENABLED(E2_IS_TMC2130)
-        automatic_current_control(stepperE2, "E2");
-      #endif
-      #if ENABLED(E3_IS_TMC2130)
-        automatic_current_control(stepperE3, "E3");
-      #endif
-      #if ENABLED(E4_IS_TMC2130)
-        automatic_current_control(stepperE4, "E4");
-      #endif
-      #if ENABLED(E5_IS_TMC2130)
-        automatic_current_control(stepperE5, "E5");
-      #endif
-    }
-  }
-
-#endif // HAVE_TMC2130

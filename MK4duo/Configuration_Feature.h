@@ -42,7 +42,6 @@
  * - Extruder idle oozing prevention
  * - Extruder run-out prevention
  * - Bowden Filament management
- * - Extruder advance constant
  * - Extruder Advance Linear Pressure Control
  * MOTION FEATURES:
  * - Software endstops
@@ -100,7 +99,6 @@
  * - Trinamic TMC2130 motor drivers
  * - L6470 motor drivers
  * ADVANCED FEATURES:
- * - PWM Hardware
  * - Buffer stuff
  * - Nozzle Clean Feature
  * - Nozzle Park
@@ -140,33 +138,28 @@
 // before setting a PWM value.
 //#define FAN_KICKSTART_TIME 200
 
-// This defines the minimal speed for the main fan, run in PWM mode
-// to enable uncomment and set minimal PWM speed for reliable running (1-255)
-//#define FAN_MIN_PWM 50
+// This defines the minimal speed for the main fan
+// set minimal speed for reliable running (1-255)
+#define FAN_MIN_PWM 1
 
 // To reverse the logic of fan pins
 //#define INVERTED_FAN_PINS
 
-// This is for controlling a fan to cool down the stepper drivers
-// it will turn on when any driver is enabled
-// and turn off after the set amount of seconds from last driver being disabled again
-// You need to set CONTROLLERFAN_PIN in Configuration_pins.h
-//#define CONTROLLERFAN
-#define CONTROLLERFAN_SECS       60   // How many seconds, after all motors were disabled, the fan should run
-#define CONTROLLERFAN_SPEED     255   // 255 = full speed
-#define CONTROLLERFAN_MIN_SPEED   0
-
-// Hotend cooling fans
-// Configure fan pin outputs to automatically turn on/off when the associated
+// AUTO FAN - Fans for cooling Hotend or Controller Fan
+// Put number Hotend in fan to automatically turn on/off when the associated
 // hotend temperature is above/below HOTEND AUTO FAN TEMPERATURE.
-// Multiple hotends can be assigned to the same pin in which case
-// the fan will turn on when any selected hotend is above the threshold.
-// You need to set HOTEND AUTO FAN PIN in Configuration_pins.h
-//#define HOTEND_AUTO_FAN
-//#define INVERTED_AUTO_FAN_PINS
+// Or put 7 for controller fan
+// -1 disables auto mode.
+// Default fan 1 is auto fan for Hotend 0
+#define AUTO_FAN { -1, 0, -1, -1, -1, -1 }
+// Parameters for Hotend Fan
 #define HOTEND_AUTO_FAN_TEMPERATURE  50
-#define HOTEND_AUTO_FAN_SPEED       255  // 255 = full speed
+#define HOTEND_AUTO_FAN_SPEED       255 // 255 = full speed
 #define HOTEND_AUTO_FAN_MIN_SPEED     0
+// Parameters for Controller Fan
+#define CONTROLLERFAN_SECS           60 // How many seconds, after all motors were disabled, the fan should run
+#define CONTROLLERFAN_SPEED         255 // 255 = full speed
+#define CONTROLLERFAN_MIN_SPEED       0
 /**************************************************************************/
 
 
@@ -442,28 +435,6 @@
 #define LCD_LOAD_FEEDRATE 8     // mm/s
 #define LCD_UNLOAD_FEEDRATE 8   // mm/s
 /***********************************************************************/
-
-
-/*****************************************************************************************
- ****************************** Extruder advance constant ********************************
- *****************************************************************************************
- *                                                                                       *
- * extruder advance constant (s2/mm3)                                                    *
- * advance (steps) = STEPS_PER_CUBIC_MM_E * EXTRUDER_ADVANCE_K * cubic mm per second ^ 2 *
- *                                                                                       *
- * Hooke's law says:    force = k * distance                                             *
- * Bernoulli's principle says:  v ^ 2 / 2 + g . h + pressure / density = constant        *
- * so: v ^ 2 is proportional to number of steps we advance the extruder                  *
- *                                                                                       *
- * This feature is obsolete needs update                                                 *
- * Uncomment ADVANCE to enable this feature                                              *
- *                                                                                       *
- *****************************************************************************************/
-//#define ADVANCE
-
-#define EXTRUDER_ADVANCE_K 0.0
-#define D_FILAMENT 1.75
-/*****************************************************************************************/
 
 
 /*****************************************************************************************
@@ -1144,13 +1115,49 @@
 // Note: This is always disabled for ULTIPANEL (except ELB_FULL_GRAPHIC_CONTROLLER).
 //#define SD_DETECT_INVERTED
 
-#define SD_FINISHED_STEPPERRELEASE true  //if sd support and the file is finished: disable steppers?
-#define SD_FINISHED_RELEASECOMMAND "M84 X Y Z E" // You might want to keep the z enabled so your bed stays in place.
+#define SD_FINISHED_STEPPERRELEASE true           // if sd support and the file is finished: disable steppers?
+#define SD_FINISHED_RELEASECOMMAND "M84 X Y Z E"  // You might want to keep the z enabled so your bed stays in place.
 
-#define SDCARD_RATHERRECENTFIRST  //reverse file order of sd card menu display. Its sorted practically after the file system block order.
+#define SDCARD_RATHERRECENTFIRST  // reverse file order of sd card menu display. Its sorted practically after the file system block order.
 // if a file is deleted, it frees a block. hence, the order is not purely chronological. To still have auto0.g accessible, there is again the option to do that.
 // using:
 //#define MENU_ADDAUTOSTART
+
+/**
+ * Sort SD file listings in alphabetical order.
+ *
+ * With this option enabled, items on SD cards will be sorted
+ * by name for easier navigation.
+ *
+ * By default...
+ *
+ *  - Use the slowest -but safest- method for sorting.
+ *  - Folders are sorted to the top.
+ *  - The sort key is statically allocated.
+ *  - No added G-code (M36) support.
+ *  - 40 item sorting limit. (Items after the first 40 are unsorted.)
+ *
+ * SD sorting uses static allocation (as set by SDSORT_LIMIT), allowing the
+ * compiler to calculate the worst-case usage and throw an error if the SRAM
+ * limit is exceeded.
+ *
+ *  - SDSORT_USES_RAM provides faster sorting via a static directory buffer.
+ *  - SDSORT_USES_STACK does the same, but uses a local stack-based buffer.
+ *  - SDSORT_CACHE_NAMES will retain the sorted file listing in RAM. (Expensive!)
+ *  - SDSORT_DYNAMIC_RAM only uses RAM when the SD menu is visible. (Use with caution!)
+ */
+//#define SDCARD_SORT_ALPHA
+
+// SD Card Sorting options
+#define SDSORT_LIMIT       40     // Maximum number of sorted items (10-256). Costs 27 bytes each.
+#define FOLDER_SORTING     -1     // -1=above  0=none  1=below
+#define SDSORT_GCODE       false  // Allow turning sorting on/off with LCD and M36 g-code.
+#define SDSORT_USES_RAM    false  // Pre-allocate a static array for faster pre-sorting.
+#define SDSORT_USES_STACK  false  // Prefer the stack for pre-sorting to give back some SRAM. (Negated by next 2 options.)
+#define SDSORT_CACHE_NAMES false  // Keep sorted items in RAM longer for speedy performance. Most expensive option.
+#define SDSORT_DYNAMIC_RAM false  // Use dynamic allocation (within SD menus). Least expensive option. Set SDSORT_LIMIT before use!
+#define SDSORT_CACHE_VFATS 2      // Maximum number of 13-byte VFAT entries to use for sorting.
+                                  // Note: Only affects SCROLL_LONG_FILENAMES with SDSORT_CACHE_NAMES but not SDSORT_DYNAMIC_RAM.
 
 // This enable the firmware to write some configuration that require frequent update, on the SD card
 //#define SD_SETTINGS                     // Uncomment to enable
@@ -1164,18 +1171,20 @@
  *                                                                                       *
  * Here you may choose the language used by MK4duo on the LCD menus,                     *
  * the following list of languages are available:                                        *
- *    en, an, bg, ca, cn, cz, de, el, el-gr, es, eu, fi, fr, gl, hr, it,                 *
- *    kana, kana_utf8, nl, pl, pt, pt_utf8, pt-br, pt-br_utf8, ru, tr                    *
+ *    en, an, bg, ca, cn, cz, cz_utf8, de, el, el-gr, es, eu, fi, fr, gl, hr, it,        *
+ *    kana, kana_utf8, nl, pl, pt, pt_utf8, pt-br, pt-br_utf8, ru, tr, uk, zh_CN, zh_TW  *
  *                                                                                       *
- * 'en':'English',          'an':'Aragonese',   'bg':'Bulgarian',       'ca':'Catalan',  *
- * 'cn':'Chinese',          'cz':'Czech',       'de':'German',          'el':'Greek',    *
- * 'el-gr':'Greek (Greece)' 'es':'Spanish',     'eu':'Basque-Euskera',  'fi':'Finnish',  *
- * 'fr':'French',           'gl':'Galician',    'hr':'Croatian',        'it':'Italian',  *
- * 'kana':'Japanese',       'kana_utf8':'Japanese (UTF8)'               'nl':'Dutch',    *
- * 'pl':'Polish',           'pt':'Portuguese',  'ru':'Russian',         'tr':'Turkish',  *
- * 'uk':'Ukrainian',        'pt_utf8':'Portuguese (UTF8)',              'hu':'Hungarian',*
- * 'pt-br':'Portuguese (Brazilian)',                                                     *
- * 'pt-br_utf8':'Portuguese (Brazilian UTF8)',                                           *
+ * 'en':'English',          'an':'Aragonese', 'bg':'Bulgarian',       'ca':'Catalan',    *
+ * 'cn':'Chinese',          'cz':'Czech',     'de':'German',          'el':'Greek',      *
+ * 'el-gr':'Greek (Greece)' 'es':'Spanish',   'eu':'Basque-Euskera',  'fi':'Finnish',    *
+ * 'fr':'French',           'gl':'Galician',  'hr':'Croatian',        'it':'Italian',    *
+ * 'kana':'Japanese',       'nl':'Dutch',     'pl':'Polish',          'pt':'Portuguese', *
+ * 'ru':'Russian',          'tr':'Turkish',   'uk':'Ukrainian',       'hu':'Hungarian',  *
+ * 'cz_utf8':'Czech (UTF8)'                                                              *
+ * 'kana_utf8':'Japanese (UTF8)'                                                         *
+ * 'pt_utf8':'Portuguese (UTF8)'                                                         *
+ * 'pt-br':'Portuguese (Brazilian)'                                                      *
+ * 'pt-br_utf8':'Portuguese (Brazilian UTF8)'                                            *
  *                                                                                       *
  *****************************************************************************************/
 #define LCD_LANGUAGE en
@@ -1478,6 +1487,40 @@
 //
 //#define SAV_3DLCD
 
+//
+// TinyBoy2 128x64 OLED / Encoder Panel
+//
+//#define OLED_PANEL_TINYBOY2
+
+//
+// Makeboard 3D Printer Parts 3D Printer Mini Display 1602 Mini Controller
+// https://www.aliexpress.com/item/Micromake-Makeboard-3D-Printer-Parts-3D-Printer-Mini-Display-1602-Mini-Controller-Compatible-with-Ramps-1/32765887917.html
+//
+//#define MAKEBOARD_MINI_2_LINE_DISPLAY_1602
+
+//
+// MKS MINI12864 with graphic controller and SD support
+// http://reprap.org/wiki/MKS_MINI_12864
+//
+//#define MKS_MINI_12864
+
+//
+// Factory display for Creality CR-10
+// https://www.aliexpress.com/item/Universal-LCD-12864-3D-Printer-Display-Screen-With-Encoder-For-CR-10-CR-7-Model/32833148327.html
+//
+// This is RAMPS-compatible using a single 10-pin connector.
+// (For CR-10 owners who want to replace the Melzi Creality board but retain the display)
+//
+//#define CR10_STOCKDISPLAY
+
+//
+// MKS OLED 1.3" 128 × 64 FULL GRAPHICS CONTROLLER
+// http://reprap.org/wiki/MKS_12864OLED
+//
+// Tiny, but very sharp OLED display
+//
+//#define MKS_12864OLED
+
 // CONTROLLER TYPE: Serial display
 
 // Nextion 4.3" HMI panel model NX4827T043_11
@@ -1572,7 +1615,20 @@
  ******************************** RGB LED *********************************
  **************************************************************************
  *                                                                        *
- * Support for an RGB LED using 3 separate pins with optional PWM         *
+ * Enable support for an RGB LED connected to 5V digital pins, or         *
+ * an RGB Strip connected to MOSFETs controlled by digital pins.          *
+ *                                                                        *
+ * Adds the M150 command to set the LED (or LED strip) color.             *
+ * If pins are PWM capable (e.g., 4, 5, 6, 11) then a range of            *
+ * luminance values can be set from 0 to 255.                             *
+ *                                                                        *
+ * *** CAUTION ***                                                        *
+ *  LED Strips require a MOFSET Chip between PWM lines and LEDs,          *
+ *  as the Arduino cannot handle the current the LEDs will require.       *
+ *  Failure to follow this precaution can destroy your Arduino!           *
+ * *** CAUTION ***                                                        *
+ *                                                                        *
+ * LED type. These options are mutually-exclusive. Uncomment only one.    *
  *                                                                        *
  **************************************************************************/
 //#define RGB_LED
@@ -1598,10 +1654,18 @@
  * Support for Adafruit Neopixel LED driver                               *
  *                                                                        *
  **************************************************************************/
-//#define NEOPIXEL_RGB_LED
-//#define NEOPIXEL_RGBW_LED
+//#define NEOPIXEL_LED
 
+// NEO_GRBW / NEO_GRB - four/three channel driver type
+// (defined in Adafruit_NeoPixel.h)
+#define NEOPIXEL_TYPE   NEO_GRB
+// Number of LEDs on strip
 #define NEOPIXEL_PIXELS 16
+// Sequential display for temperature change - LED by LED.
+// Comment out for all LEDs to change at once.
+#define NEOPIXEL_IS_SEQUENTIAL
+// Initial brightness 0-255
+#define NEOPIXEL_BRIGHTNESS 255
 // Cycle through colors at startup
 //#define NEOPIXEL_STARTUP_TEST
 /**************************************************************************/
@@ -1826,18 +1890,6 @@
 //===========================================================================
 
 
-/**********************************************************************************
- ********************************* PWM Hardware ***********************************
- **********************************************************************************
- *                                                                                *
- * Support PWM hardware for SAM processor                                         *
- * This function ability PWM hardware on SAM proccesor, tested only on ALLIGATOR! *
- *                                                                                *
- **********************************************************************************/
-#define PWM_HARDWARE false
-/**********************************************************************************/
-
-
 /****************************************************************************************
  ************************************** Buffer stuff ************************************
  ****************************************************************************************/
@@ -1851,6 +1903,35 @@
 #define MAX_CMD_SIZE 96
 // For Arduino DUE setting to 8
 #define BUFSIZE 4
+
+/** START Function only for 8 bit proccesor */
+// Transmission to Host Buffer Size
+// To save 386 bytes of PROGMEM (and TX_BUFFER_SIZE+3 bytes of RAM) set to 0.
+// To buffer a simple "ok" you need 4 bytes.
+// For ADVANCED_OK (M105) you need 32 bytes.
+// For debug-echo: 128 bytes for the optimal speed.
+// Other output doesn't need to be that speedy.
+// 0, 2, 4, 8, 16, 32, 64, 128, 256
+#define TX_BUFFER_SIZE 32
+
+// Host Receive Buffer Size
+// Without XON/XOFF flow control (see SERIAL XON XOFF below) 32 bytes should be enough.
+// To use flow control, set this buffer size to at least 1024 bytes.
+// 0, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048
+#define RX_BUFFER_SIZE 128
+
+// Enable to have the controller send XON/XOFF control characters to
+// the host to signal the RX buffer is becoming full.
+//#define SERIAL_XON_XOFF
+
+// Enable this option to collect and display the maximum
+// RX queue usage after transferring a file to SD.
+//#define SERIAL_STATS_MAX_RX_QUEUED
+
+// Enable this option to collect and display the number
+// of dropped bytes after a file transfer to SD.
+//#define SERIAL_STATS_DROPPED_RX
+/** END Function only for 8 bit proccesor */
 
 // Defines the number of memory slots for saving/restoring position (G60/G61)
 // The values should not be less than 1

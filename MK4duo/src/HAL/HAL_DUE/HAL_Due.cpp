@@ -54,7 +54,7 @@
 // Includes
 // --------------------------------------------------------------------------
 
-#include "../../../base.h"
+#include "../../../MK4duo.h"
 
 #if ENABLED(ARDUINO_ARCH_SAM)
 
@@ -72,8 +72,8 @@ uint8_t MCUSR;
                   adcSamplePos = 0;
   static uint32_t adcEnable = 0;
 
-  volatile int16_t  HAL::AnalogInputValues[NUM_ANALOG_INPUTS] = { 0 };
-  bool              HAL::Analog_is_ready = false;
+  int16_t HAL::AnalogInputValues[NUM_ANALOG_INPUTS] = { 0 };
+  bool    HAL::Analog_is_ready = false;
 #endif
 
 static unsigned int cycle_100ms = 0;
@@ -90,6 +90,12 @@ void sei(void) {
 
 static inline void ConfigurePin(const PinDescription& pinDesc) {
   PIO_Configure(pinDesc.pPort, pinDesc.ulPinType, pinDesc.ulPin, pinDesc.ulPinConfiguration);
+}
+
+// This intercepts the 1ms system tick. It must return 'false', otherwise the Arduino core tick handler will be bypassed.
+extern "C" int sysTickHook() {
+  HAL::Tick();
+  return 0;
 }
 
 HAL::HAL() {
@@ -112,11 +118,8 @@ void HAL::hwSetup(void) {
 
   TimeTick_Configure(F_CPU);
 
-  // setup microsecond delay timer
-  pmc_enable_periph_clk(DELAY_TIMER_IRQ);
-  TC_Configure(DELAY_TIMER, DELAY_TIMER_CHANNEL, TC_CMR_WAVSEL_UP |
-               TC_CMR_WAVE | DELAY_TIMER_CLOCK);
-  TC_Start(DELAY_TIMER, DELAY_TIMER_CHANNEL);
+  NVIC_SetPriority(SysTick_IRQn, NvicPrioritySystick);
+  NVIC_SetPriority(UART_IRQn, NvicPriorityUart);
 
   #if MB(ALLIGATOR) || MB(ALLIGATOR_V3)
 
@@ -225,8 +228,8 @@ int HAL::getFreeRam() {
     adc_channel_num_t adc_ch;
 
     LOOP_HEATER() {
-      if (WITHIN(heaters[h].sensor_pin, 0, 15)) {
-        adc_ch = PinToAdcChannel(heaters[h].sensor_pin);
+      if (WITHIN(heaters[h].sensor.pin, 0, 15)) {
+        adc_ch = PinToAdcChannel(heaters[h].sensor.pin);
         AdcEnableChannel(adc_ch);
         adc_set_channel_input_gain(ADC, adc_ch, ADC_GAINVALUE_0); // Gain = 1
       }
@@ -250,7 +253,7 @@ int HAL::getFreeRam() {
       adc_set_channel_input_gain(ADC, adc_ch, ADC_GAINVALUE_0); // Gain = 1
     #endif
 
-    adc_set_resolution(ADC, ADC_10_BITS); /* ADC 10-bit resolution */
+    //adc_set_resolution(ADC, ADC_12_BITS); /* ADC 10-bit resolution */
 
     #if !MB(RADDS) // RADDS not have MCU Temperature
       // Enable MCU temperature
@@ -280,11 +283,49 @@ int HAL::getFreeRam() {
     ADC->ADC_CR = ADC_CR_START;
   }
 
+  void HAL::AdcChangeChannel(const Pin old_pin, const Pin new_pin) {
+
+    adc_channel_num_t adc_ch;
+
+    // Disable old Pin
+    adc_ch = PinToAdcChannel(old_pin);
+    AdcDisableChannel(adc_ch);
+
+    // Enable new Pin
+    adc_ch = PinToAdcChannel(new_pin);
+    AdcEnableChannel(adc_ch);
+    adc_set_channel_input_gain(ADC, adc_ch, ADC_GAINVALUE_0); // Gain = 1
+  }
+
 #endif
 
 // Reset peripherals and cpu
 void HAL::resetHardware() {
-  RSTC->RSTC_CR = RSTC_CR_KEY(0xA5) | RSTC_CR_PERRST | RSTC_CR_PROCRST;
+
+  // Disable all interrupts
+	__disable_irq();
+
+	// Set bootflag to run SAM-BA bootloader at restart
+	const int EEFC_FCMD_CGPB = 0x0C;
+	const int EEFC_KEY = 0x5A;
+	while ((EFC0->EEFC_FSR & EEFC_FSR_FRDY) == 0);
+	EFC0->EEFC_FCR =
+		EEFC_FCR_FCMD(EEFC_FCMD_CGPB) |
+		EEFC_FCR_FARG(1) |
+		EEFC_FCR_FKEY(EEFC_KEY);
+	while ((EFC0->EEFC_FSR & EEFC_FSR_FRDY) == 0);
+
+	// From here flash memory is no more available.
+
+	// BANZAIIIIIII!!!
+	const int RSTC_KEY = 0xA5;
+	RSTC->RSTC_CR =
+		RSTC_CR_KEY(RSTC_KEY) |
+		RSTC_CR_PROCRST |
+		RSTC_CR_PERRST;
+
+	while (true);
+
 }
 
 // --------------------------------------------------------------------------
@@ -301,13 +342,13 @@ static inline uint32_t ConvertRange(const float f, const uint32_t top) { return 
 
 // AnalogWritePwm to a PWM pin
 // Return true if successful, false if we need to call software pwm
-static bool AnalogWritePwm(const PinDescription& pinDesc, const float ulValue, const uint16_t freq) {
+static void AnalogWritePwm(const PinDescription& pinDesc, const float ulValue, const uint16_t freq) {
 
   const uint32_t chan = pinDesc.ulPWMChannel;
 
   if (freq == 0) {
     PWMChanFreq[chan] = freq;
-    return false;
+    return;
   }
   else if (PWMChanFreq[chan] != freq) {
     if (!PWMEnabled) {
@@ -329,7 +370,7 @@ static bool AnalogWritePwm(const PinDescription& pinDesc, const float ulValue, c
     // We need to work around a bug in the SAM PWM channels. Enabling a channel is supposed to clear the counter, but it doesn't.
     // A further complication is that on the SAM3X, the update-period register doesn't appear to work.
     // So we need to make sure the counter is less than the new period before we change the period.
-    for (unsigned int j = 0; j < 5; ++j) {  // twice through should be enough, but just in case...
+    for (uint8_t j = 0; j < 5; ++j) {  // twice through should be enough, but just in case...
     
       PWMC_DisableChannel(PWM, chan);
       uint32_t oldCurrentVal = PWM->PWM_CH_NUM[chan].PWM_CCNT & 0xFFFF;
@@ -339,7 +380,7 @@ static bool AnalogWritePwm(const PinDescription& pinDesc, const float ulValue, c
       PWM->PWM_CH_NUM[chan].PWM_CPRD = oldCurrentVal;				// change the period to be just greater than the counter
       PWM->PWM_CH_NUM[chan].PWM_CMR = PWM_CMR_CPRE_CLKB;			// use the fast clock to avoid waiting too long
       PWMC_EnableChannel(PWM, chan);
-      for (unsigned int i = 0; i < 1000; ++i) {
+      for (uint16_t i = 0; i < 1000; ++i) {
         const uint32_t newCurrentVal = PWM->PWM_CH_NUM[chan].PWM_CCNT & 0xFFFF;
         if (newCurrentVal < period || newCurrentVal > oldCurrentVal)
           break;    // get out when we have wrapped round, or failed to
@@ -358,7 +399,7 @@ static bool AnalogWritePwm(const PinDescription& pinDesc, const float ulValue, c
     const uint32_t ul_period = (uint32_t)PWMChanPeriod[chan];
     PWMC_SetDutyCycle(PWM, chan, ConvertRange(ulValue, ul_period));
   }
-  return true;
+  return;
 }
 
 // --------------------------------------------------------------------------
@@ -405,12 +446,12 @@ static inline uint32_t TC_read_rc(Tc *tc, uint32_t chan) {
 
 // AnalogWriteTc to a TC pin
 // Return true if successful, false if we need to call software pwm
-static bool AnalogWriteTc(const PinDescription& pinDesc, const float ulValue, const uint16_t freq) {
+static void AnalogWriteTc(const PinDescription& pinDesc, const float ulValue, const uint16_t freq) {
 
   const uint32_t chan = (uint32_t)pinDesc.ulTCChannel >> 1;
   if (freq == 0) {
     TCChanFreq[chan] = freq;
-    return false;
+    return;
   }
   else {
     Tc * const chTC = channelToTC[chan];
@@ -470,73 +511,55 @@ static bool AnalogWriteTc(const PinDescription& pinDesc, const float ulValue, co
       TC_Start(chTC, chNo);
     }
   }
-  return true;
+  return;
 }
 
-bool HAL::analogWrite(Pin pin, const uint8_t value, const uint16_t freq/*=50*/) {
+void HAL::analogWrite(Pin pin, const uint8_t value, const uint16_t freq/*=1000*/) {
 
-  if (isnan(value)) return true;
+  if (isnan(value) || pin <= 0) return;
+
+  const PinDescription& pinDesc = g_APinDescription[pin];
+  if (pinDesc.ulPinType == PIO_NOT_A_PIN) return;
 
   const float ulValue = constrain((float)value / 255.0, 0.0, 1.0);
-  const PinDescription& pinDesc = g_APinDescription[pin];
   const uint32_t attr = pinDesc.ulPinAttribute;
 
-  if ((attr & PIN_ATTR_PWM) != 0)
-    return AnalogWritePwm(pinDesc, ulValue, freq);
-  else if ((attr & PIN_ATTR_TIMER) != 0)
-    return AnalogWriteTc(pinDesc, ulValue, freq);
-
-  return false;
+  if ((attr & PIN_ATTR_PWM) != 0) {
+    AnalogWritePwm(pinDesc, ulValue, freq);
+    g_pinStatus[pin] = (g_pinStatus[pin] & 0xF0) | PIN_STATUS_PWM;
+  }
+  else if ((attr & PIN_ATTR_TIMER) != 0) {
+    AnalogWriteTc(pinDesc, ulValue, freq);
+    g_pinStatus[pin] = (g_pinStatus[pin] & 0xF0) | PIN_STATUS_TIMER;
+  }
+  else {
+    if (ulValue < 0.5)
+      PIO_Configure(pinDesc.pPort, PIO_OUTPUT_0, pinDesc.ulPin, pinDesc.ulPinConfiguration);
+    else
+      PIO_Configure(pinDesc.pPort, PIO_OUTPUT_1, pinDesc.ulPin, pinDesc.ulPinConfiguration);
+  }
 }
 
 #if ANALOG_INPUTS > 0
 
   void get_adc_value(const Pin s_pin) {
 
-    static int32_t  AnalogInputRead[NUM_ANALOG_INPUTS],
-                    AnalogSamples[NUM_ANALOG_INPUTS][MEDIAN_COUNT],
-                    AnalogSamplesSum[NUM_ANALOG_INPUTS],
-                    adcSamplesMin[NUM_ANALOG_INPUTS],
-                    adcSamplesMax[NUM_ANALOG_INPUTS];
-    static bool     first_temp = true;
-    uint32_t        cur = 0;
-
-    if (first_temp) {
-      for (int i = 0; i < NUM_ANALOG_INPUTS; i++) {
-        HAL::AnalogInputValues[i] = 0;
-        adcSamplesMin[i] = 100000;
-        adcSamplesMax[i] = 0;
-        AnalogSamplesSum[i] = 2048 * MEDIAN_COUNT;
-        for (uint8_t j = 0; j < MEDIAN_COUNT; j++)
-          AnalogSamples[i][j] = 2048;
-      }
-      first_temp = false;
-    }
+    static uint32_t AnalogSamplesSum[NUM_ANALOG_INPUTS] = { 0 };
+    static uint16_t AnalogSamples[NUM_ANALOG_INPUTS][NUM_ADC_SAMPLES] = { 0 };
+    uint16_t        cur = 0;
 
     adc_channel_num_t adc_ch = HAL::PinToAdcChannel(s_pin);
     cur = adc_get_channel_value(ADC, adc_ch);
 
-    if (s_pin != ADC_TEMPERATURE_SENSOR) cur = (cur >> 2); // Convert to 10 bit result
-
-    AnalogInputRead[s_pin] += cur;
-    adcSamplesMin[s_pin] = min(adcSamplesMin[s_pin], cur);
-    adcSamplesMax[s_pin] = max(adcSamplesMax[s_pin], cur);
-
-    if (adcCounter >= NUM_ADC_SAMPLES) { // store new conversion result
-      AnalogInputRead[s_pin] = AnalogInputRead[s_pin] + (1 << (OVERSAMPLENR - 1)) - (adcSamplesMin[s_pin] + adcSamplesMax[s_pin]);
-      adcSamplesMin[s_pin] = 100000;
-      adcSamplesMax[s_pin] = 0;
-      AnalogSamplesSum[s_pin] -= AnalogSamples[s_pin][adcSamplePos];
-      AnalogSamplesSum[s_pin] += (AnalogSamples[s_pin][adcSamplePos] = AnalogInputRead[s_pin] >> OVERSAMPLENR);
-      HAL::AnalogInputValues[s_pin] = AnalogSamplesSum[s_pin] / MEDIAN_COUNT;
-      AnalogInputRead[s_pin] = 0;
-    } // adcCounter >= NUM_ADC_SAMPLES
+    AnalogSamplesSum[s_pin] = AnalogSamplesSum[s_pin] - AnalogSamples[s_pin][adcCounter] + cur;
+    AnalogSamples[s_pin][adcCounter] = cur;
+    HAL::AnalogInputValues[s_pin] = AnalogSamplesSum[s_pin] / NUM_ADC_SAMPLES;
   }
 
 #endif
   
 /**
- * Timer 0 is is called 3906 timer per second.
+ * Tick is is called 1000 timer per second.
  * It is used to update pwm values for heater and some other frequent jobs.
  *
  *  - Manage PWM to all the heaters and fan
@@ -545,78 +568,24 @@ bool HAL::analogWrite(Pin pin, const uint8_t value, const uint16_t freq/*=50*/) 
  *  - For PINS_DEBUGGING, monitor and report endstop pins
  *  - For ENDSTOP_INTERRUPTS_FEATURE check endstops if flagged
  */
-HAL_TEMP_TIMER_ISR {
+void HAL::Tick() {
 
-  HAL_timer_isr_prologue(TEMP_TIMER);
-
-  // Allow UART ISRs
-  HAL_DISABLE_ISRs();
-
-  static uint8_t  pwm_count_heater        = 0,
-                  pwm_count_fan           = 0;
+  if (printer.IsStopped()) return;
 
   #if ENABLED(FILAMENT_SENSOR)
     static unsigned long raw_filwidth_value = 0;
   #endif
 
-  /**
-   * Harware PWM or TC
-   */
-  #if PWM_HARDWARE
-
+  // Calculation cycle approximate a 100ms
+  cycle_100ms++;
+  if (cycle_100ms >= 100) {
+    cycle_100ms = 0;
+    execute_100ms = true;
     #if HEATER_COUNT > 0
       LOOP_HEATER() heaters[h].SetHardwarePwm();
     #endif
-
     #if FAN_COUNT > 0
       LOOP_FAN() fans[f].SetHardwarePwm();
-    #endif
-
-  #endif // PWM_HARDWARE
-
-  /**
-   * Standard PWM modulation
-   */
-  if (pwm_count_heater == 0) {
-    #if HEATER_COUNT > 0
-      LOOP_HEATER() {
-        if (heaters[h].output_pin > -1 && !heaters[h].pwm_hardware && ((heaters[h].pwm_pos = (heaters[h].soft_pwm & HEATER_PWM_MASK)) > 0))
-          HAL::digitalWrite(heaters[h].output_pin, heaters[h].hardwareInverted ? LOW : HIGH);
-      }
-    #endif
-  }
-
-  if (pwm_count_fan == 0) {
-    #if FAN_COUNT >0
-      LOOP_FAN() {
-        if (!fans[f].pwm_hardware && ((fans[f].pwm_pos = (fans[f].Speed & FAN_PWM_MASK)) > 0))
-          HAL::digitalWrite(fans[f].pin, fans[f].hardwareInverted ? LOW : HIGH);
-      }
-    #endif
-  }
-
-  #if HEATER_COUNT > 0
-    LOOP_HEATER() {
-      if (heaters[h].output_pin > -1 && !heaters[h].pwm_hardware && heaters[h].pwm_pos == pwm_count_heater && heaters[h].pwm_pos != HEATER_PWM_MASK)
-        HAL::digitalWrite(heaters[h].output_pin, heaters[h].hardwareInverted ? HIGH : LOW);
-    }
-  #endif
-
-  #if FAN_COUNT > 0
-    LOOP_FAN() {
-      if (fans[f].Kickstart == 0 && !fans[f].pwm_hardware && fans[f].pwm_pos == pwm_count_fan && fans[f].pwm_pos != FAN_PWM_MASK)
-        HAL::digitalWrite(fans[f].pin, fans[f].hardwareInverted ? HIGH : LOW);
-    }
-  #endif
-
-  // Calculation cycle approximate a 100ms
-  cycle_100ms++;
-  if (cycle_100ms >= 390) {
-    cycle_100ms = 0;
-    HAL::execute_100ms = true;
-    #if ENABLED(FAN_KICKSTART_TIME) && FAN_COUNT > 0
-      LOOP_FAN()
-        if (fans[f].Kickstart) fans[f].Kickstart--;
     #endif
   }
 
@@ -624,11 +593,10 @@ HAL_TEMP_TIMER_ISR {
   #if ANALOG_INPUTS > 0
 
     if (adc_get_status(ADC)) { // conversion finished?
-      adcCounter++;
 
       LOOP_HEATER() {
-        if (WITHIN(heaters[h].sensor_pin, 0, 15))
-          get_adc_value(heaters[h].sensor_pin);
+        if (WITHIN(heaters[h].sensor.pin, 0, 15))
+          get_adc_value(heaters[h].sensor.pin);
       }
 
       #if HAS_FILAMENT_SENSOR
@@ -643,13 +611,10 @@ HAL_TEMP_TIMER_ISR {
         get_adc_value(ADC_TEMPERATURE_SENSOR);
       #endif
 
+      adcCounter++;
       if (adcCounter >= NUM_ADC_SAMPLES) {
         adcCounter = 0;
-        adcSamplePos++;
-        if (adcSamplePos >= MEDIAN_COUNT) {
-          adcSamplePos = 0;
-          HAL::Analog_is_ready = true;
-        }
+        HAL::Analog_is_ready = true;
       }
       ADC->ADC_CR = ADC_CR_START; // reread values
     }
@@ -658,9 +623,6 @@ HAL_TEMP_TIMER_ISR {
     if (HAL::Analog_is_ready) thermalManager.set_current_temp_raw();
 
   #endif
-
-  pwm_count_heater  += HEATER_PWM_STEP;
-  pwm_count_fan     += FAN_PWM_STEP;
 
   #if ENABLED(BABYSTEPPING)
     LOOP_XYZ(axis) {
@@ -691,8 +653,6 @@ HAL_TEMP_TIMER_ISR {
       endstops.e_hit--;
     }
   #endif
-
-  HAL_ENABLE_ISRs(); // re-enable ISRs
 
 }
 

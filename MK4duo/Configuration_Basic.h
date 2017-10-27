@@ -56,8 +56,9 @@
  *
  * 250000 works in most cases, but you might try a lower speed if
  * you commonly experience drop-outs during host printing.
+ * You may try up to 1000000 to speed up SD file transfer.
  *
- * 2400,9600,19200,38400,57600,115200,250000
+ * 2400, 9600, 19200, 38400, 57600, 115200, 250000, 500000, 1000000
  */
 #define BAUDRATE 115200
 
@@ -100,7 +101,6 @@
  * Enable an emergency-command parser to intercept certain commands as they
  * enter the serial receive buffer, so they cannot be blocked.
  * Currently handles M108, M112, M410
- * Does not work on boards using Arduino DUE processors!
  */
 //#define EMERGENCY_PARSER
 

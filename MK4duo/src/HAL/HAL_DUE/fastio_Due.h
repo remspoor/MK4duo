@@ -114,83 +114,79 @@ static constexpr Fastio_Param Fastio[111] = {
  * now you can simply SET_OUTPUT(STEP); WRITE(STEP, 1); WRITE(STEP, 0);
  */
 
+// NOT CHANGE uint8_t in Pin, ALLIGATOR board crashed!!!
 // Read a pin
 static FORCE_INLINE bool READ(const uint8_t pin) {
   return (bool)(Fastio[pin].base_address -> PIO_PDSR & (MASK(Fastio[pin].shift_count)));
 }
-
 static FORCE_INLINE bool READ_VAR(const uint8_t pin) {
-  return g_APinDescription[pin].pPort->PIO_PDSR & g_APinDescription[pin].ulPin ? true : false;
+  const PinDescription& pinDesc = g_APinDescription[pin];
+	if (pinDesc.ulPinType == PIO_NOT_A_PIN) return false;
+  if (pinDesc.pPort->PIO_PDSR & pinDesc.ulPin)
+    return true;
+  else
+    return false;
 }
-
 // write to a pin
 // On some boards pins > 0x100 are used. These are not converted to atomic actions. An critical section is needed.
-static FORCE_INLINE void WRITE(const uint8_t pin, uint8_t flag) {
-   flag ? Fastio[pin].base_address -> PIO_SODR = MASK(Fastio[pin].shift_count) : Fastio[pin].base_address -> PIO_CODR = MASK(Fastio[pin].shift_count);
+static FORCE_INLINE void WRITE(const uint8_t pin, const bool flag) {
+  if (flag)
+    Fastio[pin].base_address -> PIO_SODR = MASK(Fastio[pin].shift_count);
+  else
+    Fastio[pin].base_address -> PIO_CODR = MASK(Fastio[pin].shift_count);
 }
-
-static FORCE_INLINE void WRITE_VAR(const uint8_t pin, uint8_t flag) {
-  flag ? g_APinDescription[pin].pPort->PIO_SODR = g_APinDescription[pin].ulPin : g_APinDescription[pin].pPort->PIO_CODR = g_APinDescription[pin].ulPin;
+static FORCE_INLINE void WRITE_VAR(const uint8_t pin, const bool flag) {
+  const PinDescription& pinDesc = g_APinDescription[pin];
+  if (pinDesc.ulPinType != PIO_NOT_A_PIN) {
+    if (flag)
+      pinDesc.pPort->PIO_SODR = pinDesc.ulPin;
+    else
+      pinDesc.pPort->PIO_CODR = pinDesc.ulPin;
+  }
 }
-
-// toggle a pin
-static FORCE_INLINE void TOGGLE(const uint8_t pin) {
-  WRITE(pin, !READ(pin));
-}
-
-/*
-// check if pin is an input
-#define _GET_INPUT(IO)
-
-// check if pin is an output
-#define _GET_OUTPUT(IO)
-
-// check if pin is an timer
-#define _GET_TIMER(IO)
-*/
 
 // set pin as input
 static FORCE_INLINE void SET_INPUT(const Pin pin) {
-  pmc_enable_periph_clk(g_APinDescription[pin].ulPeripheralId);
-  PIO_Configure(g_APinDescription[pin].pPort, PIO_INPUT, g_APinDescription[pin].ulPin, 0);
+  const PinDescription& pinDesc = g_APinDescription[pin];
+  if (pinDesc.ulPinType == PIO_NOT_A_PIN) return;
+  // return if already configured in the right way
+  if ((g_pinStatus[pin] & 0xF) == PIN_STATUS_DIGITAL_INPUT) return;
+  pmc_enable_periph_clk(pinDesc.ulPeripheralId);
+  PIO_Configure(pinDesc.pPort, PIO_INPUT, pinDesc.ulPin, 0);
+  g_pinStatus[pin] = (g_pinStatus[pin] & 0xF0) | PIN_STATUS_DIGITAL_INPUT;
 }
 
 // set pin as output
-static FORCE_INLINE void _SET_OUTPUT(const Pin pin) {
-  PIO_Configure(g_APinDescription[pin].pPort, PIO_OUTPUT_1, g_APinDescription[pin].ulPin, g_APinDescription[pin].ulPinConfiguration);
+static FORCE_INLINE void SET_OUTPUT(const Pin pin) {
+  const PinDescription& pinDesc = g_APinDescription[pin];
+  if (pinDesc.ulPinType == PIO_NOT_A_PIN) return;
+  // return if already configured in the right way
+  if ((g_pinStatus[pin] & 0xF) == PIN_STATUS_DIGITAL_OUTPUT
+   || (g_pinStatus[pin] & 0xF) == PIN_STATUS_PWM
+   || (g_pinStatus[pin] & 0xF) == PIN_STATUS_TIMER) return;
+  PIO_Configure(pinDesc.pPort, PIO_OUTPUT_0, pinDesc.ulPin, pinDesc.ulPinConfiguration);
+  g_pinStatus[pin] = (g_pinStatus[pin] & 0xF0) | PIN_STATUS_DIGITAL_OUTPUT;
+}
+static FORCE_INLINE void SET_PWM_OUTPUT(const Pin pin) {
+  // For Heaters and Fans
+  NOOP;
 }
 
-// Write doesn't work for pullups
-static FORCE_INLINE void PULLUP(const Pin pin) {
-  pinMode(pin, INPUT_PULLUP);
-}
-
-/*
-// check if pin is an input wrapper
-#define GET_INPUT(IO) _GET_INPUT(IO)
-
-// check if pin is an output wrapper
-#define GET_OUTPUT(IO) _GET_OUTPUT(IO)
-
-// check if pin is an timer wrapper
-#define GET_TIMER(IO) _GET_TIMER(IO)
-*/
-
-// set pin as input with pullup wrapper
+// set pin as input with pullup
 static FORCE_INLINE void SET_INPUT_PULLUP(const Pin pin) {
-  SET_INPUT(pin);
-  PULLUP(pin);
+  const PinDescription& pinDesc = g_APinDescription[pin];
+  if (pinDesc.ulPinType == PIO_NOT_A_PIN) return;
+  // return if already configured in the right way
+  if ((g_pinStatus[pin] & 0xF) == PIN_STATUS_DIGITAL_INPUT_PULLUP) return;
+  pmc_enable_periph_clk(pinDesc.ulPeripheralId);
+  PIO_Configure(pinDesc.pPort, PIO_INPUT, pinDesc.ulPin, PIO_PULLUP);
+  g_pinStatus[pin] = (g_pinStatus[pin] & 0xF0) | PIN_STATUS_DIGITAL_INPUT_PULLUP;
 }
 
 // Shorthand
 static FORCE_INLINE void OUT_WRITE(const Pin pin, const uint8_t flag) {
-  _SET_OUTPUT(pin);
+  SET_OUTPUT(pin);
   WRITE(pin, flag);
-}
-
-// set pin as output wrapper
-static FORCE_INLINE void SET_OUTPUT(const Pin pin) {
-  OUT_WRITE(pin, LOW);
 }
 
 #endif  // _HAL_FASTIO_DUE_H

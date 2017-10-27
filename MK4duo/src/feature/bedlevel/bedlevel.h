@@ -29,7 +29,7 @@
 #ifndef _BEDLEVEL_H_
 #define _BEDLEVEL_H_
 
-#if HAS_ABL
+#if OLD_ABL
   #define XY_PROBE_FEEDRATE_MM_S bedlevel.xy_probe_feedrate_mm_s
 #elif ENABLED(XY_PROBE_SPEED)
   #define XY_PROBE_FEEDRATE_MM_S MMM_TO_MMS(XY_PROBE_SPEED)
@@ -52,6 +52,11 @@
   #if ENABLED(AUTO_BED_LEVELING_BILINEAR)
 
     #if ENABLED(ABL_BILINEAR_SUBDIVISION)
+      #define ABL_GRID_POINTS_VIRT_X (GRID_MAX_POINTS_X - 1) * (BILINEAR_SUBDIVISIONS) + 1
+      #define ABL_GRID_POINTS_VIRT_Y (GRID_MAX_POINTS_Y - 1) * (BILINEAR_SUBDIVISIONS) + 1
+      #define ABL_TEMP_POINTS_X (GRID_MAX_POINTS_X + 2)
+      #define ABL_TEMP_POINTS_Y (GRID_MAX_POINTS_Y + 2)
+
       #define ABL_BG_SPACING(A) bedlevel.bilinear_grid_spacing_virt[A]
       #define ABL_BG_FACTOR(A)  bedlevel.bilinear_grid_factor_virt[A]
       #define ABL_BG_POINTS_X   ABL_GRID_POINTS_VIRT_X
@@ -75,9 +80,11 @@
 
     public: /** Public Parameters */
 
-      #if HAS_ABL
-        static bool abl_enabled;              // Flag that bed leveling is enabled
-        static int xy_probe_feedrate_mm_s;
+      #if HAS_LEVELING
+        static bool leveling_active;          // Flag that bed leveling is enabled
+        #if OLD_ABL
+          static int xy_probe_feedrate_mm_s;
+        #endif
         #if ABL_PLANAR
           static matrix_3x3 matrix; // Transform to compensate for bed level
         #endif
@@ -100,11 +107,15 @@
       #endif
 
     private: /** Private Parameters */
-    
+
       #if ENABLED(AUTO_BED_LEVELING_BILINEAR) && ENABLED(ABL_BILINEAR_SUBDIVISION)
         static float  bilinear_grid_factor_virt[2],
                       z_values_virt[ABL_GRID_POINTS_VIRT_X][ABL_GRID_POINTS_VIRT_Y];
         static int    bilinear_grid_spacing_virt[2];
+      #endif
+
+      #if ENABLED(ENABLE_LEVELING_FADE_HEIGHT)
+        static float last_raw_lz;
       #endif
 
     public: /** Public Function */
@@ -132,27 +143,59 @@
         static void print_bilinear_leveling_grid();
 
         #if ENABLED(ABL_BILINEAR_SUBDIVISION)
-          #define ABL_GRID_POINTS_VIRT_X (GRID_MAX_POINTS_X - 1) * (BILINEAR_SUBDIVISIONS) + 1
-          #define ABL_GRID_POINTS_VIRT_Y (GRID_MAX_POINTS_Y - 1) * (BILINEAR_SUBDIVISIONS) + 1
-          #define ABL_TEMP_POINTS_X (GRID_MAX_POINTS_X + 2)
-          #define ABL_TEMP_POINTS_Y (GRID_MAX_POINTS_Y + 2)
           static void print_bilinear_leveling_grid_virt();
           static void virt_interpolate();
         #endif
       #endif
 
       static bool leveling_is_valid();
-      static bool leveling_is_active();
       static void set_bed_leveling_enabled(const bool enable=true);
       static void reset();
 
-      #if ENABLED(ENABLE_LEVELING_FADE_HEIGHT)
-        static void set_z_fade_height(const float zfh);
+      #if ENABLED(MESH_BED_LEVELING)
+        static void mesh_report();
       #endif
 
-      #if ENABLED(MESH_BED_LEVELING)
-        static void mesh_probing_done();
-        static void mbl_mesh_report();
+      #if ENABLED(ENABLE_LEVELING_FADE_HEIGHT)
+
+        static void set_z_fade_height(const float zfh);
+
+        /**
+         * Get the Z leveling fade factor based on the given Z height,
+         * re-calculating only when needed.
+         *
+         *  Returns 1.0 if planner.z_fade_height is 0.0.
+         *  Returns 0.0 if Z is past the specified 'Fade Height'.
+         */
+        inline static float fade_scaling_factor_for_z(const float &lz) {
+          static float z_fade_factor = 1.0;
+          if (z_fade_height) {
+            const float raw_lz = RAW_Z_POSITION(lz);
+            if (raw_lz >= z_fade_height) return 0.0;
+            if (last_raw_lz != raw_lz) {
+              last_raw_lz = raw_lz;
+              z_fade_factor = 1.0 - raw_lz * inverse_z_fade_height;
+            }
+            return z_fade_factor;
+          }
+          return 1.0;
+        }
+
+        FORCE_INLINE static void force_fade_recalc() { last_raw_lz = -999.999; }
+
+        FORCE_INLINE static bool leveling_active_at_z(const float &lz) {
+          return !z_fade_height || RAW_Z_POSITION(lz) < z_fade_height;
+        }
+
+      #else
+
+        FORCE_INLINE static float fade_scaling_factor_for_z(const float &lz) {
+          UNUSED(lz);
+          return 1.0;
+        }
+
+        FORCE_INLINE static bool leveling_active_at_z(const float &lz) { UNUSED(lz); return true; }
+
       #endif
 
     private: /** Private Function */
@@ -171,10 +214,12 @@
       #endif
 
       #if ENABLED(AUTO_BED_LEVELING_BILINEAR) || ENABLED(MESH_BED_LEVELING)
+
         /**
          * Print calibration results for plotting or manual frame adjustment.
          */
         static void print_2d_array(const uint8_t sx, const uint8_t sy, const uint8_t precision, float (*fn)(const uint8_t, const uint8_t));
+
       #endif
 
   };

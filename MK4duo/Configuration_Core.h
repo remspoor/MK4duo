@@ -262,7 +262,9 @@
 //#define LCD_BED_LEVELING
 #define LCD_Z_STEP 0.025    // Step size while manually probing Z axis.
 #define LCD_PROBE_Z_RANGE 4 // Z Range centered on Z_MIN_POS for LCD Z adjustment
-#define LEVEL_BED_CORNERS   // Add an option to move between corners
+
+// Add a menu item to move between bed corners for manual bed adjustment
+//#define LEVEL_BED_CORNERS
 /*****************************************************************************************/
 
 
@@ -450,6 +452,9 @@
 // Turn on with the command 'M111 S32'.
 // NOTE: Requires a lot of PROGMEM!
 //#define DEBUG_LEVELING_FEATURE
+
+// enable a graphics overly while editing the mesh from auto-level
+//#define ENABLE_MESH_EDIT_GFX_OVERLAY
 
 // Mesh inset margin on print area
 #define MESH_INSET 10

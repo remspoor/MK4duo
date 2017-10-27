@@ -39,13 +39,13 @@
  * along with Grbl. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "../../../base.h"
+#include "../../../MK4duo.h"
 
 #if ENABLED(NEXTION)
 
   #include "Nextion_lcd.h"
   #include "Nextion_gfx.h"
-  #include "nextion_lib/Nextion.h"
+  #include "library/Nextion.h"
 
   bool  NextionON                     = false,
         show_Wave                     = true,
@@ -59,7 +59,9 @@
   const float manual_feedrate_mm_m[]  = MANUAL_FEEDRATE;
 
   #if HAS_SDSUPPORT
-    uint8_t SDstatus    = 0; // 0 card not present, 1 SD not insert, 2 SD insert, 3 SD printing
+    // 0 card not present, 1 SD not insert, 2 SD insert, 3 SD printing
+    enum SDstatus_enum {NO_SD = 0, SD_NO_INSERT = 1, SD_INSERT = 2, SD_PRINTING = 3 };
+    SDstatus_enum SDstatus    = NO_SD;
     NexUpload Firmware(NEXTION_FIRMWARE_FILE, 57600);
   #endif
 
@@ -87,7 +89,7 @@
   NexObject Pyesno        = NexObject(12, 0,  "yesno");
   NexObject Pfilament     = NexObject(13, 0,  "filament");
   NexObject Pselect       = NexObject(14, 0,  "select");
-  NexObject PBedLevel     = NexObject(15, 0,  "bedlevel");
+  NexObject Pprobe        = NexObject(15, 0,  "probe");
   NexObject Poptions      = NexObject(16, 0,  "options");
   NexObject Ptime         = NexObject(17, 0,  "time");
   NexObject Pusertemp     = NexObject(18, 0,  "usertemp");
@@ -136,7 +138,7 @@
   NexObject Hotend2     = NexObject(2,  28, "t4");
   NexObject Fanspeed    = NexObject(2,  29, "t5");
   NexObject Wavetemp    = NexObject(2,  30, "s0");
-  NexObject sdbar       = NexObject(2,  31, "j0");
+  NexObject progressbar = NexObject(2,  31, "j0");
   NexObject LcdX        = NexObject(2,  32, "t6");
   NexObject LcdY        = NexObject(2,  33, "t7");
   NexObject LcdZ        = NexObject(2,  34, "t8");
@@ -292,14 +294,14 @@
 
   /**
    *******************************************************************
-   * Nextion component for page:Bedlevel
+   * Nextion component for page:Probe
    *******************************************************************
    */
-  NexObject BedUp       = NexObject(15, 1,  "p0");
-  NexObject BedSend     = NexObject(15, 2,  "p1");
-  NexObject BedDown     = NexObject(15, 3,  "p2");
-  NexObject BedMsg      = NexObject(15, 4,  "t0");
-  NexObject BedZ        = NexObject(15, 5,  "t1");
+  NexObject ProbeUp     = NexObject(15, 1,  "p0");
+  NexObject ProbeSend   = NexObject(15, 2,  "p1");
+  NexObject ProbeDown   = NexObject(15, 3,  "p2");
+  NexObject ProbeMsg    = NexObject(15, 4,  "t0");
+  NexObject ProbeZ      = NexObject(15, 5,  "t1");
 
   NexObject *nex_listen_list[] =
   {
@@ -339,7 +341,7 @@
     &LcdSend,
     
     // Page 15 touch listen
-    &BedUp, &BedDown, &BedSend,
+    &ProbeUp, &ProbeDown, &ProbeSend,
 
     NULL
   };
@@ -438,9 +440,9 @@
     #if HAS_SDSUPPORT
       card.mount();
       if (card.cardOK)
-        SDstatus = 2;
+        SDstatus = SD_INSERT;
       else
-        SDstatus = 1;
+        SDstatus = SD_NO_INSERT;
       SD.setValue(SDstatus, "printer");
     #endif
 
@@ -521,7 +523,7 @@
   #if HAS_SDSUPPORT
 
     void UploadNewFirmware() {
-      if(IS_SD_INSERTED || card.cardOK) {
+      if (IS_SD_INSERTED || card.cardOK) {
         Firmware.startUpload();
         nexSerial.end();
         lcd_init();
@@ -543,7 +545,7 @@
     }
 
     static void setrowsdcard(uint32_t number = 0) {
-      uint16_t fileCnt = card.getnrfilenames();
+      uint16_t fileCnt = card.get_num_Files();
       uint32_t i = 0;
       card.getWorkDirName();
 
@@ -557,13 +559,19 @@
         sdfolder.setText("");
       }
 
-      for (uint8_t row = 0; row < 6; row++) {
-        i = row + number;
-        if (i < fileCnt) {
-          card.getfilename(i);
-          printrowsd(row, card.filenameIsDir, card.fileName);
-        } else {
-          printrowsd(row, false, "");
+      if (fileCnt) {
+        for (uint8_t row = 0; row < 6; row++) {
+          i = row + number;
+          if (i < fileCnt) {
+            #if ENABLED(SDCARD_SORT_ALPHA)
+              card.getfilename_sorted(i);
+            #else
+              card.getfilename(i);
+            #endif
+            printrowsd(row, card.filenameIsDir, card.fileName);
+          } else {
+            printrowsd(row, false, "");
+          }
         }
       }
       sendCommand("ref 0");
@@ -580,7 +588,7 @@
     }
 
     void setpageSD() {
-      uint16_t fileCnt = card.getnrfilenames();
+      uint16_t fileCnt = card.get_num_Files();
 
       if (fileCnt <= 6)
         slidermaxval = 0;
@@ -602,14 +610,14 @@
       if (ptr == &sd_mount) {
         card.mount();
         if (card.cardOK)
-          SDstatus = 2;
+          SDstatus = SD_INSERT;
         else
-          SDstatus = 1;
+          SDstatus = SD_NO_INSERT;
         SD.setValue(SDstatus, "printer");
       }
       else {
         card.unmount();
-        SDstatus = 1;
+        SDstatus = SD_NO_INSERT;
         SD.setValue(SDstatus, "printer");
       }
       setpageSD();
@@ -683,7 +691,7 @@
     }
 
     void StopPrint(const bool store_location = false) {
-      printer.stopSDPrint(store_location);
+      card.stopSDPrint(store_location);
     }
 
   #endif
@@ -892,44 +900,61 @@
     }
   #endif
 
-  #if ENABLED(LCD_BED_LEVELING)
+  #if ENABLED(PROBE_MANUALLY)
 
-    #if ENABLED(PROBE_MANUALLY)
-      bool lcd_wait_for_move;
-    #endif
+    void ProbelPopCallBack(void *ptr) {
 
-    void line_to_current(AxisEnum axis) {
-      planner.buffer_line_kinematic(mechanics.current_position, MMM_TO_MMS(manual_feedrate_mm_m[axis]), tools.active_extruder);
-    }
+      if (ptr == &ProbeUp || ptr == &ProbeDown) {
 
-    void bedlevelPopCallBack(void *ptr) {
+        mechanics.set_destination_to_current();
 
-      if (ptr == &BedUp) {
-        mechanics.current_position[Z_AXIS] += (LCD_Z_STEP);
-        NOLESS(mechanics.current_position[Z_AXIS], -(LCD_PROBE_Z_RANGE) * 0.5);
-        NOMORE(mechanics.current_position[Z_AXIS], (LCD_PROBE_Z_RANGE) * 0.5);
-        line_to_current(Z_AXIS);
+        if (ptr == &ProbeUp)
+          mechanics.destination[Z_AXIS] += (LCD_Z_STEP);
+        else
+          mechanics.destination[Z_AXIS] -= (LCD_Z_STEP);
+
+        NOLESS(mechanics.destination[Z_AXIS], -(LCD_PROBE_Z_RANGE) * 0.5);
+        NOMORE(mechanics.destination[Z_AXIS], (LCD_PROBE_Z_RANGE) * 0.5);
+
+        const float old_feedrate = mechanics.feedrate_mm_s;
+        mechanics.feedrate_mm_s = MMM_TO_MMS(manual_feedrate_mm_m[Z_AXIS]);
+        mechanics.prepare_move_to_destination(); // will call set_current_from_destination()
+        mechanics.feedrate_mm_s = old_feedrate;
+
+        stepper.synchronize();
       }
-      else if (ptr == &BedDown) {
-        mechanics.current_position[Z_AXIS] -= (LCD_Z_STEP);
-        NOLESS(mechanics.current_position[Z_AXIS], -(LCD_PROBE_Z_RANGE) * 0.5);
-        NOMORE(mechanics.current_position[Z_AXIS], (LCD_PROBE_Z_RANGE) * 0.5);
-        line_to_current(Z_AXIS);
-      }
-      else if (ptr == &BedSend) {
-        #if ENABLED(PROBE_MANUALLY)
+      else if (ptr == &ProbeSend) {
+        #if HAS_LEVELING && ENABLED(PROBE_MANUALLY)
           if (bedlevel.g29_in_progress) commands.enqueue_and_echo_commands_P(PSTR("G29"));
-          printer.wait_for_user = false;
         #endif
+        printer.wait_for_user = false;
       }
     }
 
-    void LcdBedLevelOn() {
-      PBedLevel.show();
-      BedMsg.setText(PSTR(MSG_MOVE_Z));
+    float lcd_probe_pt(const float &lx, const float &ly) {
+
+      #if HAS_LEVELING
+        bedlevel.reset(); // After calibration bed-level data is no longer valid
+      #endif
+
+      mechanics.manual_goto_xy(lx, ly);
+
+      Pprobe.show();
+      ProbeMsg.setText(PSTR(MSG_MOVE_Z));
+
+      KEEPALIVE_STATE(PAUSED_FOR_USER);
+      printer.wait_for_user = true;
+      while (printer.wait_for_user) printer.idle();
+      KEEPALIVE_STATE(IN_HANDLER);
+
+      Pprinter.show();
+      return mechanics.current_position[Z_AXIS];
     }
 
-    void LcdBedLevelOff() { Pprinter.show(); }
+    #if HAS_LEVELING
+      void Nextion_ProbeOn()  { Pprobe.show(); }
+      void Nextion_ProbeOff() { Pprinter.show(); }
+    #endif
 
   #endif
 
@@ -1164,10 +1189,10 @@
         Fanpic.attachPop(setfanPopCallback,   &Fanpic);
       #endif
 
-      #if ENABLED(LCD_BED_LEVELING)
-        BedUp.attachPop(bedlevelPopCallBack, &BedUp);
-        BedSend.attachPop(bedlevelPopCallBack, &BedSend);
-        BedDown.attachPop(bedlevelPopCallBack, &BedDown);
+      #if ENABLED(PROBE_MANUALLY)
+        ProbeUp.attachPop(ProbelPopCallBack, &ProbeUp);
+        ProbeSend.attachPop(ProbelPopCallBack, &ProbeSend);
+        ProbeDown.attachPop(ProbelPopCallBack, &ProbeDown);
       #endif
 
       tenter.attachPop(sethotPopCallback,   &tenter);
@@ -1242,7 +1267,7 @@
       LedCoord5.setText(buffer);
     }
     else if (PageID == 15) {
-      BedZ.setText(ftostr43sign(FIXFLOAT(mechanics.current_position[Z_AXIS])));
+      ProbeZ.setText(ftostr43sign(FIXFLOAT(mechanics.current_position[Z_AXIS])));
     }
   }
 
@@ -1334,38 +1359,39 @@
 
         coordtoLCD();
 
+        if (PreviouspercentDone != printer.progress) {
+          // Progress bar solid part
+          progressbar.setValue(printer.progress);
+          // Estimate End Time
+          uint16_t time = print_job_counter.duration() / 60;
+          uint16_t end_time = (time * (100 - printer.progress)) / (printer.progress + 0.1);
+          if (end_time > (60 * 23) || end_time == 0) {
+            LcdTime.setText("S--:-- E--:--");
+          }
+          else {
+            char temp1[10], temp2[10];
+            sprintf_P(temp1, PSTR("S%i:%i"), time / 60, time%60);
+            sprintf_P(temp2, PSTR("E%i:%i"), end_time / 60, end_time%60);
+            ZERO(buffer);
+            strcat(buffer, temp1);
+            strcat(buffer, " ");
+            strcat(buffer, temp2);
+            LcdTime.setText(buffer);
+          }
+          PreviouspercentDone = printer.progress;
+        }
+
         #if HAS_SDSUPPORT
 
           if (card.isFileOpen()) {
-            if (SDstatus != 3) {
-              SDstatus = 3;
+            if (SDstatus != SD_PRINTING) {
+              SDstatus = SD_PRINTING;
               SD.setValue(SDstatus);
+            }
+            if (IS_SD_PRINTING) {
               NPlay.setPic(28);
               NStop.setPic(29);
               NSStop.setPic(177);
-            }
-            if (IS_SD_PRINTING) {
-              if (PreviouspercentDone != card.percentDone()) {
-                // Progress bar solid part
-                sdbar.setValue(card.percentDone());
-                // Estimate End Time
-                uint16_t time = print_job_counter.duration() / 60;
-                uint16_t end_time = (time * (100 - card.percentDone())) / card.percentDone();
-                if (end_time > (60 * 23) || end_time == 0) {
-                  LcdTime.setText("S--:-- E--:--");
-                }
-                else {
-                  char temp1[10], temp2[10];
-                  sprintf_P(temp1, PSTR("S%i:%i"), time / 60, time%60);
-                  sprintf_P(temp2, PSTR("E%i:%i"), end_time / 60, end_time%60);
-                  ZERO(buffer);
-                  strcat(buffer, temp1);
-                  strcat(buffer, " ");
-                  strcat(buffer, temp2);
-                  LcdTime.setText(buffer);
-                }
-                PreviouspercentDone = card.percentDone();
-              }
             }
             else {
               NPlay.setPic(26);
@@ -1373,15 +1399,15 @@
               NSStop.setPic(177);
             }
           }
-          else if (card.cardOK && SDstatus != 2) {
-            SDstatus = 2;
+          else if (card.cardOK && SDstatus != SD_INSERT) {
+            SDstatus = SD_INSERT;
             SD.setValue(SDstatus);
             NPlay.setPic(27);
             NStop.setPic(30);
             NSStop.setPic(178);
           }
-          else if (!card.cardOK && SDstatus != 1) {
-            SDstatus = 1;
+          else if (!card.cardOK && SDstatus != SD_NO_INSERT) {
+            SDstatus = SD_NO_INSERT;
             SD.setValue(SDstatus);
             NPlay.setPic(27);
             NStop.setPic(30);

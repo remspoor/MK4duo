@@ -42,7 +42,6 @@ enum PrinterMode {
 enum MK4duoInterruptEvent {
   INTERRUPT_EVENT_NONE,
   INTERRUPT_EVENT_FIL_RUNOUT,
-  INTERRUPT_EVENT_DAV_SYSTEM,
   INTERRUPT_EVENT_ENC_DETECT
 };
 
@@ -56,21 +55,19 @@ class Printer {
 
   public: /** Public Parameters */
 
-    static bool Running,
-                pos_saved;
+    static volatile bool  wait_for_user;
 
-    static volatile bool  wait_for_heatup,
-                          wait_for_user;
+    static bool     pos_saved,
+                    relative_mode,
+                    axis_relative_modes[];
 
-    static uint8_t host_keepalive_interval;
+    static long     currentLayer,
+                    maxLayer;       // -1 = unknown
 
-    static bool relative_mode,
-                axis_relative_modes[];
+    static char     printName[21];  // max. 20 chars + 0
 
-    static long   currentLayer,
-                  maxLayer;       // -1 = unknown
-    static char   printName[21];  // max. 20 chars + 0
-    static float  progress;
+    static uint8_t  progress,
+                    host_keepalive_interval;
 
     static millis_t max_inactive_time;
 
@@ -97,13 +94,7 @@ class Printer {
       #define KEEPALIVE_STATE(n) NOOP
     #endif
 
-    #if HAS_FIL_RUNOUT || HAS_EXT_ENCODER
-      static bool filament_ran_out;
-    #endif
-
-    #if MB(ALLIGATOR) || MB(ALLIGATOR_V3)
-      static float motor_current[3 + DRIVER_EXTRUDERS];
-    #endif
+    static bool filament_out;
 
     #if ENABLED(RFID_MODULE)
       static uint32_t Spool_ID[EXTRUDERS];
@@ -141,6 +132,8 @@ class Printer {
 
   private: /** Private Parameters */
 
+    static bool Running;
+
     #if ENABLED(IDLE_OOZING_PREVENT)
       static millis_t axis_last_activity;
       static bool     IDLE_OOZING_retracted[EXTRUDERS];
@@ -148,7 +141,8 @@ class Printer {
 
   public: /** Public Function */
 
-    static void setup();
+    static void setup();  // Main setup
+    static void loop();   // Main loop
 
     static void safe_delay(millis_t ms);
 
@@ -160,7 +154,6 @@ class Printer {
 
     static void kill(const char *);
     static void Stop();
-    static void quickstop_stepper();
 
     static void calculate_volumetric_multipliers();
 
@@ -169,34 +162,17 @@ class Printer {
     static void setInterruptEvent(const MK4duoInterruptEvent event);
     static void handle_Interrupt_Event();
 
-    #if ENABLED(SDSUPPORT)
-      static void stopSDPrint(const bool store_location);
-    #endif
-
-    #if HAS_COLOR_LEDS
-      static void set_led_color(const uint8_t r, const uint8_t g, const uint8_t b
-                                #if ENABLED(RGBW_LED) || ENABLED(NEOPIXEL_RGBW_LED)
-                                  , const uint8_t w=0
-                                #endif
-                                #if HAS_NEOPIXEL
-                                  , bool isSequence=false
-                                #endif
-      );
-    #endif
-
-    static bool pin_is_protected(uint8_t pin);
+    static bool pin_is_protected(const Pin pin);
 
     static void suicide();
 
+    static char GetStatusCharacter();
+
     FORCE_INLINE static void setRunning(const bool run) { Running = run; }
-    FORCE_INLINE static bool IsRunning() { return  Running; }
-    FORCE_INLINE static bool IsStopped() { return !Running; }
+    FORCE_INLINE static bool IsRunning()  { return  Running; }
+    FORCE_INLINE static bool IsStopped()  { return !Running; }
 
   private: /** Private Function */
-
-    #if HAS_FIL_RUNOUT
-      static void setup_filrunoutpin();
-    #endif
 
     static void setup_powerhold();
 
@@ -210,17 +186,8 @@ class Printer {
       static void host_keepalive();
     #endif
 
-    #if HAS_NEOPIXEL
-      static void set_neopixel_color(const uint32_t color);
-      static void setup_neopixel();
-    #endif
-
     #if ENABLED(TEMP_STAT_LEDS)
       static void handle_status_leds();
-    #endif
-
-    #if ENABLED(HAVE_TMC2130)
-      static void checkOverTemp();
     #endif
 
 };

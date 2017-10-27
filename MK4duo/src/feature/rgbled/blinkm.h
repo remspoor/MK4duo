@@ -29,7 +29,9 @@
 #define _BLINKM_H_
 
 #if ENABLED(BLINKM)
-  void SendColors(byte red, byte grn, byte blu);
+
+  void set_led_color(const uint8_t r, const uint8_t g, const uint8_t b, const uint8_t w=0, const uint8_t p=255);
+
 #endif
 
 #endif /* _BLINKM_H_ */

@@ -26,7 +26,7 @@
  * Copyright (C) 2017 Alberto Cotronei @MagoKimbra
  */
 
-#include "../../../base.h"
+#include "../../../MK4duo.h"
 
 Probe probe;
 
@@ -230,7 +230,7 @@ float Probe::run_z_probe(const bool short_move/*=true*/) {
  * - short_move Flag for a shorter probe move towards the bed
  * - Return the probed Z position
  */
-float Probe::check_pt(const float &lx, const float &ly, const bool stow/*=true*/, const int verbose_level/*=1*/, const bool printable/*=true*/) {
+float Probe::check_pt(const float &lx, const float &ly, const bool stow, const int verbose_level, const bool printable/*=true*/) {
 
   #if HAS_BED_PROBE
 
@@ -305,17 +305,13 @@ float Probe::check_pt(const float &lx, const float &ly, const bool stow/*=true*/
 
     return measured_z;
 
-  #elif HAS_RESUME_CONTINUE && ENABLED(PROBE_MANUALLY)
+  #elif ENABLED(PROBE_MANUALLY)
 
     UNUSED(stow);
     UNUSED(verbose_level);
     UNUSED(printable);
 
-    // Ensure a minimum height before moving the probe
-    mechanics.do_blocking_move_to_z(mechanics.current_position[Z_AXIS] + Z_PROBE_BETWEEN_HEIGHT, MMM_TO_MMS(Z_PROBE_SPEED_FAST));
-
-    // Move the probe to the given XY
-    mechanics.manual_goto_xy(lx, ly);
+    float measured_z = NAN;
 
     // Disable software endstops to allow manual adjustment
     #if HAS_SOFTWARE_ENDSTOPS
@@ -323,31 +319,16 @@ float Probe::check_pt(const float &lx, const float &ly, const bool stow/*=true*/
       endstops.soft_endstops_enabled = false;
     #endif
 
-    KEEPALIVE_STATE(PAUSED_FOR_USER);
-    printer.wait_for_user = true;
+    measured_z = lcd_probe_pt(lx, ly);
 
-    #if ENABLED(ULTIPANEL)
-      lcd_move_z_probe();
-    #elif ENABLED(NEXTION)
-      LcdBedLevelOn();
-    #endif
-
-    while (printer.wait_for_user) printer.idle();
-
-    #if ENABLED(NEXTION)
-      LcdBedLevelOff();
-    #endif
-
-    KEEPALIVE_STATE(IN_HANDLER);
-
+    // Restore the soft endstop status
     #if HAS_SOFTWARE_ENDSTOPS
-      // Restore the soft endstop status
       endstops.soft_endstops_enabled = old_enable_soft_endstops;
     #endif
 
-    return RAW_CURRENT_POSITION(Z);
+    return measured_z;
 
-  #endif // HAS_RESUME_CONTINUE
+  #endif // ENABLED(PROBE_MANUALLY)
 
 }
 
@@ -422,7 +403,7 @@ void Probe::refresh_offset(const bool no_babystep/*=false*/) {
     #endif
 
     #if ENABLED(BABYSTEP_ZPROBE_OFFSET)
-      if (!no_babystep && bedlevel.leveling_is_active())
+      if (!no_babystep && bedlevel.leveling_active)
         mechanics.babystep_axis(Z_AXIS, -LROUND(diff * mechanics.axis_steps_per_mm[Z_AXIS]));
     #else
       UNUSED(no_babystep);

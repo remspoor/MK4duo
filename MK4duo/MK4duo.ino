@@ -100,8 +100,35 @@
  * M33  - Stop printing, close file and save restart.gcode
  * M34  - Open file and start print
  * M35  - Upload Firmware to Nextion from SD
+ * M36  - Set SD Card Sorting Options
  * M42  - Change pin status via gcode Use M42 Px Sy to set pin x to value y, when omitting Px the onboard led will be used.
  * M43  - Display pin status, watch pins for changes, watch endstops & toggle LED, Z servo probe test, toggle pins
+ *
+ * M43         - report name and state of pin(s)
+ *                 P<pin>  Pin to read or watch. If omitted, reads all pins.
+ *                 I       Flag to ignore Marlin's pin protection.
+ *
+ * M43 W       - Watch pins -reporting changes- until reset, click, or M108.
+ *                 P<pin>  Pin to read or watch. If omitted, read/watch all pins.
+ *                 I       Flag to ignore Marlin's pin protection.
+ *
+ * M43 E<bool> - Enable / disable background endstop monitoring
+ *                 - Machine continues to operate
+ *                 - Reports changes to endstops
+ *                 - Toggles LED when an endstop changes
+ *                 - Can not reliably catch the 5mS pulse from BLTouch type probes
+ *
+ * M43 T       - Toggle pin(s) and report which pin is being toggled
+ *                 S<pin>  - Start Pin number.   If not given, will default to 0
+ *                 L<pin>  - End Pin number.   If not given, will default to last pin defined for this board
+ *                 I       - Flag to ignore Marlin's pin protection.   Use with caution!!!!
+ *                 R       - Repeat pulses on each pin this number of times before continueing to next pin
+ *                 W       - Wait time (in miliseconds) between pulses.  If not given will default to 500
+ *
+ * M43 S       - Servo probe test
+ *                 P<index> - Probe index (optional - defaults to 0
+ * M44  - Codes debug - report codes available (and how many of them there are)
+ *          I G-code list, J M-code list
  * M48  - Measure Z_Probe repeatability. M48 [P # of points] [X position] [Y position] [V_erboseness #] [E_ngage Probe] [L # of legs of travel]
  * M70  - Power consumption sensor calibration
  * M75  - Start the print job timer
@@ -123,7 +150,7 @@
  * M100 - Watch Free Memory (For Debugging Only)
  * M104 - Set hotend target temp
  * M105 - Read current temp
- * M106 - S<speed> P<fan> Fan on
+ * M106 - P<fan> S<speed> F<frequency> U<pin> L<min speed> I<inverted logic>
  * M107 - P<fan> Fan off
  * M108 - Break out of heating loops (M109, M190, M303). With no controller, breaks out of M0/M1. (Requires EMERGENCY_PARSER)
  * M109 - Sxxx Wait for hotend current temp to reach target temp. Waits only when heating
@@ -179,16 +206,16 @@
  * M250 - Set LCD contrast C<contrast value> (value 0..63)
  * M280 - Set servo position absolute. P: servo index, S: angle or microseconds
  * M300 - Play beep sound S<frequency Hz> P<duration ms>
- * M301 - Set PID parameters P I D and C
+ * M301 - Set PID parameters P I D and C. H[heaters] H = 0-3 Hotend, H = -1 BED, H = -2 CHAMBER, H = -3 COOLER,
+ *          P[float] Kp term, I[float] Ki term, D[float] Kd term
+ *          With PID_ADD_EXTRUSION_RATE: C[float] Kc term, L[float] LPQ length
  * M302 - Allow cold extrudes, or set the minimum extrude S<temperature>.
- * M303 - PID relay autotune S<temperature> sets the target temperature (default target temperature = 150C). H<hotend> C<cycles> U<Apply result>
- * M304 - Set hot bed PID parameters P I and D
- * M305 - Set hot chamber PID parameters P I and D
- * M306 - Set cooler PID parameters P I and D
- * M320 - Enable/Disable S1=enable S0=disable, V[bool] Print the leveling grid, Z<height> for leveling fade height (Requires ENABLE_LEVELING_FADE_HEIGHT)
- * M321 - Set a single Auto Bed Leveling Z coordinate - X<gridx> Y<gridy> Z<level val> S<level add>
- * M322 - Reset Auto Bed Leveling matrix
- * M323 - Set Level bilinear manual - X<gridx> Y<gridy> Z<level val> S<level add>
+ * M303 - PID relay autotune: H[heaters] H = 0-3 Hotend, H = -1 BED, H = -2 CHAMBER, H = -3 COOLER,
+ *        S<temperature> sets the target temperature (default target temperature = 150C), C<cycles>, U<Apply result>.
+ * M305 - Set thermistor and ADC parameters: H[heaters] H = 0-3 Hotend, H = -1 BED, H = -2 CHAMBER, H = -3 COOLER,
+ *          A[float] Thermistor resistance at 25°C, B[float] BetaK, C[float] Steinhart-Hart C coefficien, R[float] Pullup resistor value,
+ *          L[int] ADC low offset correction, N[int] ADC high offset correction, P[int] Sensor Pin
+ *        Set DHT sensor parameter: D0 P[int] Sensor Pin, S[int] Sensor Type (11, 21, 22).
  * M350 - Set microstepping mode. (Requires digital microstepping pins.)
  * M351 - Toggle MS1 MS2 pins directly. (Requires digital microstepping pins.)
  * M355 - Turn case lights on/off
@@ -203,9 +230,9 @@
  * M407 - Display measured filament diameter
  * M408 - Report JSON-style response
  * M410 - Quickstop. Abort all the planned moves
- * M420 - Enable/Disable Mesh Bed Leveling (with current values) S1=enable S0=disable (Requires MESH_BED_LEVELING)
+ * M420 - Enable/Disable Leveling (with current values) S1=enable S0=disable (Requires MBL, UBL or ABL)
  *        Z<height> for leveling fade height (Requires ENABLE_LEVELING_FADE_HEIGHT)
- * M421 - Set a single Mesh Bed Leveling Z coordinate. M421 X<mm> Y<mm> Z<mm>' or 'M421 I<xindex> J<yindex> Z<mm>
+ * M421 - Set a single Z coordinate in the Mesh Leveling grid. M421 X<mm> Y<mm> Z<mm>' or 'M421 I<xindex> J<yindex> Z<mm> (Requires MBL, UBL or ABL BILINEAR)
  * M428 - Set the home_offset logically based on the current_position
  * M450 - Report Printer Mode
  * M451 - Select FFF Printer Mode
@@ -258,12 +285,12 @@
  *
  */
 
-#include "base.h"
+#include "MK4duo.h"
 
 void setup() {
   printer.setup();
 }
 
 void loop() {
-  commands.loop();
+  printer.loop();
 }

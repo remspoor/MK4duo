@@ -277,7 +277,7 @@ class Mechanics {
     /**
      * Manual goto xy for Mesh Bed level or Probe Manually
      */
-    virtual void manual_goto_xy(const float &x, const float &y);
+    virtual void manual_goto_xy(const float &lx, const float &ly);
 
     /**
      * sync_plan_position
@@ -357,13 +357,13 @@ class Mechanics {
 };
 
 #if IS_CARTESIAN
-  #include "cartesian_mechanics.h"
+  #include "cartesian/cartesian_mechanics.h"
 #elif IS_CORE
-  #include "core_mechanics.h"
+  #include "core/core_mechanics.h"
 #elif IS_DELTA
-  #include "delta_mechanics.h"
+  #include "delta/delta_mechanics.h"
 #elif IS_SCARA
-  #include "scara_mechanics.h"
+  #include "scara/scara_mechanics.h"
 #endif
 
 #endif /* _MECHANICS_H_ */

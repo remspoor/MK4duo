@@ -24,163 +24,120 @@
  * heater.cpp - heater object
  */
 
-#include "../../base.h"
+#include "../../MK4duo.h"
+#include "sensor/thermistor.h"
 
 #if HEATER_COUNT > 0
 
-  Heater heaters[HEATER_COUNT] = {
-
-    #if HAS_HEATER_0
-      // Hotend 0
-      { IS_HOTEND, HEATER_0_PIN, TEMP_0_PIN, TEMP_SENSOR_0, 0, 0, PID_MIN, PID_MAX, 0, 0,
-        HEATER_0_MINTEMP, HEATER_0_MAXTEMP, 25.0, 0.0, 0.0, 0.0, 0.0, PIDTEMP, PWM_HARDWARE, INVERTED_HEATER_PINS
-        #if HEATER_USES_AD595
-          , TEMP_SENSOR_AD595_OFFSET, TEMP_SENSOR_AD595_GAIN
-        #endif
-        #if WATCH_THE_HEATER
-          , 0, 0
-        #endif
-      },
-    #endif
-
-    #if HAS_HEATER_1
-      // Hotend 1
-      { IS_HOTEND, HEATER_1_PIN, TEMP_1_PIN, TEMP_SENSOR_1, 0, 0, PID_MIN, PID_MAX, 0, 0,
-        HEATER_1_MINTEMP, HEATER_1_MAXTEMP, 25.0, 0.0, 0.0, 0.0, 0.0, PIDTEMP, PWM_HARDWARE, INVERTED_HEATER_PINS
-        #if HEATER_USES_AD595
-          , TEMP_SENSOR_AD595_OFFSET, TEMP_SENSOR_AD595_GAIN
-        #endif
-        #if WATCH_THE_HEATER
-          , 0, 0
-        #endif
-      },
-    #endif
-
-    #if HAS_HEATER_2
-      // Hotend 2
-      { IS_HOTEND, HEATER_2_PIN, TEMP_2_PIN, TEMP_SENSOR_2, 0, 0, PID_MIN, PID_MAX, 0, 0,
-        HEATER_2_MINTEMP, HEATER_2_MAXTEMP, 25.0, 0.0, 0.0, 0.0, 0.0, PIDTEMP, PWM_HARDWARE, INVERTED_HEATER_PINS
-        #if HEATER_USES_AD595
-          , TEMP_SENSOR_AD595_OFFSET, TEMP_SENSOR_AD595_GAIN
-        #endif
-        #if WATCH_THE_HEATER
-          , 0, 0
-        #endif
-      },
-    #endif
-
-    #if HAS_HEATER_3
-      // Hotend 3
-      { IS_HOTEND, HEATER_3_PIN, TEMP_3_PIN, TEMP_SENSOR_3, 0, 0, PID_MIN, PID_MAX, 0, 0,
-        HEATER_3_MINTEMP, HEATER_3_MAXTEMP, 25.0, 0.0, 0.0, 0.0, 0.0, PIDTEMP, PWM_HARDWARE, INVERTED_HEATER_PINS
-        #if HEATER_USES_AD595
-          , TEMP_SENSOR_AD595_OFFSET, TEMP_SENSOR_AD595_GAIN
-        #endif
-        #if WATCH_THE_HEATER
-          , 0, 0
-        #endif
-      },
-    #endif
-
-    #if HAS_HEATER_BED
-      // BED
-      { IS_BED, HEATER_BED_PIN, TEMP_BED_PIN,
-        #if HEATER_USES_MAX
-          -1,
-        #endif
-        TEMP_SENSOR_BED, 0, 0, MIN_BED_POWER, MAX_BED_POWER, 0, 0,
-        BED_MINTEMP, BED_MAXTEMP, 25.0, 0.0, 0.0, 0.0, 0.0, PIDTEMPBED, PWM_HARDWARE, INVERTED_BED_PIN
-        #if HEATER_USES_AD595
-          , TEMP_SENSOR_AD595_OFFSET, TEMP_SENSOR_AD595_GAIN
-        #endif
-        #if WATCH_THE_HEATER
-          , 0, 0
-        #endif
-      },
-    #endif
-
-    #if HAS_HEATER_CHAMBER
-      // CHAMBER
-      { IS_CHAMBER, HEATER_CHAMBER_PIN, TEMP_CHAMBER_PIN,
-        #if HEATER_USES_MAX
-          -1,
-        #endif
-        TEMP_SENSOR_CHAMBER, 0, 0, MIN_CHAMBER_POWER, MAX_CHAMBER_POWER, 0, 0,
-        CHAMBER_MINTEMP, CHAMBER_MAXTEMP, 25.0, 0.0, 0.0, 0.0, 0.0, PIDTEMPCHAMBER, PWM_HARDWARE, INVERTED_CHAMBER_PIN
-        #if HEATER_USES_AD595
-          , TEMP_SENSOR_AD595_OFFSET, TEMP_SENSOR_AD595_GAIN
-        #endif
-        #if WATCH_THE_HEATER
-          , 0, 0
-        #endif
-      },
-    #endif
-
-    #if HAS_HEATER_COOLER
-      // COOLER
-      { IS_COOLER, HEATER_COOLER_PIN, TEMP_COOLER_PIN,
-        #if HEATER_USES_MAX
-          -1,
-        #endif
-        TEMP_SENSOR_COOLER, 0, 0, MIN_COOLER_POWER, MAX_COOLER_POWER, 0, 0,
-        COOLER_MINTEMP, COOLER_MAXTEMP, 25.0, 0.0, 0.0, 0.0, 0.0, PIDTEMPCOOLER, PWM_HARDWARE, INVERTED_COOLER_PIN
-        #if HEATER_USES_AD595
-          , TEMP_SENSOR_AD595_OFFSET, TEMP_SENSOR_AD595_GAIN
-        #endif
-        #if WATCH_THE_HEATER
-          , 0, 0
-        #endif
-      }
-    #endif
-
-  };
+  Heater heaters[HEATER_COUNT];
 
   /**
    * Initialize Heater
    */
   void Heater::init() {
-    if (this->output_pin > -1)
-      HAL::pinMode(this->output_pin, OUTPUT);
+
+    // Reset valor
+    soft_pwm              = 0;
+    pwm_pos               = 0;
+    target_temperature    = 0;
+    current_temperature   = 25.0;
+    sensor.raw            = 0;
+    sensor.adcLowOffset   = 0;
+    sensor.adcHighOffset  = 0;
+    sensor.shC            = 0.0;
+
+    #if WATCH_THE_HEATER
+      watch_target_temp   = 0;
+      watch_next_ms       = 0;
+    #endif
+
+    #if ENABLED(__AVR__)
+      if (pin > NoPin) HAL::pinMode(pin, OUTPUT);
+    #endif
 
     #if ENABLED(SUPPORT_MAX6675) || ENABLED(SUPPORT_MAX31855)
-      if (this->sensor_type == -2 || this->sensor_type == -1) {
+      if (sensor.type == -2 || sensor.type == -1) {
         OUT_WRITE(SCK_PIN, LOW);
         OUT_WRITE(MOSI_PIN, HIGH);
         SET_INPUT_PULLUP(MISO_PIN);
         OUT_WRITE(SS_PIN, HIGH);
-
-        HAL::pinMode(this->output_pin, OUTPUT);
-        HAL::digitalWrite(this->output_pin, HIGH);
       }
     #endif
+
+    sensor.CalcDerivedParameters();
   }
 
   void Heater::setTarget(int16_t celsius) {
 
-    NOMORE(celsius, this->maxtemp);
-    this->target_temperature = celsius;
+    NOMORE(celsius, maxtemp);
+    target_temperature = celsius;
 
     #if WATCH_THE_HEATER
       thermalManager.start_watching(this);
     #endif
   }
 
-  #if PWM_HARDWARE
+  void Heater::print_PID(const uint8_t h/*=0*/) {
 
+    if (type == IS_HOTEND)
+      SERIAL_SMV(CFG, "  M301 H", (int)h);
+    #if (PIDTEMPBED)
+      else if (type == IS_BED) SERIAL_SM(CFG, "  M301 H-1");
+    #endif
+    #if (PIDTEMPCHAMBER)
+      else if (type == IS_CHAMBER) SERIAL_SM(CFG, "  M301 H-2");
+    #endif
+    #if (PIDTEMPCOOLER)
+      else if (type == IS_COOLER) SERIAL_SM(CFG, "  M301 H-3");
+    #endif
+    else return;
+
+    SERIAL_MV(" P", Kp);
+    SERIAL_MV(" I", Ki);
+    SERIAL_MV(" D", Kd);
+    #if ENABLED(PID_ADD_EXTRUSION_RATE)
+      SERIAL_MV(" C", Kc);
+    #endif
+    SERIAL_EOL();
+  }
+
+  void Heater::sensor_print_parameters(const uint8_t h/*=0*/) {
+
+    if (type == IS_HOTEND)
+      SERIAL_SMV(CFG, "  M305 H", (int)h);
+    #if HAS_HEATER_BED
+      else if (type == IS_BED) SERIAL_SM(CFG, "  M305 H-1");
+    #endif
+    #if HAS_HEATER_CHAMBER
+      else if (type == IS_CHAMBER) SERIAL_SM(CFG, "  M305 H-2");
+    #endif
+    #if HAS_HEATER_COOLER
+      else if (type == IS_COOLER) SERIAL_SM(CFG, "  M305 H-3");
+    #endif
+    else return;
+
+    SERIAL_EM(" Sensor");
+    SERIAL_LMV(CFG, " Pin: ", sensor.pin);
+    SERIAL_LMV(CFG, " Thermistor resistance at 25 C:", sensor.r25, 1);
+    SERIAL_LMV(CFG, " BetaK value: ", sensor.beta, 1);
+    SERIAL_LMV(CFG, " Steinhart-Hart C coefficien: ", sensor.shC, 1);
+    SERIAL_LMV(CFG, " Pullup resistor value: ", sensor.pullupR, 1);
+    SERIAL_LMV(CFG, " ADC low offset correction: ", sensor.adcLowOffset);
+    SERIAL_LMV(CFG, " ADC high offset correction: ", sensor.adcHighOffset);
+
+  }
+
+  #if HARDWARE_PWM
     void Heater::SetHardwarePwm() {
       uint8_t pwm_val = 0;
 
-      if (this->pwm_hardware) {
+      if (hardwareInverted)
+        pwm_val = 255 - soft_pwm;
+      else
+        pwm_val = soft_pwm;
 
-        if (this->hardwareInverted)
-          pwm_val = 255 - this->soft_pwm;
-        else
-          pwm_val = this->soft_pwm;
-
-        this->pwm_hardware = HAL::analogWrite(this->output_pin, pwm_val, HEATER_PWM_FREQ);
-      }
+      HAL::analogWrite(pin, pwm_val, (type == IS_HOTEND) ? 250 : 10);
     }
-
   #endif
 
 #endif // HEATER_COUNT > 0

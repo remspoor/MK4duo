@@ -41,17 +41,17 @@ class Commands {
 
     static char command_queue[BUFSIZE][MAX_CMD_SIZE];
 
-    static long gcode_N,
-                gcode_LastN,
-                Stopped_gcode_LastN;
+    static long gcode_LastN;
 
     static millis_t previous_cmd_ms;
 
   private: /** Private Parameters */
 
+    static long gcode_N;
+
     static bool send_ok[BUFSIZE];
 
-    static uint8_t  commands_in_queue,
+    static uint8_t  commands_in_queue,  // Count of commands in the queue
                     cmd_queue_index_r,  // Ring buffer read position
                     cmd_queue_index_w;  // Ring buffer write position
 
@@ -61,18 +61,18 @@ class Commands {
 
   public: /** Public Function */
 
-    static void loop();
-
-    static void FlushSerialRequestResend();
+    static void flush_and_request_resend();
     static void ok_to_send();
     static void get_available_commands();
+    static void advance_command_queue();
     static void clear_command_queue();
 
     static bool enqueue_and_echo_command(const char* cmd, bool say_ok=false);
     static void enqueue_and_echo_commands_P(const char * const pgcode);
 
-    FORCE_INLINE static void save_last_gcode()      { Stopped_gcode_LastN = gcode_LastN; }
-    FORCE_INLINE static void reset_send_ok()        { for (int8_t i = 0; i < BUFSIZE; i++) send_ok[i] = true; }
+    static bool get_target_heater(int8_t &h);
+
+    FORCE_INLINE static void reset_send_ok()        { for (uint8_t i = 0; i < COUNT(send_ok); i++) send_ok[i] = true; }
     FORCE_INLINE static void refresh_cmd_timeout()  { previous_cmd_ms = millis(); }
 
   private: /** Private Function */

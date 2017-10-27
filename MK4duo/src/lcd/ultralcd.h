@@ -78,6 +78,7 @@
 
     // Function pointer to menu functions.
     typedef void (*screenFunc_t)();
+    typedef void (*menuAction_t)();
 
     void lcd_goto_screen(screenFunc_t screen, const uint32_t encoder=0);
 
@@ -115,6 +116,8 @@
       void lcd_z_offset_edit_setup(float);
       float lcd_z_offset_edit();
     #endif
+
+    float lcd_probe_pt(const float &lx, const float &ly);
 
   #else
 

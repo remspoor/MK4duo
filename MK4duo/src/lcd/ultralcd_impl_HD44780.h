@@ -30,17 +30,7 @@
 
 #include "../utility/utility.h"
 
-extern volatile uint8_t buttons;  //an extended version of the last checked buttons in a bit array.
-
-////////////////////////////////////
-// Setup button and encode mappings for each panel (into 'buttons' variable
-//
-// This is just to map common functions (across different panels) onto the same
-// macro name. The mapping is independent of whether the button is directly connected or
-// via a shift/i2c register.
-
 #if ENABLED(ULTIPANEL)
-
   #if ENABLED(AUTO_BED_LEVELING_UBL)
     #define ULTRA_X_PIXELS_PER_CHAR    5
     #define ULTRA_Y_PIXELS_PER_CHAR    8
@@ -54,6 +44,18 @@ extern volatile uint8_t buttons;  //an extended version of the last checked butt
     #define LOWER_LEFT    _BV(2)
     #define LOWER_RIGHT   _BV(3)
   #endif
+#endif
+
+extern volatile uint8_t buttons;  //an extended version of the last checked buttons in a bit array.
+
+////////////////////////////////////
+// Setup button and encode mappings for each panel (into 'buttons' variable
+//
+// This is just to map common functions (across different panels) onto the same
+// macro name. The mapping is independent of whether the button is directly connected or
+// via a shift/i2c register.
+
+#if ENABLED(ULTIPANEL)
 
   //
   // Setup other button mappings of each panel
@@ -268,6 +270,17 @@ static void lcd_set_custom_characters(
     B01110
   };
 
+  const static PROGMEM byte Humidity[8] = {
+    B00100,
+    B00100,
+    B01010,
+    B10001,
+    B10001,
+    B01110,
+    B00000,
+    B00000
+  };
+
   const static PROGMEM byte uplevel[8] = {
     B00100,
     B01110,
@@ -312,7 +325,6 @@ static void lcd_set_custom_characters(
       B01100,
       B00000,
     };
-
     const static PROGMEM byte folder[8] = {
       B00000,
       B11100,
@@ -325,7 +337,7 @@ static void lcd_set_custom_characters(
     };
 
     #if ENABLED(LCD_PROGRESS_BAR)
-      const static PROGMEM byte progress_bar[3][8] = { {
+      const static PROGMEM byte progress[3][8] = { {
         B00000,
         B10000,
         B10000,
@@ -356,7 +368,11 @@ static void lcd_set_custom_characters(
     #endif
   #endif
 
-  createChar_P(LCD_BEDTEMP_CHAR, bedTemp);
+  #if ENABLED(DHT_SENSOR)
+    createChar_P(LCD_BEDTEMP_CHAR, Humidity);
+  #else
+    createChar_P(LCD_BEDTEMP_CHAR, bedTemp);
+  #endif
   createChar_P(LCD_DEGREE_CHAR, degree);
   createChar_P(LCD_STR_THERMOMETER[0], thermometer);
   createChar_P(LCD_FEEDRATE_CHAR, feedrate);
@@ -368,7 +384,7 @@ static void lcd_set_custom_characters(
       if (info_screen_charset != char_mode) {
         char_mode = info_screen_charset;
         if (info_screen_charset) { // Progress bar characters for info screen
-          for (int16_t i = 3; i--;) createChar_P(LCD_STR_PROGRESS[i], progress_bar[i]);
+          for (int16_t i = 3; i--;) createChar_P(LCD_STR_PROGRESS[i], progress[i]);
         }
         else { // Custom characters for submenus
           createChar_P(LCD_UPLEVEL_CHAR, uplevel);
@@ -623,11 +639,14 @@ FORCE_INLINE void _draw_axis_label(const AxisEnum axis, const char* const pstr, 
   }
 }
 
-FORCE_INLINE void _draw_heater_status(const uint8_t heater, const char prefix, const bool blink) {
+#if ENABLED(DHT_SENSOR)
+  FORCE_INLINE void _draw_humidity_status() {
+    lcd.print((char)LCD_BEDTEMP_CHAR);
+    lcd.print(itostr3(dhtsensor.readHumidity() + 0.5));
+  }
+#endif
 
-  #if !HEATER_IDLE_HANDLER
-    UNUSED(blink);
-  #endif
+FORCE_INLINE void _draw_heater_status(const uint8_t heater, const char prefix, const bool blink) {
 
   const float t1 = (heaters[heater].current_temperature),
               t2 = (heaters[heater].target_temperature);
@@ -746,12 +765,14 @@ static void lcd_implementation_status_screen() {
     //
     // Hotend 1 or Bed Temperature
     //
-    #if HOTENDS > 1 || HAS_TEMP_BED
+    #if HOTENDS > 1 || HAS_TEMP_BED || ENABLED(DHT_SENSOR)
       lcd.setCursor(10, 0);
       #if HOTENDS > 1
         _draw_heater_status(1, LCD_STR_THERMOMETER[0], blink);
-      #else
+      #elif HAS_TEMP_BED
         _draw_heater_status(BED_INDEX, LCD_BEDTEMP_CHAR, blink);
+      #else
+        _draw_humidity_status();
       #endif
 
     #endif // HOTENDS > 1 || HAS_TEMP_BED
@@ -770,7 +791,7 @@ static void lcd_implementation_status_screen() {
         lcd.setCursor(0, 2);
         lcd_printPGM(PSTR("SD"));
         if (IS_SD_PRINTING)
-          lcd.print(itostr3(card.percentDone()));
+          lcd.print(itostr3(printer.progress));
         else
           lcd_printPGM(PSTR("---"));
         lcd.write('%');
@@ -809,7 +830,7 @@ static void lcd_implementation_status_screen() {
     lcd.print(ftostr52sp(FIXFLOAT(mechanics.current_position[Z_AXIS])));
 
     #if HAS_LEVELING
-      lcd.write(bedlevel.leveling_is_active() || blink ? '_' : ' ');
+      lcd.write(bedlevel.leveling_active || blink ? '_' : ' ');
     #endif
 
   #endif // LCD_HEIGHT > 2
@@ -830,7 +851,7 @@ static void lcd_implementation_status_screen() {
       lcd.setCursor(7, 2);
       lcd_printPGM(PSTR("SD"));
       if (IS_SD_PRINTING)
-        lcd.print(itostr3(card.percentDone()));
+        lcd.print(itostr3(printer.progress));
       else
         lcd_printPGM(PSTR("---"));
       lcd.write('%');
@@ -867,12 +888,10 @@ static void lcd_implementation_status_screen() {
 
   #if ENABLED(LCD_PROGRESS_BAR)
 
-    // Draw the progress_bar bar if the message has shown long enough
+    // Draw the progress bar if the message has shown long enough
     // or if there is no message set.
-    if (IS_SD_FILE_OPEN && (ELAPSED(millis(), progress_bar_ms + PROGRESS_BAR_MSG_TIME) || !lcd_status_message[0])) {
-      const uint8_t percent = card.percentDone();
-      if (percent) return lcd_draw_progress_bar(percent);
-    }
+    if (printer.progress && (ELAPSED(millis(), progress_bar_ms + PROGRESS_BAR_MSG_TIME) || !lcd_status_message[0]))
+      return lcd_draw_progress_bar(printer.progress);
 
   #elif (HAS_LCD_FILAMENT_SENSOR && ENABLED(SDSUPPORT)) || HAS_LCD_POWER_SENSOR
 
@@ -1036,7 +1055,7 @@ static void lcd_implementation_status_screen() {
         n -= charset_mapper(c);
         longFilename++;
       }
-      while (n--) lcd.write(' ');
+      while (n--) lcd.print(' ');
       lcd.print(post_char);
     }
 
@@ -1044,7 +1063,7 @@ static void lcd_implementation_status_screen() {
       lcd_implementation_drawmenu_sd(sel, row, pstr, longFilename, 2, ' ');
     }
 
-    static void lcd_implementation_drawmenu_sddirectory(const bool sel, const int8_t row, const char* pstr, const char* longFilename) {
+    static void lcd_implementation_drawmenu_sddirectory(const bool sel, const uint8_t row, const char* pstr, const char* longFilename) {
       lcd_implementation_drawmenu_sd(sel, row, pstr, longFilename, 2, LCD_STR_FOLDER[0]);
     }
 

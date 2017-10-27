@@ -31,7 +31,7 @@
  * Copyright (c) 2015 Dominik Wenger
  */
 
-#include "../../base.h"
+#include "../../MK4duo.h"
 #include "stepper_indirection.h"
 
 //
@@ -123,7 +123,7 @@
   #include <SPI.h>
   #include <TMC2130Stepper.h>
 
-  #define _TMC2130_DEFINE(ST) TMC2130Stepper stepper##ST(ST##_ENABLE_PIN, ST##_DIR_PIN, ST##_STEP_PIN, ST##_CHIP_SELECT)
+  #define _TMC2130_DEFINE(ST) TMC2130Stepper stepper##ST(ST##_ENABLE_PIN, ST##_DIR_PIN, ST##_STEP_PIN, ST##_CS_PIN)
 
   // Stepper objects of TMC2130 steppers used
   #if ENABLED(X_IS_TMC2130)

@@ -71,7 +71,8 @@
    */
   inline void gcode_M23(void) {
     // Simplify3D includes the size, so zero out all spaces (#7227)
-    for (char *fn = parser.string_arg; *fn; ++fn) if (*fn == ' ') *fn = '\0';
+    // Questa funzione blocca il nome al primo spazio quindi file con spazio nei nomi non funziona da rivedere
+    //for (char *fn = parser.string_arg; *fn; ++fn) if (*fn == ' ') *fn = '\0';
     card.selectFile(parser.string_arg);
   }
 
@@ -150,9 +151,7 @@
   /**
    * M33: Close File and store location in restart.gcode
    */
-  inline void gcode_M33(void) {
-    printer.stopSDPrint(true);
-  }
+  inline void gcode_M33(void) { card.stopSDPrint(true); }
 
   /**
    * M34: Select file and start SD print
@@ -183,5 +182,23 @@
       #endif
     }
   }
+
+  #if ENABLED(SDCARD_SORT_ALPHA) && ENABLED(SDSORT_GCODE)
+
+    #define CODE_M36
+
+    /**
+     * M36: Set SD Card Sorting Options
+     */
+    inline void gcode_M36(void) {
+      if (parser.seen('S')) card.setSortOn(parser.value_bool());
+      if (parser.seenval('F')) {
+        const int v = parser.value_long();
+        card.setSortFolders(v < 0 ? -1 : v > 0 ? 1 : 0);
+      }
+      //if (parser.seen('R')) card.setSortReverse(parser.value_bool());
+    }
+
+  #endif // SDCARD_SORT_ALPHA && SDSORT_GCODE
 
 #endif // HAS_SDSUPPORT

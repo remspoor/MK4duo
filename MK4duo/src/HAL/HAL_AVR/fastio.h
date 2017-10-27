@@ -51,17 +51,17 @@
 #define _WRITE_NC(IO, v)  do { if (v) {DIO ##  IO ## _WPORT |= _BV(DIO ## IO ## _PIN); } else {DIO ##  IO ## _WPORT &= ~_BV(DIO ## IO ## _PIN); }; } while (0)
 
 #define _WRITE_C(IO, v)   do { if (v) { \
-                                         CRITICAL_SECTION_START; \
-                                         {DIO ##  IO ## _WPORT |= _BV(DIO ## IO ## _PIN); } \
-                                         CRITICAL_SECTION_END; \
-                                       } \
-                                       else { \
-                                         CRITICAL_SECTION_START; \
-                                         {DIO ##  IO ## _WPORT &= ~_BV(DIO ## IO ## _PIN); } \
-                                         CRITICAL_SECTION_END; \
-                                       } \
-                                     } \
-                                     while (0)
+                                        CRITICAL_SECTION_START \
+                                          {DIO ##  IO ## _WPORT |= _BV(DIO ## IO ## _PIN); } \
+                                        CRITICAL_SECTION_END \
+                                      } \
+                                      else { \
+                                        CRITICAL_SECTION_START \
+                                          {DIO ##  IO ## _WPORT &= ~_BV(DIO ## IO ## _PIN); } \
+                                        CRITICAL_SECTION_END \
+                                      } \
+                                    } \
+                                    while (0)
 
 #define _WRITE(IO, v)   do { if (&(DIO ## IO ## _RPORT) >= (uint8_t *)0x100) {_WRITE_C(IO, v); } else {_WRITE_NC(IO, v); }; } while (0)
 
@@ -79,9 +79,9 @@
 #define WRITE(IO,V) _WRITE(IO,V)
 #define TOGGLE(IO)  _TOGGLE(IO)
 
-#define SET_INPUT(IO)   _SET_INPUT(IO)
-#define SET_INPUT_PULLUP(IO) do{ _SET_INPUT(IO); _WRITE(IO, HIGH); }while(0)
-#define SET_OUTPUT(IO)  _SET_OUTPUT(IO)
+#define SET_INPUT(IO)         _SET_INPUT(IO)
+#define SET_INPUT_PULLUP(IO)  do{ _SET_INPUT(IO); _WRITE(IO, HIGH); }while(0)
+#define SET_OUTPUT(IO)        _SET_OUTPUT(IO)
 
 #define GET_INPUT(IO)   _GET_INPUT(IO)
 #define GET_OUTPUT(IO)  _GET_OUTPUT(IO)

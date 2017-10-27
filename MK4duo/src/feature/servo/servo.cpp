@@ -38,7 +38,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "../../../base.h"
+#include "../../../MK4duo.h"
 
 #if HAS_SERVOS
 
@@ -438,9 +438,9 @@
       value = constrain(value, SERVO_MIN(), SERVO_MAX()) - TRIM_DURATION;
       value = usToTicks(value);  // convert to ticks after compensating for interrupt overhead
 
-      CRITICAL_SECTION_START;
-      servo_info[channel].ticks = value;
-      CRITICAL_SECTION_END;
+      CRITICAL_SECTION_START
+        servo_info[channel].ticks = value;
+      CRITICAL_SECTION_END
     }
   }
 

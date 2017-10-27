@@ -35,8 +35,8 @@
   inline void toggle_pins() {
     const bool  I_flag  = parser.boolval('I');
     const int   repeat  = parser.intval('R', 1),
-                start   = parser.intval('S'),
-                end     = parser.intval('E', LAST_PIN - 1),
+                start   = parser.byteval('S'),
+                end     = parser.byteval('E', LAST_PIN - 1),
                 wait    = parser.intval('W', 500);
 
     for (Pin pin = start; pin <= end; pin++) {
@@ -118,15 +118,16 @@
 
       SERIAL_EM("Deploy & stow 4 times");
       SET_INPUT_PULLUP(PROBE_TEST_PIN);
+      uint8_t i = 0;
       bool deploy_state, stow_state;
-      for (uint8_t i = 0; i < 4; i++) {
+      do {
         MOVE_SERVO(probe_index, probe.z_servo_angle[0]); //deploy
         printer.safe_delay(500);
-        deploy_state = digitalRead(PROBE_TEST_PIN);
+        deploy_state = HAL::digitalRead(PROBE_TEST_PIN);
         MOVE_SERVO(probe_index, probe.z_servo_angle[1]); //stow
         printer.safe_delay(500);
-        stow_state = digitalRead(PROBE_TEST_PIN);
-      }
+        stow_state = HAL::digitalRead(PROBE_TEST_PIN);
+      } while (++i < 4);
       if (probe_inverting != deploy_state) SERIAL_EM("WARNING - INVERTING setting probably backwards");
 
       commands.refresh_cmd_timeout();
@@ -160,9 +161,9 @@
           if (0 == j % (500 * 1)) // keep cmd_timeout happy
             commands.refresh_cmd_timeout();
 
-          if (deploy_state != digitalRead(PROBE_TEST_PIN)) { // probe triggered
+          if (deploy_state != HAL::digitalRead(PROBE_TEST_PIN)) { // probe triggered
 
-            for (probe_counter = 1; probe_counter < 50 && (deploy_state != digitalRead(PROBE_TEST_PIN)); probe_counter ++)
+            for (probe_counter = 1; probe_counter < 50 && (deploy_state != HAL::digitalRead(PROBE_TEST_PIN)); probe_counter ++)
               printer.safe_delay(2);
 
             if (probe_counter == 50)
@@ -235,8 +236,8 @@
     }
 
     // Get the range of pins to test or watch
-    const uint8_t first_pin = parser.seen('P') ? parser.value_byte() : 0,
-                  last_pin = parser.seen('P') ? first_pin : LAST_PIN - 1;
+    const uint8_t first_pin = parser.pinval('P', 0),
+                  last_pin  = parser.pinval('P', LAST_PIN - 1);
 
     if (first_pin > last_pin) return;
 
@@ -252,7 +253,7 @@
         // if (IS_ANALOG(pin))
         //   pin_state[pin - first_pin] = analogRead(pin - analogInputToDigitalPin(0)); // int16_t pin_state[...]
         // else
-          pin_state[pin - first_pin] = digitalRead(pin);
+          pin_state[pin - first_pin] = HAL::digitalRead(pin);
       }
 
       #if HAS_RESUME_CONTINUE
@@ -267,7 +268,7 @@
           // if (IS_ANALOG(pin))
           //   val = analogRead(pin - analogInputToDigitalPin(0)); // int16_t val
           // else
-            val = digitalRead(pin);
+            val = HAL::digitalRead(pin);
           if (val != pin_state[pin - first_pin]) {
             report_pin_state(pin);
             pin_state[pin - first_pin] = val;

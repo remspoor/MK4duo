@@ -25,9 +25,9 @@
  * Not platform dependent.
  */
 
-#include "../../base.h"
+#include "../../MK4duo.h"
 
-#if ENABLED(I2C_EEPROM)
+#if ENABLED(EEPROM_SETTINGS) && ENABLED(I2C_EEPROM)
 
 // --------------------------------------------------------------------------
 // Includes

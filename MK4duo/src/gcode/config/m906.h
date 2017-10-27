@@ -40,7 +40,7 @@
     LOOP_XYZE(i) {
       if (parser.seen(axis_codes[i])) {
         const uint8_t a = i + (i == E_AXIS ? TARGET_EXTRUDER : 0);
-        printer.motor_current[a] = parser.value_float();
+        stepper.motor_current[a] = parser.value_float();
       }
     }
     stepper.set_driver_current();
@@ -48,47 +48,17 @@
 
 #elif ENABLED(HAVE_TMC2130)
 
-  static void tmc2130_get_current(TMC2130Stepper &st, const char name) {
+  inline void tmc2130_get_current(TMC2130Stepper &st, const char name) {
     SERIAL_CHR(name);
     SERIAL_MSG(" axis driver current: ");
     SERIAL_EV(st.getCurrent());
   }
-  static void tmc2130_set_current(TMC2130Stepper &st, const char name, const int mA) {
+  inline void tmc2130_set_current(TMC2130Stepper &st, const char name, const int mA) {
     st.setCurrent(mA, R_SENSE, HOLD_MULTIPLIER);
     tmc2130_get_current(st, name);
   }
 
-  static void tmc2130_report_otpw(TMC2130Stepper &st, const char name) {
-    SERIAL_CHR(name);
-    SERIAL_MSG(" axis temperature prewarn triggered: ");
-    SERIAL_PS(st.getOTPW() ? PSTR("true") : PSTR("false"));
-    SERIAL_EOL();
-  }
-  static void tmc2130_clear_otpw(TMC2130Stepper &st, const char name) {
-    st.clear_otpw();
-    SERIAL_CHR(name);
-    SERIAL_EM(" prewarn flag cleared");
-  }
-
-  static void tmc2130_get_pwmthrs(TMC2130Stepper &st, const char name, const uint16_t spmm) {
-    SERIAL_CHR(name);
-    SERIAL_MSG(" stealthChop max speed set to ");
-    SERIAL_EV(12650000UL * st.microsteps() / (256 * st.stealth_max_speed() * spmm));
-  }
-  static void tmc2130_set_pwmthrs(TMC2130Stepper &st, const char name, const int32_t thrs, const uint32_t spmm) {
-    st.stealth_max_speed(12650000UL * st.microsteps() / (256 * thrs * spmm));
-    tmc2130_get_pwmthrs(st, name, spmm);
-  }
-
-  static void tmc2130_get_sgt(TMC2130Stepper &st, const char name) {
-    SERIAL_CHR(name);
-    SERIAL_MSG(" driver homing sensitivity set to ");
-    SERIAL_EV(st.sgt());
-  }
-  static void tmc2130_set_sgt(TMC2130Stepper &st, const char name, const int8_t sgt_val) {
-    st.sgt(sgt_val);
-    tmc2130_get_sgt(st, name);
-  }
+  #define CODE_M906
 
   /**
    * M906: Set motor current in milliamps using axis codes X, Y, Z, E

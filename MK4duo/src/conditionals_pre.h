@@ -40,6 +40,7 @@
 
   #if ENABLED(SAV_3DGLCD)
 
+    //#define U8GLIB_SSD1306
     #define U8GLIB_SH1106
 
   #elif ENABLED(RADDS_DISPLAY)
@@ -47,23 +48,18 @@
     #define ENCODER_PULSES_PER_STEP 2
     #define ENCODER_STEPS_PER_MENU_ITEM 1
     #define ULTIPANEL
-    #define NEWPANEL
 
   #elif ENABLED(CARTESIO_UI)
 
     #define DOGLCD
     #define ULTIPANEL
-    #define NEWPANEL
     #define DEFAULT_LCD_CONTRAST 90
     #define LCD_CONTRAST_MIN 60
     #define LCD_CONTRAST_MAX 140
 
-  #elif ENABLED(MAKRPANEL) || ENABLED(MINIPANEL)
+  #elif ENABLED(MAKRPANEL)
 
-    #define DOGLCD
-    #define ULTIPANEL
-    #define NEWPANEL
-    #define DEFAULT_LCD_CONTRAST 17
+    #define U8GLIB_ST7565_64128N
 
   #elif ENABLED(ANET_KEYPAD_LCD)
 
@@ -71,8 +67,9 @@
     #define ADC_KEYPAD
     #define ADC_KEY_NUM 8
     #define ULTIPANEL
-    #define NEWPANEL
+
     // this helps to implement ADC_KEYPAD menus
+    #define ENCODER_PULSES_PER_STEP 1
     #define ENCODER_STEPS_PER_MENU_ITEM 1
     #define REVERSE_MENU_DIRECTION
 
@@ -94,8 +91,12 @@
       #define LCD_CONTRAST_MIN  75
       #define LCD_CONTRAST_MAX 115
       #define DEFAULT_LCD_CONTRAST 95
+      #define U8GLIB_ST7565_64128N
     #elif ENABLED(VIKI2)
-      #define DEFAULT_LCD_CONTRAST 40
+      #define LCD_CONTRAST_MIN 0
+      #define LCD_CONTRAST_MAX 255
+      #define DEFAULT_LCD_CONTRAST 140
+      #define U8GLIB_ST7565_64128N
     #elif ENABLED(ELB_FULL_GRAPHIC_CONTROLLER)
       #define LCD_CONTRAST_MIN  90
       #define LCD_CONTRAST_MAX 130
@@ -104,19 +105,24 @@
       #define SD_DETECT_INVERTED
     #endif
 
+  #elif ENABLED(OLED_PANEL_TINYBOY2)
+
+    #define U8GLIB_SSD1306
+    #define ULTIPANEL
+    #define REVERSE_ENCODER_DIRECTION
+    #define REVERSE_MENU_DIRECTION
+
   #elif ENABLED(RA_CONTROL_PANEL)
 
     #define LCD_I2C_TYPE_PCA8574
     #define LCD_I2C_ADDRESS 0x27   // I2C Address of the port expander
     #define ULTIPANEL
-    #define NEWPANEL
 
   #elif ENABLED(REPRAPWORLD_GRAPHICAL_LCD)
 
     #define DOGLCD
     #define U8GLIB_ST7920
     #define ULTIPANEL
-    #define NEWPANEL
 
   #elif ENABLED(WANHAO_D6_OLED)
 
@@ -126,10 +132,36 @@
     #define LCD_CONTRAST_MIN 10
     #define LCD_CONTRAST_MAX 255
     #define DEFAULT_LCD_CONTRAST 100
-    #define ULTRA_LCD  // general LCD support, also 16x2
-    #define DOGLCD // Support for I2C LCD 128x64
     #define ULTIPANEL
 
+  #elif ENABLED(CR10_STOCKDISPLAY)
+
+    #define REPRAP_DISCOUNT_FULL_GRAPHIC_SMART_CONTROLLER
+    #ifndef ST7920_DELAY_1
+      #define ST7920_DELAY_1 DELAY_2_NOP
+    #endif
+    #ifndef ST7920_DELAY_2
+      #define ST7920_DELAY_2 DELAY_2_NOP
+    #endif
+    #ifndef ST7920_DELAY_3
+      #define ST7920_DELAY_3 DELAY_2_NOP
+    #endif
+
+  #elif ENABLED(MKS_12864OLED)
+
+    #define REPRAP_DISCOUNT_SMART_CONTROLLER
+    #define U8GLIB_SH1106
+
+  #elif ENABLED(MKS_MINI_12864)
+
+    #define MINIPANEL
+
+  #endif
+
+  #if ENABLED(MAKRPANEL) || ENABLED(MINIPANEL)
+    #define DOGLCD
+    #define ULTIPANEL
+    #define DEFAULT_LCD_CONTRAST 17
   #endif
 
   // Generic support for SSD1306 / SH1106 OLED based LCDs.
@@ -139,7 +171,15 @@
   #endif
 
   #if ENABLED(PANEL_ONE) || ENABLED(U8GLIB_SH1106)
+
     #define ULTIMAKERCONTROLLER
+
+  #elif ENABLED(MAKEBOARD_MINI_2_LINE_DISPLAY_1602)
+
+    #define REPRAP_DISCOUNT_SMART_CONTROLLER
+    #define LCD_WIDTH 16
+    #define LCD_HEIGHT 2
+
   #endif
 
   #if ENABLED(REPRAP_DISCOUNT_FULL_GRAPHIC_SMART_CONTROLLER)
@@ -153,7 +193,6 @@
    || ENABLED(G3D_PANEL)                        \
    || ENABLED(RIGIDBOT_PANEL)
     #define ULTIPANEL
-    #define NEWPANEL
   #endif
 
   #if ENABLED(REPRAPWORLD_KEYPAD)
@@ -175,7 +214,7 @@
     #define LCD_I2C_TYPE_PCF8575
     #define LCD_I2C_ADDRESS 0x27   // I2C Address of the port expander
     #define ULTIPANEL
-    #define NEWPANEL
+
   #elif ENABLED(LCD_I2C_PANELOLU2)
 
     // PANELOLU2 LCD with status LEDs, separate encoder and click inputs
@@ -184,7 +223,6 @@
     #define LCD_I2C_ADDRESS 0x20 // I2C Address of the port expander
     #define LCD_USE_I2C_BUZZER //comment out to disable buzzer on LCD
     #define ULTIPANEL
-    #define NEWPANEL
 
   #elif ENABLED(LCD_I2C_VIKI)
 
@@ -194,13 +232,12 @@
      * This uses the LiquidTWI2 library v1.2.3 or later ( https://github.com/lincomatic/LiquidTWI2 )
      * Make sure the LiquidTWI2 directory is placed in the Arduino or Sketchbook libraries subdirectory.
      * Note: The pause/stop/resume LCD button pin should be connected to the Arduino
-     *       BTN_ENC pin (or set BTN_ENC to -1 if not used)
+     *       BTN_ENC pin (or set BTN_ENC to NoPin if not used)
      */
     #define LCD_I2C_TYPE_MCP23017
     #define LCD_I2C_ADDRESS 0x20 // I2C Address of the port expander
     #define LCD_USE_I2C_BUZZER //comment out to disable buzzer on LCD (requires LiquidTWI2 v1.2.3 or later)
     #define ULTIPANEL
-    #define NEWPANEL
 
     #define ENCODER_FEEDRATE_DEADZONE 4
 
@@ -236,6 +273,9 @@
   #ifndef ENCODER_STEPS_PER_MENU_ITEM
     #define ENCODER_STEPS_PER_MENU_ITEM STD_ENCODER_STEPS_PER_MENU_ITEM
   #endif
+  #ifndef ENCODER_FEEDRATE_DEADZONE
+    #define ENCODER_FEEDRATE_DEADZONE 6
+  #endif
 
   // Shift register panels
   // ---------------------
@@ -245,7 +285,6 @@
   #if ENABLED(SAV_3DLCD)
     #define SR_LCD_2W_NL    // Non latching 2 wire shift register
     #define ULTIPANEL
-    #define NEWPANEL
   #endif
 
   #if ENABLED(DOGLCD) // Change number of lines to match the DOG graphic display
@@ -258,7 +297,7 @@
   #endif
 
   #if ENABLED(ULTIPANEL)
-    #define NEWPANEL  // enable this if you have a click-encoder panel
+    #define NEWPANEL  // Disable this if you actually have no click-encoder panel
     #define ULTRA_LCD
     #if DISABLED(LCD_WIDTH)
       #define LCD_WIDTH 20
@@ -266,14 +305,12 @@
     #if DISABLED(LCD_HEIGHT)
       #define LCD_HEIGHT 4
     #endif
-  #else //no panel but just LCD
-    #if ENABLED(ULTRA_LCD)
-      #if DISABLED(LCD_WIDTH)
-        #define LCD_WIDTH 16
-      #endif
-      #if DISABLED(LCD_HEIGHT)
-        #define LCD_HEIGHT 2
-      #endif
+  #elif ENABLED(ULTRA_LCD)  // no panel but just LCD
+    #ifndef LCD_WIDTH
+      #define LCD_WIDTH 16
+    #endif
+    #ifndef LCD_HEIGHT
+      #define LCD_HEIGHT 2
     #endif
   #endif
 
@@ -336,8 +373,6 @@
         #define DEFAULT_LCD_CONTRAST 32
       #endif
     #endif
-  #else
-    #define HAS_LCD_CONTRAST false
   #endif
 
   // Boot screens
@@ -351,37 +386,6 @@
   #define HAS_DEBUG_MENU  (ENABLED(LCD_PROGRESS_BAR_TEST))
 
   /**
-   * The BLTouch Probe emulates a servo probe
-   */
-  #if ENABLED(BLTOUCH)
-    #if DISABLED(ENABLE_SERVOS)
-      #define ENABLE_SERVOS
-    #endif
-    #if Z_ENDSTOP_SERVO_NR < 0
-      #undef Z_ENDSTOP_SERVO_NR
-      #define Z_ENDSTOP_SERVO_NR 0
-    #endif
-    #if NUM_SERVOS < 1
-      #undef NUM_SERVOS
-      #define NUM_SERVOS (Z_ENDSTOP_SERVO_NR + 1)
-    #endif
-    #undef DEACTIVATE_SERVOS_AFTER_MOVE
-    #undef SERVO_DEACTIVATION_DELAY
-    #define SERVO_DEACTIVATION_DELAY 50
-    #if DISABLED(BLTOUCH_DELAY)
-      #define BLTOUCH_DELAY 375
-    #endif
-    #undef Z_ENDSTOP_SERVO_ANGLES
-    #define Z_ENDSTOP_SERVO_ANGLES { BLTOUCH_DEPLOY, BLTOUCH_STOW }
-
-    #define BLTOUCH_DEPLOY    10
-    #define BLTOUCH_STOW      90
-    #define BLTOUCH_SELFTEST 120
-    #define BLTOUCH_RESET    160
-    #define _TEST_BLTOUCH(P) (READ(P##_PIN) != P##_ENDSTOP_INVERTING)
-  #endif
-
-  /**
    * Extruders have some combination of stepper motors and hotends
    * so we separate these concepts into the defines:
    *
@@ -393,7 +397,6 @@
    */
   #if ENABLED(DONDOLO_SINGLE_MOTOR)        // One E stepper, unified E axis, two hotends 
     #undef SINGLENOZZLE
-    #undef ADVANCE
     #undef EXTRUDERS
     #undef DRIVER_EXTRUDERS
     #define EXTRUDERS         2
@@ -401,7 +404,6 @@
     #define TOOL_E_INDEX      0
   #elif ENABLED(DONDOLO_DUAL_MOTOR)         // Two E stepper, two hotends
     #undef SINGLENOZZLE
-    #undef ADVANCE
     #undef EXTRUDERS
     #undef DRIVER_EXTRUDERS
     #define EXTRUDERS         2
@@ -473,8 +475,40 @@
   #define HAS_SOFTWARE_ENDSTOPS (ENABLED(MIN_SOFTWARE_ENDSTOPS) || ENABLED(MAX_SOFTWARE_ENDSTOPS))
   #define HAS_RESUME_CONTINUE   (HAS_LCD || ENABLED(EMERGENCY_PARSER))
 
-  // RGB Leds
-  #define HAS_NEOPIXEL          (ENABLED(NEOPIXEL_RGB_LED) || ENABLED(NEOPIXEL_RGBW_LED))
-  #define HAS_COLOR_LEDS        (ENABLED(BLINKM) || ENABLED(RGB_LED) || ENABLED(RGBW_LED) || ENABLED(PCA9632) || ENABLED(NEOPIXEL_RGB_LED) || ENABLED(NEOPIXEL_RGBW_LED))
+  /**
+   * The BLTouch Probe emulates a servo probe
+   */
+  #if ENABLED(BLTOUCH)
+    #if DISABLED(ENABLE_SERVOS)
+      #define ENABLE_SERVOS
+    #endif
+    #if Z_ENDSTOP_SERVO_NR < 0
+      #undef Z_ENDSTOP_SERVO_NR
+      #define Z_ENDSTOP_SERVO_NR 0
+    #endif
+    #if NUM_SERVOS < 1
+      #undef NUM_SERVOS
+      #define NUM_SERVOS (Z_ENDSTOP_SERVO_NR + 1)
+    #endif
+    #undef DEACTIVATE_SERVOS_AFTER_MOVE
+    #undef SERVO_DEACTIVATION_DELAY
+    #define SERVO_DEACTIVATION_DELAY 50
+    #if DISABLED(BLTOUCH_DELAY)
+      #define BLTOUCH_DELAY 375
+    #endif
+    #undef Z_ENDSTOP_SERVO_ANGLES
+    #define Z_ENDSTOP_SERVO_ANGLES { BLTOUCH_DEPLOY, BLTOUCH_STOW }
+
+    #define BLTOUCH_DEPLOY    10
+    #define BLTOUCH_STOW      90
+    #define BLTOUCH_SELFTEST 120
+    #define BLTOUCH_RESET    160
+    #define _TEST_BLTOUCH(P) (READ(P##_PIN) != P##_ENDSTOP_INVERTING)
+  #endif
+
+  /**
+   * RGB Leds
+   */
+  #define HAS_COLOR_LEDS  (ENABLED(BLINKM) || ENABLED(RGB_LED) || ENABLED(RGBW_LED) || ENABLED(PCA9632) || ENABLED(NEOPIXEL_RGB_LED) || ENABLED(NEOPIXEL_LED))
 
 #endif /* _CONDITIONALS_PRE_H_ */

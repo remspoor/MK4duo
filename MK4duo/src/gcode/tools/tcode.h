@@ -36,14 +36,13 @@
  * For CNC no other parameters are expected
  *
  */
-inline void gcode_T(void) {
-
-  uint8_t tool_id = parser.codenum;
+inline void gcode_T(const uint8_t tool_id) {
 
   #if ENABLED(DEBUG_LEVELING_FEATURE)
     if (DEBUGGING(LEVELING)) {
-      SERIAL_MV(">>> gcode_T(", tool_id);
-      SERIAL_CHR(')'); SERIAL_EOL();
+      SERIAL_MV(">>> T(", tool_id);
+      SERIAL_CHR(')');
+      SERIAL_EOL();
       DEBUG_POS("BEFORE", mechanics.current_position);
     }
   #endif
@@ -77,18 +76,20 @@ inline void gcode_T(void) {
 
   #elif EXTRUDERS > 1 && HOTENDS > 1
 
-    if (printer.mode == PRINTER_MODE_FFF) tools.change(
-      tool_id,
-      MMM_TO_MMS(parser.linearval('F')),
-      (tool_id == tools.active_extruder) || parser.boolval('S')
-    );
+    if (printer.mode == PRINTER_MODE_FFF) {
+        tools.change(
+        tool_id,
+        MMM_TO_MMS(parser.linearval('F')),
+        (tool_id == tools.active_extruder) || parser.boolval('S')
+      );
+    }
 
   #endif
 
   #if ENABLED(DEBUG_LEVELING_FEATURE)
     if (DEBUGGING(LEVELING)) {
       DEBUG_POS("AFTER", mechanics.current_position);
-      SERIAL_EM("<<< gcode_T");
+      SERIAL_EM("<<< T()");
     }
   #endif
 }

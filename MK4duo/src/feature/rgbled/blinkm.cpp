@@ -25,21 +25,25 @@
  * Created by Tim Koster, August 21 2013.
  */
 
-#include "../../../base.h"
+#include "../../../MK4duo.h"
 
 #if ENABLED(BLINKM)
 
-  #include "blinkm.h"
+  #include "Arduino.h"
   #include <Wire.h>
 
-  void SendColors(byte red, byte grn, byte blu) {
+  void set_led_color(const uint8_t r, const uint8_t g, const uint8_t b, const uint8_t w/*=0*/, const uint8_t p/*=255*/) {
+
+    UNUSED(w);
+    UNUSED(p);
+
     Wire.begin();
     Wire.beginTransmission(0x09);
     Wire.write('o');                    //to disable ongoing script, only needs to be used once
     Wire.write('n');
-    Wire.write(red);
-    Wire.write(grn);
-    Wire.write(blu);
+    Wire.write(r);
+    Wire.write(g);
+    Wire.write(b);
     Wire.endTransmission();
   }
 

@@ -58,14 +58,13 @@
 // --------------------------------------------------------------------------
 #include <stdint.h>
 #include <Arduino.h>
+//#include "HardwareSerial_Due.h"
 
 // --------------------------------------------------------------------------
 // Types
 // --------------------------------------------------------------------------
 typedef uint32_t  HAL_TIMER_TYPE;
-typedef uint32_t  millis_t;
-typedef int8_t    Pin;
-static const Pin  NoPin = -1;
+typedef uint32_t  ptr_int_t;
 
 // --------------------------------------------------------------------------
 // Includes
@@ -123,17 +122,6 @@ static const Pin  NoPin = -1;
   #define MKSERIAL Serial3
 #endif
 
-#if ENABLED(BLUETOOTH) && BLUETOOTH_PORT > 0
-  #undef MKSERIAL
-  #if BLUETOOTH_PORT == 1
-    #define MKSERIAL Serial1
-  #elif BLUETOOTH_PORT == 2
-    #define MKSERIAL Serial2
-  #elif BLUETOOTH_PORT == 3
-    #define MKSERIAL Serial3
-  #endif
-#endif
-
 // EEPROM START
 #define EEPROM_OFFSET 10
 
@@ -159,9 +147,10 @@ static const Pin  NoPin = -1;
 #define FMOD(x, y)  fmodf(x, y)
 #define COS(x)      cosf(x)
 #define SIN(x)      sinf(x)
+#define LOG(x)      logf(x)
 
 #define CRITICAL_SECTION_START	uint32_t primask=__get_PRIMASK(); __disable_irq();
-#define CRITICAL_SECTION_END    if (primask==0) __enable_irq();
+#define CRITICAL_SECTION_END    if (!primask) __enable_irq();
 
 // Voltage
 #define HAL_VOLTAGE_PIN 3.3
@@ -199,15 +188,16 @@ static const Pin  NoPin = -1;
 #define NUM_ANALOG_INPUTS 16
 // Bits of the ADC converter
 #define ANALOG_INPUT_BITS 12
-#define ANALOG_REDUCE_BITS 0
 #define ANALOG_REDUCE_FACTOR 1
+#define ABS_ZERO  -273.15
+#define AD_RANGE  4096
 
 #define MAX_ANALOG_PIN_NUMBER 11
 #define OVERSAMPLENR 6
-#define MEDIAN_COUNT 10 // MEDIAN COUNT for Smoother temperature
-#define NUM_ADC_SAMPLES (2 + (1 << OVERSAMPLENR))
+#define NUM_ADC_SAMPLES 32 // (2 + (1 << OVERSAMPLENR))
 #define ADC_TEMPERATURE_SENSOR 15
 
+#define HARDWARE_PWM true
 // --------------------------------------------------------------------------
 // Public Variables
 // --------------------------------------------------------------------------
@@ -227,7 +217,7 @@ class HAL {
   public: /** Public Parameters */
 
     #if ANALOG_INPUTS > 0
-      static volatile int16_t AnalogInputValues[NUM_ANALOG_INPUTS];
+      static int16_t AnalogInputValues[NUM_ANALOG_INPUTS];
       static bool Analog_is_ready;
       static adc_channel_num_t PinToAdcChannel(Pin pin);
     #endif
@@ -239,23 +229,29 @@ class HAL {
     #if ANALOG_INPUTS > 0
       static void analogStart();
       static void AdcEnableChannel(adc_channel_num_t adc_ch) { adc_enable_channel(ADC, adc_ch); }
+      static void AdcDisableChannel(adc_channel_num_t adc_ch) { adc_disable_channel(ADC, adc_ch); }
+      static void AdcChangeChannel(const Pin old_pin, const Pin new_pin);
     #endif
 
     static void hwSetup(void);
 
-    static bool analogWrite(const Pin pin, const uint8_t value, const uint16_t freq=50);
+    static void analogWrite(const Pin pin, const uint8_t value, const uint16_t freq=1000);
 
-    static inline void digitalWrite(const Pin pin, const uint8_t value) {
+    static void Tick();
+
+    static inline void pinMode(const Pin pin, const uint8_t mode) {
+      switch (mode) {
+        case INPUT:         SET_INPUT(pin);         break;
+        case OUTPUT:        SET_OUTPUT(pin);        break;
+        case INPUT_PULLUP:  SET_INPUT_PULLUP(pin);  break;
+        default:                                    break;
+      }
+    }
+    static inline void digitalWrite(const Pin pin, const bool value) {
       WRITE_VAR(pin, value);
     }
-    static inline uint8_t digitalRead(const Pin pin) {
+    static inline bool digitalRead(const Pin pin) {
       return READ_VAR(pin);
-    }
-    static inline void pinMode(const Pin pin, const uint8_t mode) {
-      if (mode == INPUT) {
-        SET_INPUT(pin);
-      }
-      else SET_OUTPUT(pin);
     }
 
     static FORCE_INLINE void delayMicroseconds(uint32_t usec) { // usec += 3;

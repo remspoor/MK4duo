@@ -54,7 +54,7 @@
 // Includes
 // --------------------------------------------------------------------------
 
-#include "../../../base.h"
+#include "../../../MK4duo.h"
 
 #if ENABLED(__AVR__)
 
@@ -141,11 +141,9 @@ void HAL::showStartReason() {
   MCUSR = 0;
 }
 
-void HAL::hwSetup() { }
+#if ANALOG_INPUTS > 0
 
-void HAL::analogStart() {
-
-  #if ANALOG_INPUTS > 0
+  void HAL::analogStart() {
 
     ADMUX = ANALOG_REF; // refernce voltage
     for (uint8_t i = 0; i < ANALOG_INPUTS; i++) {
@@ -169,10 +167,18 @@ void HAL::analogStart() {
     ADMUX = (ADMUX & ~(0x1F)) | (channel & 7);
     ADCSRA |= _BV(ADSC); // start conversion without interrupt!
 
-  #endif
-}
+  }
 
-void HAL::setPwmFrequency(uint8_t pin, uint8_t val) {
+  void HAL::AdcChangeChannel(const Pin old_pin, const Pin new_pin) {
+    UNUSED(old_pin);
+    UNUSED(old_pin);
+  }
+
+#endif
+
+void HAL::hwSetup() { }
+
+void HAL::setPwmFrequency(const Pin pin, uint8_t val) {
   val &= 0x07;
   switch(digitalPinToTimer(pin)) {
 
@@ -249,10 +255,12 @@ void HAL::setPwmFrequency(uint8_t pin, uint8_t val) {
  */
 HAL_TEMP_TIMER_ISR {
 
+  TEMP_TIMER += 64;
+
+  if (printer.IsStopped()) return;
+
   // Allow UART ISRs
   HAL_DISABLE_ISRs();
-
-  TEMP_TIMER += 64;
 
   static uint8_t  pwm_count_heater        = 0,
                   pwm_count_fan           = 0,
@@ -268,8 +276,8 @@ HAL_TEMP_TIMER_ISR {
   if (pwm_count_heater == 0) {
     #if HEATER_COUNT > 0
       LOOP_HEATER() {
-        if (heaters[h].output_pin > -1 && ((heaters[h].pwm_pos = (heaters[h].soft_pwm & HEATER_PWM_MASK)) > 0))
-          HAL::digitalWrite(heaters[h].output_pin, heaters[h].hardwareInverted ? LOW : HIGH);
+        if (heaters[h].pin > -1 && ((heaters[h].pwm_pos = (heaters[h].soft_pwm & HEATER_PWM_MASK)) > 0))
+          HAL::digitalWrite(heaters[h].pin, heaters[h].hardwareInverted ? LOW : HIGH);
       }
     #endif
   }
@@ -285,8 +293,8 @@ HAL_TEMP_TIMER_ISR {
 
   #if HEATER_COUNT > 0
     LOOP_HEATER() {
-      if (heaters[h].output_pin > -1 && heaters[h].pwm_pos == pwm_count_heater && heaters[h].pwm_pos != HEATER_PWM_MASK)
-        HAL::digitalWrite(heaters[h].output_pin, heaters[h].hardwareInverted ? HIGH : LOW);
+      if (heaters[h].pin > -1 && heaters[h].pwm_pos == pwm_count_heater && heaters[h].pwm_pos != HEATER_PWM_MASK)
+        HAL::digitalWrite(heaters[h].pin, heaters[h].hardwareInverted ? HIGH : LOW);
     }
   #endif
 
@@ -303,8 +311,9 @@ HAL_TEMP_TIMER_ISR {
     cycle_100ms = 0;
     HAL::execute_100ms = true;
     #if ENABLED(FAN_KICKSTART_TIME) && FAN_COUNT > 0
-      LOOP_FAN()
+      LOOP_FAN() {
         if (fans[f].Kickstart) fans[f].Kickstart--;
+      }
     #endif
   }
 
