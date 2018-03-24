@@ -364,32 +364,9 @@ inline void gcode_G29(void) {
       front_probe_bed_position = parser.seenval('F') ? (int)NATIVE_Y_POSITION(parser.value_linear_units()) : FRONT_PROBE_BED_POSITION;
       back_probe_bed_position  = parser.seenval('B') ? (int)NATIVE_Y_POSITION(parser.value_linear_units()) : BACK_PROBE_BED_POSITION;
 
-      const bool left_out_l   = left_probe_bed_position < MIN_PROBE_X,
-                 left_out     = left_out_l || left_probe_bed_position > right_probe_bed_position - (MIN_PROBE_EDGE),
-                 right_out_r  = right_probe_bed_position > MAX_PROBE_X,
-                 right_out    = right_out_r || right_probe_bed_position < left_probe_bed_position + MIN_PROBE_EDGE,
-                 front_out_f  = front_probe_bed_position < MIN_PROBE_Y,
-                 front_out    = front_out_f || front_probe_bed_position > back_probe_bed_position - (MIN_PROBE_EDGE),
-                 back_out_b   = back_probe_bed_position > MAX_PROBE_Y,
-                 back_out     = back_out_b || back_probe_bed_position < front_probe_bed_position + MIN_PROBE_EDGE;
-
-      if (left_out || right_out || front_out || back_out) {
-        if (left_out) {
-          out_of_range_error(PSTR("(L)eft"));
-          left_probe_bed_position = left_out_l ? MIN_PROBE_X : right_probe_bed_position - (MIN_PROBE_EDGE);
-        }
-        if (right_out) {
-          out_of_range_error(PSTR("(R)ight"));
-          right_probe_bed_position = right_out_r ? MAX_PROBE_X : left_probe_bed_position + MIN_PROBE_EDGE;
-        }
-        if (front_out) {
-          out_of_range_error(PSTR("(F)ront"));
-          front_probe_bed_position = front_out_f ? MIN_PROBE_Y : back_probe_bed_position - (MIN_PROBE_EDGE);
-        }
-        if (back_out) {
-          out_of_range_error(PSTR("(B)ack"));
-          back_probe_bed_position = back_out_b ? MAX_PROBE_Y : front_probe_bed_position + MIN_PROBE_EDGE;
-        }
+      if ( !mechanics.position_is_reachable_by_probe(left_probe_bed_position, front_probe_bed_position)
+        || !mechanics.position_is_reachable_by_probe(right_probe_bed_position, back_probe_bed_position)) {
+        SERIAL_EM("? (L,R,F,B) out of bounds.");
         return;
       }
 
@@ -632,7 +609,7 @@ inline void gcode_G29(void) {
 
   #else // !PROBE_MANUALLY
   {
-    const bool stow_probe_after_each = parser.boolval('E');
+    const ProbePtRaise raise_after = parser.boolval('E') ? PROBE_PT_STOW : PROBE_PT_RAISE;
 
     measured_z = 0.0;
 
@@ -676,7 +653,7 @@ inline void gcode_G29(void) {
             if (!mechanics.position_is_reachable_by_probe(xProbe, yProbe)) continue;
           #endif
 
-          measured_z = faux ? 0.001 * random(-100, 101) : probe.check_pt(xProbe, yProbe, stow_probe_after_each, verbose_level);
+          measured_z = faux ? 0.001 * random(-100, 101) : probe.check_pt(xProbe, yProbe, raise_after, verbose_level);
 
           if (isnan(measured_z)) {
             bedlevel.set_bed_leveling_enabled(abl_should_enable);
@@ -713,7 +690,7 @@ inline void gcode_G29(void) {
         // Retain the last probe position
         xProbe = points[i].x;
         yProbe = points[i].y;
-        measured_z = faux ? 0.001 * random(-100, 101) : probe.check_pt(xProbe, yProbe, stow_probe_after_each, verbose_level);
+        measured_z = faux ? 0.001 * random(-100, 101) : probe.check_pt(xProbe, yProbe, raise_after, verbose_level);
         if (isnan(measured_z)) {
           bedlevel.leveling_active = abl_should_enable;
           break;

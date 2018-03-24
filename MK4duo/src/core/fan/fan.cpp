@@ -61,14 +61,12 @@
   }
 
   void Fan::spin() {
-    static millis_t next_auto_fan_check_ms  = 0,
-                    lastMotorOn             = 0;
-
-    millis_t ms = millis();
+    static watch_t  auto_fan_check_watch(2500),
+                    controller_fan_watch(CONTROLLERFAN_SECS * 1000UL);
 
     if (autoMonitored == 0) return;
 
-    if (ELAPSED(ms, next_auto_fan_check_ms)) {
+    if (auto_fan_check_watch.elapsed()) {
       // Check for Hotend temperature
       LOOP_HOTEND() {
         if (TEST(autoMonitored, h)) {
@@ -84,7 +82,7 @@
       // Check for Controller fan
       if (TEST(autoMonitored, 7)) {
         LOOP_HEATER() {
-          if (heaters[h].isON()) lastMotorOn = ms;
+          if (heaters[h].isON()) controller_fan_watch.start();
         }
         if (X_ENABLE_READ == X_ENABLE_ON || Y_ENABLE_READ == Y_ENABLE_ON || Z_ENABLE_READ == Z_ENABLE_ON
           || E0_ENABLE_READ == E_ENABLE_ON // If any of the drivers are enabled...
@@ -107,14 +105,14 @@
             #endif
           #endif
         ) {
-          lastMotorOn = ms;
+          controller_fan_watch.start();
         }
 
         // Fan off if no steppers have been enabled for CONTROLLERFAN_SECS seconds
-        Speed = (!lastMotorOn || ELAPSED(ms, lastMotorOn + (CONTROLLERFAN_SECS) * 1000UL)) ? CONTROLLERFAN_MIN_SPEED : CONTROLLERFAN_SPEED;
+        Speed = controller_fan_watch.elapsed() ? CONTROLLERFAN_MIN_SPEED : CONTROLLERFAN_SPEED;
       }
 
-      next_auto_fan_check_ms = ms + 2500UL;
+      auto_fan_check_watch.start();
     }
   }
 

@@ -33,27 +33,38 @@
 
   Delta_Mechanics mechanics;
 
-  void Delta_Mechanics::init() {
-    delta_diagonal_rod              = (float)DELTA_DIAGONAL_ROD;
-    delta_radius                    = (float)DELTA_RADIUS;
-    delta_segments_per_second       = (float)DELTA_SEGMENTS_PER_SECOND;
-    delta_print_radius              = (float)DELTA_PRINTABLE_RADIUS;
-    delta_probe_radius              = (float)DELTA_PROBEABLE_RADIUS;
-    delta_height                    = (float)DELTA_HEIGHT;
-    delta_endstop_adj[A_AXIS]       = (float)TOWER_A_ENDSTOP_ADJ;
-    delta_endstop_adj[B_AXIS]       = (float)TOWER_B_ENDSTOP_ADJ;
-    delta_endstop_adj[C_AXIS]       = (float)TOWER_C_ENDSTOP_ADJ;
-    delta_tower_angle_adj[A_AXIS]   = (float)TOWER_A_ANGLE_ADJ;
-    delta_tower_angle_adj[B_AXIS]   = (float)TOWER_B_ANGLE_ADJ;
-    delta_tower_angle_adj[C_AXIS]   = (float)TOWER_C_ANGLE_ADJ;
-    delta_tower_radius_adj[A_AXIS]  = (float)TOWER_A_RADIUS_ADJ;
-    delta_tower_radius_adj[B_AXIS]  = (float)TOWER_B_RADIUS_ADJ;
-    delta_tower_radius_adj[C_AXIS]  = (float)TOWER_C_RADIUS_ADJ;
-    delta_diagonal_rod_adj[A_AXIS]  = (float)TOWER_A_DIAGROD_ADJ;
-    delta_diagonal_rod_adj[B_AXIS]  = (float)TOWER_B_DIAGROD_ADJ;
-    delta_diagonal_rod_adj[C_AXIS]  = (float)TOWER_C_DIAGROD_ADJ;
-    delta_clip_start_height         = (float)DELTA_HEIGHT;
+  /** Public Parameters */
+  float Delta_Mechanics::delta_diagonal_rod             = DELTA_DIAGONAL_ROD,
+        Delta_Mechanics::delta_radius                   = DELTA_RADIUS,
+        Delta_Mechanics::delta_segments_per_second      = DELTA_SEGMENTS_PER_SECOND,
+        Delta_Mechanics::delta_print_radius             = DELTA_PRINTABLE_RADIUS,
+        Delta_Mechanics::delta_probe_radius             = DELTA_PROBEABLE_RADIUS,
+        Delta_Mechanics::delta_height                   = DELTA_HEIGHT,
+        Delta_Mechanics::delta_clip_start_height        = DELTA_HEIGHT,
+        Delta_Mechanics::delta[ABC]                     = { 0.0 },
+        Delta_Mechanics::delta_endstop_adj[ABC]         = { TOWER_A_ENDSTOP_ADJ, TOWER_B_ENDSTOP_ADJ, TOWER_C_ENDSTOP_ADJ },
+        Delta_Mechanics::delta_tower_angle_adj[ABC]     = { TOWER_A_ANGLE_ADJ, TOWER_B_ANGLE_ADJ, TOWER_C_ANGLE_ADJ },
+        Delta_Mechanics::delta_tower_radius_adj[ABC]    = { TOWER_A_RADIUS_ADJ, TOWER_B_RADIUS_ADJ, TOWER_C_RADIUS_ADJ },
+        Delta_Mechanics::delta_diagonal_rod_adj[ABC]    = { TOWER_A_DIAGROD_ADJ, TOWER_B_DIAGROD_ADJ, TOWER_C_DIAGROD_ADJ };
 
+  /** Private Parameters */
+  float Delta_Mechanics::delta_diagonal_rod_2[ABC] = { 0.0 },  // Diagonal rod 2
+        Delta_Mechanics::towerX[ABC]               = { 0.0 },  // The X coordinate of each tower
+        Delta_Mechanics::towerY[ABC]               = { 0.0 },  // The Y coordinate of each tower
+        Delta_Mechanics::Xbc                       = 0.0,
+        Delta_Mechanics::Xca                       = 0.0,
+        Delta_Mechanics::Xab                       = 0.0,
+        Delta_Mechanics::Ybc                       = 0.0,
+        Delta_Mechanics::Yca                       = 0.0,
+        Delta_Mechanics::Yab                       = 0.0,
+        Delta_Mechanics::coreFa                    = 0.0,
+        Delta_Mechanics::coreFb                    = 0.0,
+        Delta_Mechanics::coreFc                    = 0.0,
+        Delta_Mechanics::Q                         = 0.0,
+        Delta_Mechanics::Q2                        = 0.0,
+        Delta_Mechanics::D2                        = 0.0;
+
+  void Delta_Mechanics::init() {
     recalc_delta_settings();
   }
 
@@ -71,15 +82,15 @@
     _set_position_mm(rx, ry, rz, e);
   }
 
-  void Delta_Mechanics::set_position_mm(const float position[NUM_AXIS]) {
+  void Delta_Mechanics::set_position_mm(const float (&cart)[XYZE]) {
     #if PLANNER_LEVELING
-      float lpos[XYZ] = { position[X_AXIS], position[Y_AXIS], position[Z_AXIS] };
-      bedlevel.apply_leveling(lpos);
+      float raw[XYZ] = { cart[X_AXIS], cart[Y_AXIS], cart[Z_AXIS] };
+      bedlevel.apply_leveling(raw);
     #else
-      const float * const lpos = position;
+      const float (&raw)[XYZE] = cart;
     #endif
-    Transform(lpos);
-    _set_position_mm(delta[A_AXIS], delta[B_AXIS], delta[C_AXIS], position[E_AXIS]);
+    Transform(raw);
+    _set_position_mm(delta[A_AXIS], delta[B_AXIS], delta[C_AXIS], cart[E_AXIS]);
   }
 
   /**
@@ -279,8 +290,6 @@
       if (printer.debugLeveling()) DEBUG_POS("prepare_uninterpolated_move_to_destination", destination);
     #endif
 
-    commands.refresh_cmd_timeout();
-
     #if UBL_DELTA
       // ubl segmented line will do z-only moves in single segment
       ubl.prepare_segmented_line_to(destination, MMS_SCALED(fr_mm_s ? fr_mm_s : feedrate_mm_s));
@@ -460,7 +469,7 @@
     #endif
     
     // Fast move towards endstop until triggered
-    do_homing_move(axis, 1.5 * delta_height);
+    mechanics.do_homing_move(axis, 1.5 * delta_height);
 
     // When homing Z with probe respect probe clearance
     const float bump = home_bump_mm[axis];
@@ -471,13 +480,13 @@
       #if ENABLED(DEBUG_LEVELING_FEATURE)
         if (printer.debugLeveling()) SERIAL_EM("Move Away:");
       #endif
-      do_homing_move(axis, -bump);
+      mechanics.do_homing_move(axis, -bump);
 
       // Slow move towards endstop until triggered
       #if ENABLED(DEBUG_LEVELING_FEATURE)
         if (printer.debugLeveling()) SERIAL_EM("Home 2 Slow:");
       #endif
-      do_homing_move(axis, 2 * bump, get_homing_bump_feedrate(axis));
+      mechanics.do_homing_move(axis, 2 * bump, get_homing_bump_feedrate(axis));
     }
 
     // Delta has already moved all three towers up in G28
@@ -489,7 +498,7 @@
       #if ENABLED(DEBUG_LEVELING_FEATURE)
         if (printer.debugLeveling()) SERIAL_EM("delta_endstop_adj:");
       #endif
-      do_homing_move(axis, delta_endstop_adj[axis] - 0.1);
+      mechanics.do_homing_move(axis, delta_endstop_adj[axis] - 0.1);
     }
 
     // Clear z_lift if homing the Z axis
@@ -515,7 +524,7 @@
     if (printer.debugSimulation()) {
       LOOP_XYZ(axis) set_axis_is_at_home((AxisEnum)axis);
       #if ENABLED(NEXTION) && ENABLED(NEXTION_GFX)
-        Nextion_gfx_clear();
+        mechanics.Nextion_gfx_clear();
       #endif
       return true;
     }
@@ -576,17 +585,17 @@
 
     // Init the current position of all carriages to 0,0,0
     ZERO(current_position);
-    set_position_mm(current_position[A_AXIS], current_position[B_AXIS], current_position[C_AXIS], current_position[E_AXIS]);
+    mechanics.set_position_mm(current_position[A_AXIS], current_position[B_AXIS], current_position[C_AXIS], current_position[E_AXIS]);
 
     // Disable stealthChop if used. Enable diag1 pin on driver.
     #if ENABLED(SENSORLESS_HOMING)
-      sensorless_homing();
+      mechanics.sensorless_homing();
     #endif
 
     // Move all carriages together linearly until an endstop is hit.
     current_position[A_AXIS] = current_position[B_AXIS] = current_position[C_AXIS] = delta_height + 10;
     feedrate_mm_s = homing_feedrate_mm_s[X_AXIS];
-    line_to_current_position();
+    mechanics.line_to_current_position();
     stepper.synchronize();
 
     // If an endstop was not hit, then damage can occur if homing is continued.
@@ -613,7 +622,7 @@
 
     // Re-enable stealthChop if used. Disable diag1 pin on driver.
     #if ENABLED(SENSORLESS_HOMING)
-      sensorless_homing(false);
+      mechanics.sensorless_homing(false);
     #endif
 
     // Set all carriages to their home positions
@@ -632,7 +641,7 @@
 
     #if ENABLED(DELTA_HOME_TO_SAFE_ZONE)
       // move to a height where we can use the full xy-area
-      do_blocking_move_to_z(delta_clip_start_height);
+      mechanics.do_blocking_move_to_z(delta_clip_start_height);
     #endif
 
     if (come_back) {
@@ -643,7 +652,7 @@
     }
 
     #if ENABLED(NEXTION) && ENABLED(NEXTION_GFX)
-      Nextion_gfx_clear();
+      mechanics.Nextion_gfx_clear();
     #endif
 
     #if ENABLED(AUTO_BED_LEVELING_UBL)
@@ -661,7 +670,7 @@
 
     lcd_refresh();
 
-    report_current_position();
+    mechanics.report_current_position();
 
     #if ENABLED(DEBUG_LEVELING_FEATURE)
       if (printer.debugLeveling()) SERIAL_EM("<<< gcode_G28");
@@ -763,48 +772,115 @@
     // 7, 8 = X tilt, Y tilt. We scale these by the printable radius to get sensible values in the range -1..1
     float Delta_Mechanics::ComputeDerivative(unsigned int deriv, float ha, float hb, float hc) {
       const float perturb = 0.2;      // perturbation amount in mm or degrees
-      Delta_Mechanics hiParams(*this), loParams(*this);
+      float zHi, zLo, newPos[ABC];
 
       switch(deriv) {
         case 0:
         case 1:
         case 2:
           // Endstop corrections
+          InverseTransform((deriv == 0) ? ha + perturb : ha, (deriv == 1) ? hb + perturb : hb, (deriv == 2) ? hc + perturb : hc, newPos);
+          zHi = newPos[C_AXIS];
+          InverseTransform((deriv == 0) ? ha - perturb : ha, (deriv == 1) ? hb - perturb : hb, (deriv == 2) ? hc - perturb : hc, newPos);
+          zLo = newPos[C_AXIS];
           break;
 
-        case 3:
-          hiParams.delta_radius += perturb;
-          loParams.delta_radius -= perturb;
-          break;
+        case 3: {
+          const float old_delta_radius = delta_radius;
 
-        case 4:
-          hiParams.delta_tower_angle_adj[A_AXIS] += perturb;
-          loParams.delta_tower_angle_adj[A_AXIS] -= perturb;
-          break;
+          // Calc High parameters
+          delta_radius += perturb;
+          recalc_delta_settings();
+          InverseTransform(ha, hb, hc, newPos);
+          zHi = newPos[C_AXIS];
 
-        case 5:
-          hiParams.delta_tower_angle_adj[B_AXIS] += perturb;
-          loParams.delta_tower_angle_adj[B_AXIS] -= perturb;
-          break;
+          // Reset Delta Radius
+          delta_radius = old_delta_radius;
 
-        case 6:
-          hiParams.delta_diagonal_rod += perturb;
-          loParams.delta_diagonal_rod -= perturb;
+          // Calc Low parameters
+          delta_radius -= perturb;
+          recalc_delta_settings();
+          InverseTransform(ha, hb, hc, newPos);
+          zLo = newPos[C_AXIS];
+
+          // Reset Delta Radius
+          delta_radius = old_delta_radius;
           break;
+        }
+
+        case 4: {
+          const float old_delta_tower_angle_adj = delta_tower_angle_adj[A_AXIS];
+
+          // Calc High parameters
+          delta_tower_angle_adj[A_AXIS] += perturb;
+          recalc_delta_settings();
+          InverseTransform(ha, hb, hc, newPos);
+          zHi = newPos[C_AXIS];
+
+          // Reset Delta tower Alpha angle adj 
+          delta_tower_angle_adj[A_AXIS] = old_delta_tower_angle_adj;
+
+          // Calc Low parameters
+          delta_tower_angle_adj[A_AXIS] -= perturb;
+          recalc_delta_settings();
+          InverseTransform(ha, hb, hc, newPos);
+          zLo = newPos[C_AXIS];
+
+          // Reset Delta tower Alpha angle adj 
+          delta_tower_angle_adj[A_AXIS] = old_delta_tower_angle_adj;
+          break;
+        }
+
+        case 5: {
+          const float old_delta_tower_angle_adj = delta_tower_angle_adj[B_AXIS];
+
+          // Calc High parameters
+          delta_tower_angle_adj[B_AXIS] += perturb;
+          recalc_delta_settings();
+          InverseTransform(ha, hb, hc, newPos);
+          zHi = newPos[C_AXIS];
+
+          // Reset Delta tower Beta angle adj 
+          delta_tower_angle_adj[B_AXIS] = old_delta_tower_angle_adj;
+
+          // Calc Low parameters
+          delta_tower_angle_adj[B_AXIS] -= perturb;
+          recalc_delta_settings();
+          InverseTransform(ha, hb, hc, newPos);
+          zLo = newPos[C_AXIS];
+
+          // Reset Delta tower Beta angle adj 
+          delta_tower_angle_adj[B_AXIS] = old_delta_tower_angle_adj;
+          break;
+        }
+
+        case 6: {
+          const float old_delta_diagonal_rod = delta_diagonal_rod;
+
+          // Calc High parameters
+          delta_diagonal_rod += perturb;
+          recalc_delta_settings();
+          InverseTransform(ha, hb, hc, newPos);
+          zHi = newPos[C_AXIS];
+
+          // Reset Delta Diagonal Rod
+          delta_diagonal_rod = old_delta_diagonal_rod;
+
+          // Calc Low parameters
+          delta_diagonal_rod -= perturb;
+          recalc_delta_settings();
+          InverseTransform(ha, hb, hc, newPos);
+          zLo = newPos[C_AXIS];
+
+          // Reset Delta Diagonal Rod
+          delta_diagonal_rod = old_delta_diagonal_rod;
+          break;
+        }
       }
 
-      hiParams.recalc_delta_settings();
-      loParams.recalc_delta_settings();
+      recalc_delta_settings();
 
-      float newPos[ABC];
-
-      hiParams.InverseTransform((deriv == 0) ? ha + perturb : ha, (deriv == 1) ? hb + perturb : hb, (deriv == 2) ? hc + perturb : hc, newPos);
-      const float zHi = newPos[C_AXIS];
-
-      loParams.InverseTransform((deriv == 0) ? ha - perturb : ha, (deriv == 1) ? hb - perturb : hb, (deriv == 2) ? hc - perturb : hc, newPos);
-      const float zLo = newPos[C_AXIS];
-
-      return ((float)zHi - (float)zLo) / (2 * perturb);
+      return (zHi - zLo) / (2 * perturb);
     }
   
   #endif // ENABLED(DELTA_AUTO_CALIBRATION_1)

@@ -548,6 +548,7 @@ void Stepper::isr() {
 
   // Take multiple steps per interrupt (For high speed moves)
   bool all_steps_done = false;
+  uint32_t driversStepping = 0;
   for (uint8_t step = step_loops; step--;) {
 
     #define _COUNTER(AXIS) counter_## AXIS
@@ -571,15 +572,27 @@ void Stepper::isr() {
     // Stop an active pulse, if any
     #define PULSE_STOP(AXIS) _APPLY_STEP(AXIS)(_INVERT_STEP_PIN(AXIS), 0)
 
+    #if MINIMUM_STEPPER_PULSE > 0
+      hal_timer_t pulse_start = HAL_timer_get_current_count(STEPPER_TIMER);
+    #endif
+
     #if HAS_X_STEP
       PULSE_START(X);
+      //counter_X += current_block->steps[X_AXIS];
+      //if (counter_X > 0) driversStepping |= HAL::GetDriversBitmap(X_AXIS);
     #endif
     #if HAS_Y_STEP
       PULSE_START(Y);
+      //counter_Y += current_block->steps[Y_AXIS];
+      //if (counter_Y > 0) driversStepping |= HAL::GetDriversBitmap(Y_AXIS);
     #endif
     #if HAS_Z_STEP
       PULSE_START(Z);
+      //counter_Z += current_block->steps[Z_AXIS];
+      //if (counter_Z > 0) driversStepping |= HAL::GetDriversBitmap(Z_AXIS);
     #endif
+
+    //HAL::StepDriversHigh(driversStepping);
 
     #if ENABLED(LIN_ADVANCE)
 
@@ -663,7 +676,8 @@ void Stepper::isr() {
 
     // For a minimum pulse time wait before stopping pulses
     #if MINIMUM_STEPPER_PULSE > 0
-      HAL::delayMicroseconds(MINIMUM_STEPPER_PULSE);
+      while ((hal_timer_t)(HAL_timer_get_current_count(STEPPER_TIMER) - pulse_start) < STEPPER_PULSE_CYCLES) { /* nada */ }
+      pulse_start = HAL_timer_get_current_count(STEPPER_TIMER);
     #endif
 
     #if HAS_X_STEP
@@ -675,6 +689,8 @@ void Stepper::isr() {
     #if HAS_Z_STEP
       PULSE_STOP(Z);
     #endif
+
+    //HAL::StepDriversLow();
 
     #if HAS_EXTRUDERS && DISABLED(LIN_ADVANCE)
       #if ENABLED(COLOR_MIXING_EXTRUDER)
@@ -723,6 +739,11 @@ void Stepper::isr() {
       all_steps_done = true;
       break;
     }
+
+    // For minimum pulse time wait after stopping pulses also
+    #if MINIMUM_STEPPER_PULSE > 0
+      while ((hal_timer_t)(HAL_timer_get_current_count(STEPPER_TIMER) - pulse_start) < STEPPER_PULSE_CYCLES) { /* nada */ }
+    #endif
 
   } // step_loops
 
@@ -897,6 +918,10 @@ void Stepper::isr() {
     // Step E stepper if we have steps
     while (e_steps) {
 
+      #if MINIMUM_STEPPER_PULSE > 0
+        hal_timer_t pulse_start = HAL_timer_get_current_count(STEPPER_TIMER);
+      #endif
+
       switch(LA_active_extruder) {
         case 0: START_E_PULSE(0); break;
         #if DRIVER_EXTRUDERS > 1
@@ -918,7 +943,8 @@ void Stepper::isr() {
 
       // For a minimum pulse time wait before stopping pulses
       #if MINIMUM_STEPPER_PULSE > 0
-        if (e_steps) HAL::delayMicroseconds(MINIMUM_STEPPER_PULSE);
+        while ((hal_timer_t)(HAL_timer_get_current_count(STEPPER_TIMER) - pulse_start) < STEPPER_PULSE_CYCLES) { /* nada */ }
+        pulse_start = HAL_timer_get_current_count(STEPPER_TIMER);
       #endif
 
       switch(LA_active_extruder) {
@@ -939,6 +965,11 @@ void Stepper::isr() {
           #endif // EXTRUDERS > 2
         #endif // EXTRUDERS > 1
       }
+
+    // For minimum pulse time wait before looping
+    #if MINIMUM_STEPPER_PULSE > 0
+      while ((hal_timer_t)(HAL_timer_get_current_count(STEPPER_TIMER) - pulse_start) < STEPPER_PULSE_CYCLES) { /* nada */ }
+    #endif
 
     } // step_loops
   }
@@ -983,6 +1014,8 @@ void Stepper::isr() {
 #endif // ENABLED(LIN_ADVANCE)
 
 void Stepper::init() {
+
+  //HAL::DriverBits_init();
 
   // Init Digipot Motor Current
   #if HAS_DIGIPOTSS || HAS_MOTOR_CURRENT_PWM

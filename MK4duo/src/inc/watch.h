@@ -20,29 +20,32 @@
  *
  */
 
-/**
- * gcode.h
- *
- * Copyright (C) 2017 Alberto Cotronei @MagoKimbra
- */
+#ifndef _WATCH_H_
+#define _WATCH_H_
 
-#define CODE_G4
+struct watch_t {
 
-/**
- * G4: Dwell S<seconds> or P<milliseconds>
- */
-inline void gcode_G4(void) {
-  millis_t dwell_ms = 0;
+  millis_t  startwatch = 0,
+            stopwatch  = 0;
 
-  if (parser.seenval('P')) dwell_ms = parser.value_millis();              // milliseconds to wait
-  if (parser.seenval('S')) dwell_ms = parser.value_millis_from_seconds(); // seconds to wait
-
-  stepper.synchronize();
-
-  if (!lcd_hasstatus()) LCD_MESSAGEPGM(MSG_DWELL);
-
-  while (PENDING(millis(), dwell_ms)) {
-    printer.keepalive(InProcess);
-    printer.idle();
+  watch_t(const millis_t milliseconds) {
+    this->stopwatch = milliseconds;
   }
-}
+
+  FORCE_INLINE void start() { this->startwatch = millis(); }
+  FORCE_INLINE void stop() { this->startwatch = 0; }
+  //FORCE_INLINE bool isRunning() { this->startwatch != 0; }
+
+  FORCE_INLINE bool elapsed() {
+    if (this->startwatch == 0) return true;
+    const millis_t now = millis();
+    if (now >= this->startwatch + this->stopwatch || now < this->startwatch) {
+      this->startwatch = 0;
+      return true;
+    }
+    return false;
+  }
+
+};
+
+#endif /* _WATCH_H_ */

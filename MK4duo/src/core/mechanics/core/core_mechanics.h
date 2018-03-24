@@ -39,28 +39,28 @@
 
     public: /** Public Parameters */
 
-      const float base_max_pos[XYZ]         = { X_MAX_POS, Y_MAX_POS, Z_MAX_POS },
-                  base_min_pos[XYZ]         = { X_MIN_POS, Y_MIN_POS, Z_MIN_POS },
-                  base_home_pos[XYZ]        = { X_HOME_POS, Y_HOME_POS, Z_HOME_POS },
-                  max_length[XYZ]           = { X_MAX_LENGTH, Y_MAX_LENGTH, Z_MAX_LENGTH };
+      static const float  base_max_pos[XYZ],
+                          base_min_pos[XYZ],
+                          base_home_pos[XYZ],
+                          max_length[XYZ];
 
       #if ENABLED(DUAL_X_CARRIAGE)
-        DualXMode dual_x_carriage_mode          = DEFAULT_DUAL_X_CARRIAGE_MODE;
-        float     inactive_hotend_x_pos         = X2_MAX_POS,                   // used in mode 0 & 1
-                  raised_parked_position[NUM_AXIS],                             // used in mode 1
-                  duplicate_hotend_x_offset     = DEFAULT_DUPLICATION_X_OFFSET; // used in mode 2
-        int16_t   duplicate_hotend_temp_offset  = 0;                            // used in mode 2
-        millis_t  delayed_move_time             = 0;                            // used in mode 1
-        bool      active_hotend_parked          = false,                        // used in mode 1 & 2
-                  hotend_duplication_enabled    = false;                        // used in mode 2
+        static DualXMode  dual_x_carriage_mode;
+        static float      inactive_hotend_x_pos,            // used in mode 0 & 1
+                          raised_parked_position[NUM_AXIS], // used in mode 1
+                          duplicate_hotend_x_offset;        // used in mode 2
+        static int16_t    duplicate_hotend_temp_offset;     // used in mode 2
+        static millis_t   delayed_move_time;                // used in mode 1
+        static bool       active_hotend_parked,             // used in mode 1 & 2
+                          hotend_duplication_enabled;       // used in mode 2
       #endif
 
     public: /** Public Function */
 
       /**
-       * Initialize Cartesian parameters
+       * Initialize Core parameters
        */
-      void init();
+      static void init();
 
       /**
        * Home all axes according to settings
@@ -77,13 +77,13 @@
        *  Z   Home to the Z endstop
        *
        */
-       void home(const bool always_home_all);
+      static void home(const bool always_home_all);
 
       /**
        * Prepare a single move and get ready for the next one
        * If Mesh Bed Leveling is enabled, perform a mesh move.
        */
-      bool prepare_move_to_destination_mech_specific();
+      static bool prepare_move_to_destination_mech_specific();
 
       /**
        * Set an axis' current position to its home position (after homing).
@@ -93,17 +93,17 @@
        *
        * Callers must sync the planner position after calling this!
        */
-      void set_axis_is_at_home(const AxisEnum axis);
+      static void set_axis_is_at_home(const AxisEnum axis);
 
       #if ENABLED(DUAL_X_CARRIAGE)
-        float x_home_pos(const int extruder);
+        static float x_home_pos(const int extruder);
       #endif
 
       /**
        * Set sensorless homing if the axis has it.
        */
       #if ENABLED(SENSORLESS_HOMING)
-        void sensorless_homing_per_axis(const AxisEnum axis, const bool enable=true) override;
+        static void sensorless_homing_per_axis(const AxisEnum axis, const bool enable=true) override;
       #endif
 
     private: /** Private Function */
@@ -111,7 +111,7 @@
       /**
        *  Home axis
        */
-      void homeaxis(const AxisEnum axis);
+      static void homeaxis(const AxisEnum axis);
 
       /**
        * Prepare a linear move in a Cartesian setup.
@@ -119,26 +119,26 @@
        *
        * Returns true if current_position[] was set to destination[]
        */
-      bool prepare_move_to_destination_cartesian();
+      static bool prepare_move_to_destination_cartesian();
 
       /**
        * Prepare a linear move in a dual X axis setup
        */
       #if ENABLED(DUAL_X_CARRIAGE)
-        bool  prepare_move_to_destination_dualx();
-        int   x_home_dir(const int extruder) { return extruder ? X2_HOME_DIR : X_HOME_DIR; }
+        static bool prepare_move_to_destination_dualx();
+        static int  x_home_dir(const int extruder) { return extruder ? X2_HOME_DIR : X_HOME_DIR; }
       #endif
 
       #if ENABLED(QUICK_HOME)
-        void quick_home_xy();
+        static void quick_home_xy();
       #endif
 
       #if ENABLED(Z_SAFE_HOMING)
-        void home_z_safely();
+        static void home_z_safely();
       #endif
 
       #if ENABLED(DOUBLE_Z_HOMING)
-        void double_home_z();
+        static void double_home_z();
       #endif
 
   };

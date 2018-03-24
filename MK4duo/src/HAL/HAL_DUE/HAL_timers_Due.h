@@ -60,17 +60,6 @@
 #include <stdint.h>
 
 // --------------------------------------------------------------------------
-// Types
-// --------------------------------------------------------------------------
-
-typedef struct {
-  Tc          *pTimerRegs;
-  uint16_t    channel;
-  IRQn_Type   IRQ_Id;
-  uint8_t     priority;
-} tTimerConfig;
-
-// --------------------------------------------------------------------------
 // Defines
 // --------------------------------------------------------------------------
 
@@ -100,7 +89,7 @@ constexpr float     HAL_ACCELERATION_RATE = (4096.0 * 4096.0 * 256.0 / (HAL_TIME
 
 #define ADC_ISR_EOC(channel)        (0x1u << channel)
 
-#define HAL_STEPPER_TIMER_START()   HAL_timer_start(STEPPER_TIMER)
+#define HAL_STEPPER_TIMER_START()   HAL_timer_start(STEPPER_TIMER, 122)
 #define ENABLE_STEPPER_INTERRUPT()  HAL_timer_enable_interrupt(STEPPER_TIMER)
 #define DISABLE_STEPPER_INTERRUPT() HAL_timer_disable_interrupt(STEPPER_TIMER)
 #define STEPPER_ISR_ENABLED()       HAL_timer_interrupt_is_enabled(STEPPER_TIMER)
@@ -146,30 +135,31 @@ constexpr float     HAL_ACCELERATION_RATE = (4096.0 * 4096.0 * 256.0 / (HAL_TIME
 #define DELAY_10US  DELAY_1US;    DELAY_9US
 
 // --------------------------------------------------------------------------
+// Types
+// --------------------------------------------------------------------------
+
+typedef struct {
+  Tc          *pTimerRegs;
+  uint16_t    channel;
+  IRQn_Type   IRQ_Id;
+  uint8_t     priority;
+} tTimerConfig;
+
+// --------------------------------------------------------------------------
 // Public Variables
 // --------------------------------------------------------------------------
+
+extern const tTimerConfig TimerConfig[];
 
 // --------------------------------------------------------------------------
 // Private Variables
 // --------------------------------------------------------------------------
 
-static constexpr tTimerConfig TimerConfig [NUM_HARDWARE_TIMERS] = {
-  { TC0, 0, TC0_IRQn, 0 },  // 0 - Pin TC 2 - 13
-  { TC0, 1, TC1_IRQn, 0 },  // 1 - Pin TC 60 - 61
-  { TC0, 2, TC2_IRQn, 0 },  // 2 - Pin TC 58 - 92
-  { TC1, 0, TC3_IRQn, 0 },  // 3 - [NEOPIXEL]
-  { TC1, 1, TC4_IRQn, 2 },  // 4 - Stepper
-  { TC1, 2, TC5_IRQn, 0 },  // 5 - [servo timer5]
-  { TC2, 0, TC6_IRQn, 0 },  // 6 - Pin TC 4 - 5
-  { TC2, 1, TC7_IRQn, 0 },  // 7 - Pin TC 3 - 10
-  { TC2, 2, TC8_IRQn, 0 },  // 8 - Pin TC 11 - 12
-};
-
 // --------------------------------------------------------------------------
 // Public functions
 // --------------------------------------------------------------------------
 
-void HAL_timer_start(const uint8_t timer_num);
+void HAL_timer_start(const uint8_t timer_num, const uint32_t frequency);
 void HAL_timer_enable_interrupt(const uint8_t timer_num);
 void HAL_timer_disable_interrupt(const uint8_t timer_num);
 bool HAL_timer_interrupt_is_enabled(const uint8_t timer_num);

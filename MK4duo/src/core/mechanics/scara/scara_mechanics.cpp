@@ -486,8 +486,6 @@
       if (printer.debugLeveling()) DEBUG_POS("prepare_uninterpolated_move_to_destination", destination);
     #endif
 
-    commands.refresh_cmd_timeout();
-
     if ( current_position[X_AXIS] == destination[X_AXIS]
       && current_position[Y_AXIS] == destination[Y_AXIS]
       && current_position[Z_AXIS] == destination[Z_AXIS]

@@ -33,21 +33,49 @@
 
   Cartesian_Mechanics mechanics;
 
-  void Cartesian_Mechanics::init() { 
+  /** Public Parameters */
+  const float Cartesian_Mechanics::base_max_pos[XYZ]  = { X_MAX_POS, Y_MAX_POS, Z_MAX_POS },
+              Cartesian_Mechanics::base_min_pos[XYZ]  = { X_MIN_POS, Y_MIN_POS, Z_MIN_POS },
+              Cartesian_Mechanics::base_home_pos[XYZ] = { X_HOME_POS, Y_HOME_POS, Z_HOME_POS },
+              Cartesian_Mechanics::max_length[XYZ]    = { X_MAX_LENGTH, Y_MAX_LENGTH, Z_MAX_LENGTH };
 
-    #if ENABLED(HYSTERESIS)
-      const float hyst[] = DEFAULT_HYSTERESIS_MM;
-      set_hysteresis(hyst[0], hyst[1], hyst[2], hyst[3]);
-      m_hysteresis_prev_direction_bits = 0;
-    #endif
+  #if ENABLED(DUAL_X_CARRIAGE)
+    DualXMode Cartesian_Mechanics::dual_x_carriage_mode          = DEFAULT_DUAL_X_CARRIAGE_MODE;
+    float     Cartesian_Mechanics::inactive_hotend_x_pos         = X2_MAX_POS,                   // used in mode 0 & 1
+              Cartesian_Mechanics::raised_parked_position[NUM_AXIS],                             // used in mode 1
+              Cartesian_Mechanics::duplicate_hotend_x_offset     = DEFAULT_DUPLICATION_X_OFFSET; // used in mode 2
+    int16_t   Cartesian_Mechanics::duplicate_hotend_temp_offset  = 0;                            // used in mode 2
+    millis_t  Cartesian_Mechanics::delayed_move_time             = 0;                            // used in mode 1
+    bool      Cartesian_Mechanics::active_hotend_parked          = false,                        // used in mode 1 & 2
+              Cartesian_Mechanics::hotend_duplication_enabled    = false;                        // used in mode 2
+  #endif
+
+  /** Private Parameters */
+  #if ENABLED(HYSTERESIS)
+    float   Cartesian_Mechanics::m_hysteresis_axis_shift[XYZE]    = { 0.0 },
+            Cartesian_Mechanics::m_hysteresis_mm[XYZE]            = DEFAULT_HYSTERESIS_MM;
+    long    Cartesian_Mechanics::m_hysteresis_steps[XYZE]         = { 0.0 };
+    uint8_t Cartesian_Mechanics::m_hysteresis_prev_direction_bits = 0,
+            Cartesian_Mechanics::m_hysteresis_bits                = 0;
+  #endif
+
+  #if ENABLED(ZWOBBLE)
+    float Cartesian_Mechanics::m_zwobble_amplitude              = 0.0,
+          Cartesian_Mechanics::m_zwobble_puls                   = 0.0,
+          Cartesian_Mechanics::m_zwobble_phase                  = 0.0,
+          Cartesian_Mechanics::zwobble_zLut[STEPS_IN_ZLUT][2]   = { 0.0 },
+          Cartesian_Mechanics::zwobble_lastZ                    = -1.0,
+          Cartesian_Mechanics::zwobble_lastZRod                 = -1.0,
+          Cartesian_Mechanics::m_zwobble_scalingFactor          =  1.0;
+    bool  Cartesian_Mechanics::m_zwobble_consistent             = false,
+          Cartesian_Mechanics::m_zwobble_sinusoidal             = true;
+    int   Cartesian_Mechanics::wobble_lutSize;
+  #endif
+
+  void Cartesian_Mechanics::init() {
 
     #if ENABLED(ZWOBBLE)
       const float wobble[] = DEFAULT_ZWOBBLE;
-      m_zwobble_consistent = false;
-      zwobble_lastZ = -1.0;
-      zwobble_lastZRod = -1.0;
-      m_zwobble_scalingFactor = 1.0;
-      m_zwobble_sinusoidal = true;
       set_zwobble_amplitude(wobble[0]);
       set_zwobble_period(wobble[1]);
       set_zwobble_phase(wobble[2]);
@@ -63,7 +91,7 @@
     if (printer.debugSimulation()) {
       LOOP_XYZ(axis) set_axis_is_at_home((AxisEnum)axis);
       #if ENABLED(NEXTION) && ENABLED(NEXTION_GFX)
-        Nextion_gfx_clear();
+        mechanics.Nextion_gfx_clear();
       #endif
       return;
     }
@@ -248,7 +276,7 @@
     }
 
     #if ENABLED(NEXTION) && ENABLED(NEXTION_GFX)
-      Nextion_gfx_clear();
+      mechanics.Nextion_gfx_clear();
     #endif
 
     #if ENABLED(AUTO_BED_LEVELING_UBL)
@@ -266,7 +294,7 @@
 
     lcd_refresh();
 
-    report_current_position();
+    mechanics.report_current_position();
 
     #if ENABLED(DEBUG_LEVELING_FEATURE)
       if (printer.debugLeveling()) SERIAL_EM("<<< gcode_G28");
@@ -402,7 +430,7 @@
     #endif
 
     // Fast move towards endstop until triggered
-    do_homing_move(axis, 1.5 * max_length[axis] * axis_home_dir);
+    mechanics.do_homing_move(axis, 1.5 * max_length[axis] * axis_home_dir);
 
     // When homing Z with probe respect probe clearance
     const float bump = axis_home_dir * (
@@ -418,13 +446,13 @@
       #if ENABLED(DEBUG_LEVELING_FEATURE)
         if (printer.debugLeveling()) SERIAL_EM("Move Away:");
       #endif
-      do_homing_move(axis, -bump);
+      mechanics.do_homing_move(axis, -bump);
 
       // Slow move towards endstop until triggered
       #if ENABLED(DEBUG_LEVELING_FEATURE)
         if (printer.debugLeveling()) SERIAL_EM("Home 2 Slow:");
       #endif
-      do_homing_move(axis, 2 * bump, get_homing_bump_feedrate(axis));
+      mechanics.do_homing_move(axis, 2 * bump, get_homing_bump_feedrate(axis));
     }
 
     #if ENABLED(X_TWO_ENDSTOPS) || ENABLED(Y_TWO_ENDSTOPS) || ENABLED(Z_TWO_ENDSTOPS)
@@ -435,7 +463,7 @@
           float adj = FABS(endstops.x_endstop_adj);
           if (pos_dir) adj = -adj;
           if (lock_x1) stepper.set_x_lock(true); else stepper.set_x2_lock(true);
-          do_homing_move(axis, adj);
+          mechanics.do_homing_move(axis, adj);
           if (lock_x1) stepper.set_x_lock(false); else stepper.set_x2_lock(false);
           printer.setHoming(false);
         }
@@ -446,7 +474,7 @@
           float adj = FABS(endstops.y_endstop_adj);
           if (pos_dir) adj = -adj;
           if (lock_y1) stepper.set_y_lock(true); else stepper.set_y2_lock(true);
-          do_homing_move(axis, adj);
+          mechanics.do_homing_move(axis, adj);
           if (lock_y1) stepper.set_y_lock(false); else stepper.set_y2_lock(false);
           printer.setHoming(false);
         }
@@ -457,7 +485,7 @@
           float adj = FABS(endstops.z_endstop_adj);
           if (pos_dir) adj = -adj;
           if (lock_z1) stepper.set_z_lock(true); else stepper.set_z2_lock(true);
-          do_homing_move(axis, adj);
+          mechanics.do_homing_move(axis, adj);
           if (lock_z1) stepper.set_z_lock(false); else stepper.set_z2_lock(false);
           printer.setHoming(false);
         }

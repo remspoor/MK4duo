@@ -210,6 +210,8 @@ typedef uint32_t  ptr_int_t;
 #define GET_PIN_MAP_INDEX(pin) pin
 #define PARSED_PIN_INDEX(code, dval) parser.intval(code, dval)
 
+#define DRIVES 9
+
 // --------------------------------------------------------------------------
 // Public Variables
 // --------------------------------------------------------------------------
@@ -279,7 +281,7 @@ class HAL {
     static int16_t AnalogInputValues[NUM_ANALOG_INPUTS];
     static bool Analog_is_ready;
 
-
+    static uint32_t DriverBits[2 * DRIVES];
 
     static bool execute_100ms;
 
@@ -314,6 +316,25 @@ class HAL {
     static void analogWrite(const pin_t pin, uint32_t ulValue, const uint16_t freq=1000);
 
     static void Tick();
+
+    static void DriverBits_init();
+    static uint32_t CalcDriverBitmap(uint8_t driver);
+
+    FORCE_INLINE static uint32_t GetDriversBitmap(uint8_t drive) { return DriverBits[drive]; }
+
+    FORCE_INLINE static void StepDriversHigh(uint32_t driverMap) {
+      //PIOA->PIO_ODSR = driverMap;
+      PIOB->PIO_ODSR = driverMap;
+      PIOD->PIO_ODSR = driverMap;
+      PIOC->PIO_ODSR = driverMap;
+    }
+
+    FORCE_INLINE static void StepDriversLow() {
+      PIOD->PIO_ODSR = 0;
+      PIOC->PIO_ODSR = 0;
+      PIOB->PIO_ODSR = 0;
+      PIOA->PIO_ODSR = 0;
+    }
 
     FORCE_INLINE static void pinMode(const pin_t pin, const uint8_t mode) {
       switch (mode) {

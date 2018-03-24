@@ -79,6 +79,7 @@ uint8_t MCUSR;
 int16_t HAL::AnalogInputValues[NUM_ANALOG_INPUTS] = { 0 };
 bool    HAL::Analog_is_ready = false;
 
+uint32_t HAL::DriverBits[2 * DRIVES] = { 0 };
 
 #if HEATER_COUNT > 0
   ADCAveragingFilter HAL::sensorFilters[HEATER_COUNT];
@@ -140,6 +141,34 @@ HAL::HAL() {
 
 HAL::~HAL() {
   // dtor
+}
+
+void HAL::DriverBits_init() {
+
+  // Disable parallel writes to all pins. We re-enable them for the step pins.
+	PIOA->PIO_OWDR = 0xFFFFFFFF;
+	PIOB->PIO_OWDR = 0xFFFFFFFF;
+	PIOC->PIO_OWDR = 0xFFFFFFFF;
+  #ifdef PIOD
+    PIOD->PIO_OWDR = 0xFFFFFFFF;
+  #endif
+  #ifdef PIOE
+    PIOE->PIO_OWDR = 0xFFFFFFFF;
+  #endif
+
+  for (uint8_t drive = 0; drive < DRIVES; drive++)
+    DriverBits[drive] = DriverBits[drive + DRIVES] = CalcDriverBitmap(drive);
+}
+
+uint32_t HAL::CalcDriverBitmap(uint8_t driver) {
+  constexpr pin_t STEP_PINS[DRIVES] = { X_STEP_PIN, Y_STEP_PIN, Z_STEP_PIN, E0_STEP_PIN, NoPin, NoPin, NoPin, NoPin, NoPin };
+	const PinDescription& pinDesc = g_APinDescription[STEP_PINS[driver]];
+
+  #if MB(RADDS)
+    return (pinDesc.pPort == PIOC) ? pinDesc.ulPin << 1 : pinDesc.ulPin;
+  #else
+    return pinDesc.ulPin;
+  #endif
 }
 
 bool HAL::execute_100ms = false;

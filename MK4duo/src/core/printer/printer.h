@@ -109,8 +109,11 @@ class Printer {
 
     static uint8_t  progress;
 
-    static millis_t max_inactive_time,
-                    host_keepalive_interval;
+    static watch_t  max_inactivity_watch;
+
+    #if ENABLED(HOST_KEEPALIVE_FEATURE)
+      static watch_t  host_keepalive_watch;
+    #endif
 
     static MK4duoInterruptEvent interruptEvent;
     static PrinterMode          mode;
@@ -144,7 +147,7 @@ class Printer {
     static uint16_t mk_2_flag;      // For various
 
     #if ENABLED(IDLE_OOZING_PREVENT)
-      static millis_t axis_last_activity;
+      static watch_t  axis_last_activity_watch;
       static bool     IDLE_OOZING_retracted[EXTRUDERS];
     #endif
 

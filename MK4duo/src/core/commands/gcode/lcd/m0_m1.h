@@ -78,10 +78,9 @@
     printer.keepalive(PausedforUser);
 
     stepper.synchronize();
-    commands.refresh_cmd_timeout();
 
     if (ms > 0) {
-      ms += commands.previous_cmd_ms;  // wait until this time for a click
+      ms += commands.previous_move_ms;  // wait until this time for a click
       while (PENDING(millis(), ms) && printer.isWaitForUser()) printer.idle();
     }
     else {

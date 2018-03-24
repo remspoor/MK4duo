@@ -29,6 +29,50 @@
 #include "../../../MK4duo.h"
 #include "mechanics.h"
 
+/** Public Parameters */
+float Mechanics::feedrate_mm_s                            = MMM_TO_MMS(1500.0),
+      Mechanics::min_feedrate_mm_s                        = 0.0,
+      Mechanics::max_feedrate_mm_s[XYZE_N]                = { 0.0 },
+      Mechanics::min_travel_feedrate_mm_s                 = 0.0,
+      Mechanics::axis_steps_per_mm[XYZE_N]                = { 0.0 },
+      Mechanics::steps_to_mm[XYZE_N]                      = { 0.0 },
+      Mechanics::acceleration                             = 0.0,
+      Mechanics::travel_acceleration                      = 0.0,
+      Mechanics::retract_acceleration[EXTRUDERS]          = { 0.0 },
+      Mechanics::max_jerk[XYZE_N]                         = { 0.0 },
+      Mechanics::current_position[XYZE]                   = { 0.0 },
+      Mechanics::cartesian_position[XYZ]                  = { 0.0 },
+      Mechanics::destination[XYZE]                        = { 0.0 },
+      Mechanics::stored_position[NUM_POSITON_SLOTS][XYZE] = { { 0.0 } };
+
+int16_t Mechanics::feedrate_percentage       = 100;
+
+const float Mechanics::homing_feedrate_mm_s[XYZ] = { MMM_TO_MMS(HOMING_FEEDRATE_X), MMM_TO_MMS(HOMING_FEEDRATE_Y), MMM_TO_MMS(HOMING_FEEDRATE_Z) },
+            Mechanics::home_bump_mm[XYZ]         = { X_HOME_BUMP_MM, Y_HOME_BUMP_MM, Z_HOME_BUMP_MM };
+   
+uint32_t  Mechanics::max_acceleration_steps_per_s2[XYZE_N] = { 0 },
+          Mechanics::max_acceleration_mm_per_s2[XYZE_N]    = { 0 };
+
+const signed char Mechanics::home_dir[XYZ] = { X_HOME_DIR, Y_HOME_DIR, Z_HOME_DIR };
+
+millis_t Mechanics::min_segment_time_us = 0;
+
+#if ENABLED(WORKSPACE_OFFSETS) || ENABLED(DUAL_X_CARRIAGE)
+  // The distance that XYZ has been offset by G92. Reset by G28.
+  float Mechanics::position_shift[XYZ] = { 0.0 };
+
+  // This offset is added to the configured home position.
+  // Set by M206, M428, or menu item. Saved to EEPROM.
+  float Mechanics::home_offset[XYZ] = { 0.0 };
+
+  // The above two are combined to save on computes
+  float Mechanics::workspace_offset[XYZ] = { 0.0 };
+#endif
+
+#if ENABLED(BABYSTEPPING)
+  int Mechanics::babystepsTodo[XYZ] = { 0 };
+#endif
+
 /**
  * Directly set the planner XYZ position (and stepper positions)
  * converting mm into steps.
@@ -74,14 +118,14 @@ void Mechanics::set_position_mm(ARG_X, ARG_Y, ARG_Z, const float &e) {
   #endif
   _set_position_mm(rx, ry, rz, e);
 }
-void Mechanics::set_position_mm(const float position[NUM_AXIS]) {
+void Mechanics::set_position_mm(const float (&cart)[XYZE]) {
   #if PLANNER_LEVELING
-    float lpos[XYZ] = { position[X_AXIS], position[Y_AXIS], position[Z_AXIS] };
-    bedlevel.apply_leveling(lpos);
+    float raw[XYZ] = { cart[X_AXIS], cart[Y_AXIS], cart[Z_AXIS] };
+    bedlevel.apply_leveling(raw);
   #else
-    const float * const lpos = position;
+    const float (&raw)[XYZE] = cart;
   #endif
-  _set_position_mm(lpos[X_AXIS], lpos[Y_AXIS], lpos[Z_AXIS], position[E_AXIS]);
+  _set_position_mm(raw[X_AXIS], raw[Y_AXIS], raw[Z_AXIS], cart[E_AXIS]);
 }
 
 /**
@@ -110,7 +154,7 @@ void Mechanics::get_cartesian_from_steppers() {
  * after updating the current_position.
  */
 void Mechanics::set_current_from_steppers_for_axis(const AxisEnum axis) {
-  get_cartesian_from_steppers();
+  mechanics.get_cartesian_from_steppers();
   #if PLANNER_LEVELING
     bedlevel.unapply_leveling(cartesian_position);
   #endif
@@ -146,7 +190,6 @@ void Mechanics::line_to_destination(float fr_mm_s) {
  */
 void Mechanics::prepare_move_to_destination() {
   endstops.clamp_to_software_endstops(destination);
-  commands.refresh_cmd_timeout();
 
   if (!printer.debugSimulation()) { // Simulation Mode no movement
     if (
@@ -222,13 +265,13 @@ void Mechanics::do_blocking_move_to(const float rx, const float ry, const float 
   #endif
 }
 void Mechanics::do_blocking_move_to_x(const float &rx, const float &fr_mm_s/*=0.0*/) {
-  do_blocking_move_to(rx, current_position[Y_AXIS], current_position[Z_AXIS], fr_mm_s);
+  mechanics.do_blocking_move_to(rx, current_position[Y_AXIS], current_position[Z_AXIS], fr_mm_s);
 }
 void Mechanics::do_blocking_move_to_z(const float &rz, const float &fr_mm_s/*=0.0*/) {
-  do_blocking_move_to(current_position[X_AXIS], current_position[Y_AXIS], rz, fr_mm_s);
+  mechanics.do_blocking_move_to(current_position[X_AXIS], current_position[Y_AXIS], rz, fr_mm_s);
 }
 void Mechanics::do_blocking_move_to_xy(const float &rx, const float &ry, const float &fr_mm_s/*=0.0*/) {
-  do_blocking_move_to(rx, ry, current_position[Z_AXIS], fr_mm_s);
+  mechanics.do_blocking_move_to(rx, ry, current_position[Z_AXIS], fr_mm_s);
 }
 
 /**
@@ -241,7 +284,7 @@ void Mechanics::sync_plan_position() {
   #if ENABLED(DEBUG_LEVELING_FEATURE)
     if (printer.debugLeveling()) DEBUG_POS("sync_plan_position", current_position);
   #endif
-  set_position_mm(current_position);
+  mechanics.set_position_mm(current_position);
 }
 void Mechanics::sync_plan_position_e() {
   set_e_position_mm(current_position[E_AXIS]);
@@ -269,7 +312,7 @@ void Mechanics::reset_acceleration_rates() {
  */
 void Mechanics::refresh_positioning() {
   LOOP_XYZE_N(i) steps_to_mm[i] = 1.0 / axis_steps_per_mm[i];
-  set_position_mm(current_position);
+  mechanics.set_position_mm(current_position);
   reset_acceleration_rates();
 }
 
@@ -302,7 +345,7 @@ void Mechanics::do_homing_move(const AxisEnum axis, const float distance, const 
   // Tell the planner we're at Z=0
   current_position[axis] = 0;
 
-  set_position_mm(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
+  mechanics.set_position_mm(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
   current_position[axis] = distance;
   planner.buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], fr_mm_s ? fr_mm_s : homing_feedrate_mm_s[axis], tools.active_extruder);
 

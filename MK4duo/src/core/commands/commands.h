@@ -43,7 +43,7 @@ class Commands {
 
     static long gcode_LastN;
 
-    static millis_t previous_cmd_ms;
+    static millis_t previous_move_ms;
 
   private: /** Private Parameters */
 
@@ -60,7 +60,7 @@ class Commands {
 
     static const char *injected_commands_P;
 
-    static millis_t last_command_time;
+    static watch_t last_command_watch;
 
   public: /** Public Function */
 
@@ -80,7 +80,7 @@ class Commands {
     static bool get_target_heater(int8_t &h);
 
     FORCE_INLINE static void setup() { for (uint8_t i = 0; i < COUNT(send_ok); i++) send_ok[i] = true; }
-    FORCE_INLINE static void refresh_cmd_timeout() { previous_cmd_ms = millis(); }
+    FORCE_INLINE static void reset_stepper_timeout() { previous_move_ms = millis(); }
 
   private: /** Private Function */
 

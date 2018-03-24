@@ -48,7 +48,7 @@ bool Commands::send_ok[BUFSIZE];
 char Commands::buffer_ring[BUFSIZE][MAX_CMD_SIZE];
 
 // Inactivity shutdown
-millis_t Commands::previous_cmd_ms = 0;
+millis_t Commands::previous_move_ms = 0;
 
 /**
  * Private Parameters
@@ -70,7 +70,7 @@ volatile uint8_t Commands::buffer_lenght = 0; // Number of commands in the Buffe
 
 int Commands::serial_count = 0;
 
-millis_t Commands::last_command_time = 0;
+watch_t Commands::last_command_watch(NO_TIMEOUTS);
 
 /**
  * Next Injected Command pointer. NULL if no commands are being injected.
@@ -92,7 +92,6 @@ void Commands::get_serial() {
 
   static char serial_line_buffer[MAX_CMD_SIZE];
   static bool serial_comment_mode = false;
-  millis_t time = millis();
 
   #if HAS_DOOR_OPEN
     if (READ(DOOR_OPEN_PIN) != endstops.isLogic(DOOR_OPEN_SENSOR)) {
@@ -110,10 +109,10 @@ void Commands::get_serial() {
   // If the command buffer is empty for too long,
   // send "wait" to indicate MK4duo is still waiting.
   #if NO_TIMEOUTS > 0
-    if (buffer_lenght == 0 && !MKSERIAL.available() && ELAPSED(time, last_command_time + NO_TIMEOUTS)) {
+    if (buffer_lenght == 0 && !MKSERIAL.available() && last_command_watch.elapsed()) {
       SERIAL_STR(WT);
       SERIAL_EOL();
-      last_command_time = time;
+      last_command_watch.start();
     }
   #endif
 
@@ -123,7 +122,8 @@ void Commands::get_serial() {
   while (buffer_lenght < BUFSIZE && HAL::serialByteAvailable()) {
     int c;
 
-    last_command_time = time;
+    last_command_watch.start();
+    printer.max_inactivity_watch.start();
 
     if ((c = MKSERIAL.read()) < 0) continue;
 
@@ -270,7 +270,8 @@ void Commands::get_serial() {
       const int16_t n = card.get();
       char sd_char = (char)n;
       card_eof = card.eof();
-      last_command_time = millis();
+      last_command_watch.start();
+      printer.max_inactivity_watch.start();
       if (card_eof || n == -1
           || sd_char == '\n'  || sd_char == '\r'
           || ((sd_char == '#' || sd_char == ':') && !sd_comment_mode)
@@ -349,7 +350,6 @@ void Commands::flush_and_request_resend() {
  *   B<int>  Block queue space remaining
  */
 void Commands::ok_to_send() {
-  refresh_cmd_timeout();
   if (!send_ok[buffer_index_r]) return;
   SERIAL_STR(OK);
   #if ENABLED(ADVANCED_OK)
@@ -664,6 +664,8 @@ void Commands::process_next() {
   if (printer.debugEcho()) SERIAL_LT(ECHO, current_command);
 
   printer.keepalive(InHandler);
+
+  reset_stepper_timeout(); // Keep steppers powered
 
   // Parse the next command in the buffer_ring
   parser.parse(current_command);
