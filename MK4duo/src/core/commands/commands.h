@@ -43,8 +43,6 @@ class Commands {
 
     static long gcode_LastN;
 
-    static millis_t previous_move_ms;
-
   private: /** Private Parameters */
 
     static long gcode_N;
@@ -80,7 +78,6 @@ class Commands {
     static bool get_target_heater(int8_t &h);
 
     FORCE_INLINE static void setup() { for (uint8_t i = 0; i < COUNT(send_ok); i++) send_ok[i] = true; }
-    FORCE_INLINE static void reset_stepper_timeout() { previous_move_ms = millis(); }
 
   private: /** Private Function */
 

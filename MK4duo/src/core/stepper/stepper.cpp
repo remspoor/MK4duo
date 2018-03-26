@@ -66,7 +66,7 @@ block_t* Stepper::current_block = NULL;  // A pointer to the block currently bei
   #endif
 #endif
 
-millis_t Stepper::stepper_inactive_time  = (DEFAULT_STEPPER_DEACTIVE_TIME) * 1000UL;
+watch_t Stepper::move_watch(DEFAULT_STEPPER_DEACTIVE_TIME * 1000UL);
 
 int16_t Stepper::cleaning_buffer_counter = 0;
 

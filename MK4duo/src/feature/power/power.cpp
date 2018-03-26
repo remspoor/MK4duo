@@ -36,20 +36,14 @@
   #endif
 
   void Power::spin() {
-    static millis_t nextPowerCheck = 0;
-    millis_t ms = millis();
-
-    if (ELAPSED(ms, nextPowerCheck)) {
-      nextPowerCheck = ms + 2500UL;
-      if (is_power_needed()) {
-        if (!lastPowerOn) power_on();
-      }
-      #if (POWER_TIMEOUT > 0)
-        else if (ELAPSED(ms, lastPowerOn + (POWER_TIMEOUT) * 1000UL)) {
-          if (lastPowerOn) power_off();
-        }
-      #endif
+    if (is_power_needed()) {
+      if (!lastPowerOn) power_on();
     }
+    #if (POWER_TIMEOUT > 0)
+      else if (ELAPSED(millis(), lastPowerOn + (POWER_TIMEOUT) * 1000UL)) {
+        if (lastPowerOn) power_off();
+      }
+    #endif
   }
 
   void Power::power_on() {

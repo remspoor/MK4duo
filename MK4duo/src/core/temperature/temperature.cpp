@@ -113,7 +113,7 @@ void Temperature::wait_heater(Heater *act, bool no_wait_for_cooling/*=true*/) {
     now = millis();
     printer.idle();
     printer.keepalive(WaitHeater);
-    commands.reset_stepper_timeout(); // Keep steppers powered
+    stepper.move_watch.start(); // Keep steppers powered
 
     const float temp = act->current_temperature;
 
@@ -357,10 +357,6 @@ void Temperature::PID_autotune(Heater *act, const float temp, const uint8_t ncyc
     printer.keepalive(WaitHeater);
 
     act->updateCurrentTemperature();
-
-    #if FAN_COUNT > 0
-      LOOP_FAN() fans[f].spin();
-    #endif
 
     const millis_t time = millis();
     currentTemp = act->current_temperature;

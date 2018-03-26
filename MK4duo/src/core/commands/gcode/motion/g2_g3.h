@@ -126,7 +126,7 @@
 
         // Send an arc to the planner
         mechanics.plan_arc(mechanics.destination, arc_offset, clockwise);
-        commands.reset_stepper_timeout();
+        stepper.move_watch.start();
       }
       else {
         // Bad arguments

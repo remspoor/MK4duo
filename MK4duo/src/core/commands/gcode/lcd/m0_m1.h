@@ -80,19 +80,13 @@
     stepper.synchronize();
 
     if (ms > 0) {
-      ms += commands.previous_move_ms;  // wait until this time for a click
-      while (PENDING(millis(), ms) && printer.isWaitForUser()) printer.idle();
+      watch_t watch(ms);
+      while (!watch.elapsed() && printer.isWaitForUser()) printer.idle();
     }
-    else {
-      #if ENABLED(ULTIPANEL)
-        if (lcd_detected()) {
-          while (printer.isWaitForUser()) printer.idle();
-          IS_SD_PRINTING ? LCD_MESSAGEPGM(MSG_RESUMING) : LCD_MESSAGEPGM(WELCOME_MSG);
-        }
-      #else
-        while (printer.isWaitForUser()) printer.idle();
-      #endif
-    }
+    else
+      while (printer.isWaitForUser()) printer.idle();
+
+    IS_SD_PRINTING ? LCD_MESSAGEPGM(MSG_RESUMING) : LCD_MESSAGEPGM(WELCOME_MSG);
 
     printer.setWaitForUser(false);
     printer.keepalive(InHandler);

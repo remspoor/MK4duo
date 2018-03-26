@@ -47,9 +47,6 @@ bool Commands::send_ok[BUFSIZE];
 
 char Commands::buffer_ring[BUFSIZE][MAX_CMD_SIZE];
 
-// Inactivity shutdown
-millis_t Commands::previous_move_ms = 0;
-
 /**
  * Private Parameters
  */
@@ -665,7 +662,7 @@ void Commands::process_next() {
 
   printer.keepalive(InHandler);
 
-  reset_stepper_timeout(); // Keep steppers powered
+  stepper.move_watch.start(); // Keep steppers powered
 
   // Parse the next command in the buffer_ring
   parser.parse(current_command);

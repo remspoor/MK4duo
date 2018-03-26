@@ -43,7 +43,7 @@ char    Printer::printName[21] = "";   // max. 20 chars + 0
 uint8_t Printer::progress = 0;
 
 // Inactivity shutdown
-watch_t Printer::max_inactivity_watch(0);
+watch_t Printer::max_inactivity_watch;
 
 #if ENABLED(HOST_KEEPALIVE_FEATURE)
   watch_t Printer::host_keepalive_watch(DEFAULT_KEEPALIVE_INTERVAL * 1000UL);
@@ -81,14 +81,14 @@ PrinterMode Printer::mode =
 #endif
 
 #if ENABLED(IDLE_OOZING_PREVENT)
-  watch_t   Printer::axis_last_activity_watch(IDLE_OOZING_SECONDS * 1000UL);
+  millis_t  Printer::axis_last_activity   = 0;
   bool      Printer::IDLE_OOZING_enabled  = true,
             Printer::IDLE_OOZING_retracted[EXTRUDERS] = ARRAY_BY_EXTRUDERS(false);
 #endif
 
 #if HAS_CHDK
-  millis_t  Printer::chdkHigh   = 0;
-  bool      Printer::chdkActive = false;
+  watch_t Printer::chdk_watch(CHDK_DELAY);
+  bool    Printer::chdkActive = false;
 #endif
 
 // Private
@@ -316,7 +316,8 @@ void Printer::loop() {
 
 void Printer::check_periodical_actions() {
 
-  static uint8_t cycle_1000ms = 10;  // Event 1.0 Second
+  static uint8_t  cycle_1000ms = 10,  // Event 1.0 Second
+                  cycle_2500ms = 25;  // Event 2.5 Second
 
   // Control interrupt events
   handle_interrupt_events();
@@ -329,8 +330,9 @@ void Printer::check_periodical_actions() {
     HAL::execute_100ms = false;
     planner.check_axes_activity();
     thermalManager.spin();
+
+    // Event 1.0 Second
     if (--cycle_1000ms == 0) {
-      // Event 1.0 Second
       cycle_1000ms = 10;
       if (isAutoreportTemp()) {
         thermalManager.report_temperatures();
@@ -341,6 +343,17 @@ void Printer::check_periodical_actions() {
       #endif
       #if ENABLED(NEXTION)
         nextion_draw_update();
+      #endif
+    }
+
+    // Event 2.5 Second
+    if (--cycle_2500ms == 0) {
+      cycle_2500ms = 25;
+      #if FAN_COUNT > 0
+        LOOP_FAN() fans[f].spin();
+      #endif
+      #if HAS_POWER_SWITCH
+        powerManager.spin();
       #endif
     }
   }
@@ -499,8 +512,6 @@ void Printer::Stop() {
  */
 void Printer::idle(const bool ignore_stepper_queue/*=false*/) {
 
-  const millis_t ms = millis();
-
   #if ENABLED(NEXTION)
     lcd_key_touch_update();
   #else
@@ -516,24 +527,16 @@ void Printer::idle(const bool ignore_stepper_queue/*=false*/) {
     kill(PSTR(MSG_KILLED));
   }
 
-  #if HAS_POWER_SWITCH
-    powerManager.spin();
+  #if ENABLED(DHT_SENSOR)
+    dhtsensor.spin();
   #endif
 
   #if ENABLED(CNCROUTER)
     cnc.manage();
   #endif
 
-  #if FAN_COUNT > 0
-    LOOP_FAN() fans[f].spin();
-  #endif
-
   #if HAS_FIL_RUNOUT
     filamentrunout.spin();
-  #endif
-
-  #if ENABLED(DHT_SENSOR)
-    dhtsensor.spin();
   #endif
 
   #if ENABLED(FLOWMETER_SENSOR)
@@ -556,10 +559,10 @@ void Printer::idle(const bool ignore_stepper_queue/*=false*/) {
     #define MOVE_AWAY_TEST true
   #endif
 
-  if (stepper.stepper_inactive_time) {
+  if (stepper.move_watch.stopwatch) {
     if (planner.has_blocks_queued())
-      commands.previous_move_ms = ms; // reset_stepper_timeout to keep steppers powered
-    else if (MOVE_AWAY_TEST && !ignore_stepper_queue && ELAPSED(ms, commands.previous_move_ms + stepper.stepper_inactive_time)) {
+      stepper.move_watch.start(); // reset stepper move watch to keep steppers powered
+    else if (MOVE_AWAY_TEST && !ignore_stepper_queue && stepper.move_watch.elapsed()) {
       #if ENABLED(DISABLE_INACTIVE_X)
         disable_X();
       #endif
@@ -589,7 +592,7 @@ void Printer::idle(const bool ignore_stepper_queue/*=false*/) {
   }
 
   #if HAS_CHDK // Check if pin should be set to LOW after M240 set it to HIGH
-    if (chdkActive && ELAPSED(ms, chdkHigh + CHDK_DELAY)) {
+    if (chdkActive && chdk_watch.elapsed()) {
       chdkActive = false;
       WRITE(CHDK_PIN, LOW);
     }
@@ -634,8 +637,11 @@ void Printer::idle(const bool ignore_stepper_queue/*=false*/) {
   #endif
 
   #if ENABLED(EXTRUDER_RUNOUT_PREVENT)
+
+    static watch_t extruder_runout_watch(EXTRUDER_RUNOUT_SECONDS * 1000UL);
+
     if (heaters[EXTRUDER_IDX].current_temperature > EXTRUDER_RUNOUT_MINTEMP
-      && ELAPSED(ms, commands.previous_move_ms + (EXTRUDER_RUNOUT_SECONDS) * 1000UL)
+      && extruder_runout_watch.elapsed()
       && !planner.has_blocks_queued()
     ) {
       #if ENABLED(DONDOLO_SINGLE_MOTOR)
@@ -692,13 +698,13 @@ void Printer::idle(const bool ignore_stepper_queue/*=false*/) {
         }
       #endif // !DONDOLO_SINGLE_MOTOR
 
-      commands.previous_move_ms = ms; // commands.reset_stepper_timeout()
+      extruder_runout_watch.start();
     }
   #endif // EXTRUDER_RUNOUT_PREVENT
 
   #if ENABLED(DUAL_X_CARRIAGE)
     // handle delayed move timeout
-    if (mechanics.delayed_move_time && ELAPSED(ms, mechanics.delayed_move_time + 1000UL) && isRunning()) {
+    if (mechanics.delayed_move_time && ELAPSED(millis(), mechanics.delayed_move_time + 1000UL) && isRunning()) {
       // travel moves have been received so enact them
       mechanics.delayed_move_time = 0xFFFFFFFFUL; // force moves to be done
       mechanics.set_destination_to_current();
@@ -707,7 +713,7 @@ void Printer::idle(const bool ignore_stepper_queue/*=false*/) {
   #endif
 
   #if ENABLED(IDLE_OOZING_PREVENT)
-    if (planner.has_blocks_queued()) axis_last_activity_watch.start();
+    if (planner.has_blocks_queued()) axis_last_activity = millis();
     if (heaters[EXTRUDER_IDX].current_temperature > IDLE_OOZING_MINTEMP && !debugDryrun() && IDLE_OOZING_enabled) {
       #if ENABLED(FILAMENTCHANGEENABLE)
         if (!filament_changing)
@@ -716,7 +722,7 @@ void Printer::idle(const bool ignore_stepper_queue/*=false*/) {
         if (heaters[EXTRUDER_IDX].target_temperature < IDLE_OOZING_MINTEMP) {
           IDLE_OOZING_retract(false);
         }
-        else if (axis_last_activity_watch.elapsed()) {
+        else if ((millis() - axis_last_activity) >  IDLE_OOZING_SECONDS * 1000UL) {
           IDLE_OOZING_retract(true);
         }
       }

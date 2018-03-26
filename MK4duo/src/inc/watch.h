@@ -28,18 +28,20 @@ struct watch_t {
   millis_t  startwatch = 0,
             stopwatch  = 0;
 
-  watch_t(const millis_t milliseconds) {
-    this->stopwatch = milliseconds;
+  watch_t(const millis_t duration=0) {
+    this->stopwatch = duration;
+    if (duration) this->start();
   }
 
   FORCE_INLINE void start() { this->startwatch = millis(); }
-  FORCE_INLINE void stop() { this->startwatch = 0; }
-  //FORCE_INLINE bool isRunning() { this->startwatch != 0; }
+  FORCE_INLINE void stop()  { this->startwatch = 0; }
+  FORCE_INLINE bool isRunning() { this->startwatch != 0; }
 
-  FORCE_INLINE bool elapsed() {
-    if (this->startwatch == 0) return true;
-    const millis_t now = millis();
-    if (now >= this->startwatch + this->stopwatch || now < this->startwatch) {
+  FORCE_INLINE bool elapsed(const millis_t period=0) {
+    const millis_t  now = millis(),
+                    end = period ? period : this->stopwatch;
+
+    if (this->startwatch == 0 || now >= this->startwatch + end || now < this->startwatch) {
       this->startwatch = 0;
       return true;
     }

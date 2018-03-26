@@ -135,7 +135,7 @@ class Printer {
     #endif
 
     #if HAS_CHDK
-      static millis_t chdkHigh;
+      static watch_t chdk_watch;
       static bool chdkActive;
     #endif
 
@@ -147,7 +147,7 @@ class Printer {
     static uint16_t mk_2_flag;      // For various
 
     #if ENABLED(IDLE_OOZING_PREVENT)
-      static watch_t  axis_last_activity_watch;
+      static millis_t axis_last_activity;
       static bool     IDLE_OOZING_retracted[EXTRUDERS];
     #endif
 

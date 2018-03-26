@@ -59,7 +59,7 @@ class Stepper {
 
     static block_t* current_block;  // A pointer to the block currently being traced
 
-    static millis_t stepper_inactive_time;
+    static watch_t move_watch;
 
     #if ENABLED(ABORT_ON_ENDSTOP_HIT)
       static bool abort_on_endstop_hit;
