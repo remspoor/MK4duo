@@ -236,7 +236,7 @@ template <size_t numAveraged> class AveragingFilter {
     uint16_t  readings[numAveraged];
     size_t    index;
     uint32_t  sum;
-    bool      isValid;
+    bool      valid;
 
   public: /** Public Function */
 
@@ -245,7 +245,7 @@ template <size_t numAveraged> class AveragingFilter {
       irqflags_t flags = cpu_irq_save();
       sum = (uint32_t)val * (uint32_t)numAveraged;
       index = 0;
-      isValid = false;
+      valid = false;
       for (size_t i = 0; i < numAveraged; ++i)
         readings[i] = val;
       cpu_irq_restore(flags);
@@ -256,13 +256,13 @@ template <size_t numAveraged> class AveragingFilter {
       readings[index] = read;
       if (++index == numAveraged) {
         index = 0;
-        isValid = true;
+        valid = true;
       }
     }
 
     uint32_t GetSum() const volatile { return sum; }
 
-    bool IsValid() const volatile	{ return isValid; }
+    bool IsValid() const volatile	{ return valid; }
 
 };
 

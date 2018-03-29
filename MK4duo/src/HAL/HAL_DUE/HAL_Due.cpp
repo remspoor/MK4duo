@@ -578,7 +578,7 @@ void HAL::Tick() {
             ADCAveragingFilter& currentFilter = const_cast<ADCAveragingFilter&>(sensorFilters[h]);
             currentFilter.ProcessReading(AnalogInReadPin(heaters[h].sensor.pin));
             if (currentFilter.IsValid()) {
-              AnalogInputValues[heaters[h].sensor.pin] = currentFilter.GetSum() / (NUM_ADC_SAMPLES >> OVERSAMPLENR);
+              AnalogInputValues[heaters[h].sensor.pin] = (currentFilter.GetSum() / NUM_ADC_SAMPLES) << OVERSAMPLENR;
               Analog_is_ready = true;
             }
           }

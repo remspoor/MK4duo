@@ -1,3 +1,7 @@
+### Version 4.3.6 Development
+* Make class Mechanics to static
+* Fix and clear code
+
 ### Version 4.3.5 Stable
 * Now if a heater does not have a sensor or fails, it will not be used, but it will not kill.
 * If the PID autotune is not done, the firmware will not switch the heater on until the autotune is performed. Only if have EEPROM.
