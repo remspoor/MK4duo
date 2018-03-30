@@ -49,11 +49,9 @@
       hasS = ms > 0;
     }
 
-    const bool has_message = !hasP && !hasS && args && *args;
-
     #if ENABLED(ULTIPANEL)
 
-      if (has_message)
+      if (!hasP && !hasS && args && *args)
         lcd_setstatus(args, true);
       else {
         LCD_MESSAGEPGM(MSG_USERWAIT);
@@ -64,14 +62,14 @@
 
     #elif ENABLED(NEXTION)
 
-      if (has_message)
+      if (!hasP && !hasS && args && *args)
         lcd_yesno(args, "", MSG_USERWAIT);
       else
         lcd_yesno(MSG_USERWAIT);
 
     #else
 
-      if (has_message)
+      if (!hasP && !hasS && args && *args)
         SERIAL_LT(ECHO, args);
 
     #endif
