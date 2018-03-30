@@ -598,17 +598,16 @@
     mechanics.line_to_current_position();
     stepper.synchronize();
 
+    // Re-enable stealthChop if used. Disable diag1 pin on driver.
+    #if ENABLED(SENSORLESS_HOMING)
+      sensorless_homing(false);
+    #endif
+
     // If an endstop was not hit, then damage can occur if homing is continued.
-    // This can occur if the delta height is
-    // not set correctly.
-    if (!(TEST(endstops.hit_bits, X_MAX) ||
-          TEST(endstops.hit_bits, Y_MAX) ||
-          TEST(endstops.hit_bits, Z_MAX))) {
+    // This can occur if the delta height not set correctly.
+    if (!(endstops.hit_bits && (_BV(X_MAX) | _BV(Y_MAX) | _BV(Z_MAX)))) {
       LCD_MESSAGEPGM(MSG_ERR_HOMING_FAILED);
       SERIAL_LM(ER, MSG_ERR_HOMING_FAILED);
-      #if ENABLED(SENSORLESS_HOMING)
-        sensorless_homing(false);
-      #endif
       return false;
     }
 
@@ -619,11 +618,6 @@
     homeaxis(A_AXIS);
     homeaxis(B_AXIS);
     homeaxis(C_AXIS);
-
-    // Re-enable stealthChop if used. Disable diag1 pin on driver.
-    #if ENABLED(SENSORLESS_HOMING)
-      mechanics.sensorless_homing(false);
-    #endif
 
     // Set all carriages to their home positions
     // Do this here all at once for Delta, because

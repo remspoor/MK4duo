@@ -589,7 +589,6 @@
       #if ENABLED(SENSORLESS_HOMING)
         sensorless_homing_per_axis(X_AXIS, false);
         sensorless_homing_per_axis(Y_AXIS, false);
-        printer.safe_delay(500);
       #endif
     }
 

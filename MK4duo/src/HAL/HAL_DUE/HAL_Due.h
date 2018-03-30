@@ -195,6 +195,8 @@ typedef uint32_t  ptr_int_t;
 // TEMPERATURE
 #undef analogInputToDigitalPin
 #define analogInputToDigitalPin(p) ((p < 12) ? (p) + 54 : -1)
+#undef NUM_ANALOG_INPUTS
+#define NUM_ANALOG_INPUTS 16
 // Bits of the ADC converter
 #define ANALOG_INPUT_BITS 12
 #define OVERSAMPLENR 2

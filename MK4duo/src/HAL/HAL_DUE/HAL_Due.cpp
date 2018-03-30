@@ -588,19 +588,19 @@ void HAL::Tick() {
       #if HAS_FILAMENT_SENSOR
         const_cast<ADCAveragingFilter&>(filamentFilter).ProcessReading(AnalogInReadPin(FILWIDTH_PIN));
         if (filamentFilter.IsValid())
-          AnalogInputValues[FILWIDTH_PIN] = filamentFilter.GetSum() / (NUM_ADC_SAMPLES >> OVERSAMPLENR);
+          AnalogInputValues[FILWIDTH_PIN] = (filamentFilter.GetSum() / NUM_ADC_SAMPLES) << OVERSAMPLENR;
       #endif
 
       #if HAS_POWER_CONSUMPTION_SENSOR
         const_cast<ADCAveragingFilter&>(powerFilter).ProcessReading(AnalogInReadPin(POWER_CONSUMPTION_PIN));
         if (powerFilter.IsValid())
-          AnalogInputValues[POWER_CONSUMPTION_PIN] = powerFilter.GetSum() / (NUM_ADC_SAMPLES >> OVERSAMPLENR);
+          AnalogInputValues[POWER_CONSUMPTION_PIN] = (powerFilter.GetSum() / NUM_ADC_SAMPLES) << OVERSAMPLENR;
       #endif
 
       #if HAS_MCU_TEMPERATURE
         const_cast<ADCAveragingFilter&>(mcuFilter).ProcessReading(AnalogInReadPin(ADC_TEMPERATURE_SENSOR));
         if (mcuFilter.IsValid())
-          thermalManager.mcu_current_temperature_raw = mcuFilter.GetSum() / (NUM_ADC_SAMPLES >> OVERSAMPLENR);
+          thermalManager.mcu_current_temperature_raw = (mcuFilter.GetSum() / NUM_ADC_SAMPLES) << OVERSAMPLENR;
       #endif
 
     }

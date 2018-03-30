@@ -213,9 +213,9 @@ inline void gcode_G29(void) {
     #endif
 
     #if ENABLED(AUTO_BED_LEVELING_LINEAR)
-      ABL_VAR int abl2 = 0;
+      ABL_VAR int abl_points = 0;
     #elif ENABLED(PROBE_MANUALLY)
-      int constexpr abl2 = GRID_MAX_POINTS;
+      int constexpr abl_points = GRID_MAX_POINTS;
     #endif
 
     #if ENABLED(AUTO_BED_LEVELING_BILINEAR)
@@ -234,7 +234,7 @@ inline void gcode_G29(void) {
   #elif ENABLED(AUTO_BED_LEVELING_3POINT)
 
     #if ENABLED(PROBE_MANUALLY)
-      int constexpr abl2 = 3; // used to show total points
+      int constexpr abl_points = 3; // used to show total points
     #endif
 
     // Probe at 3 arbitrary points
@@ -346,7 +346,7 @@ inline void gcode_G29(void) {
         return;
       }
 
-      abl2 = abl_grid_points_x * abl_grid_points_y;
+      abl_points = abl_grid_points_x * abl_grid_points_y;
       mean = 0.0;
 
     #elif ENABLED(AUTO_BED_LEVELING_BILINEAR)
@@ -464,8 +464,8 @@ inline void gcode_G29(void) {
     if (verbose_level || seenQ) {
       SERIAL_MSG("Manual G29 ");
       if (bedlevel.g29_in_progress) {
-        SERIAL_MV("point ", min(abl_probe_index + 1, abl2));
-        SERIAL_EMV(" of ", abl2);
+        SERIAL_MV("point ", min(abl_probe_index + 1, abl_points));
+        SERIAL_EMV(" of ", abl_points);
       }
       else
         SERIAL_EM("idle");
@@ -480,6 +480,11 @@ inline void gcode_G29(void) {
       #endif
     }
     else {
+
+      #if ENABLED(AUTO_BED_LEVELING_LINEAR) || ENABLED(AUTO_BED_LEVELING_3POINT)
+        const uint16_t index = abl_probe_index - 1;
+      #endif
+
       // For G29 after adjusting Z.
       // Save the previous Z before going to the next point
       measured_z = mechanics.current_position[Z_AXIS];
@@ -487,12 +492,16 @@ inline void gcode_G29(void) {
       #if ENABLED(AUTO_BED_LEVELING_LINEAR)
 
         mean += measured_z;
-        eqnBVector[abl_probe_index] = measured_z;
-        eqnAMatrix[abl_probe_index + 0 * abl2] = xProbe;
-        eqnAMatrix[abl_probe_index + 1 * abl2] = yProbe;
-        eqnAMatrix[abl_probe_index + 2 * abl2] = 1;
+        eqnBVector[index] = measured_z;
+        eqnAMatrix[index + 0 * abl_points] = xProbe;
+        eqnAMatrix[index + 1 * abl_points] = yProbe;
+        eqnAMatrix[index + 2 * abl_points] = 1;
 
         incremental_LSF(&lsf_results, xProbe, yProbe, measured_z);
+
+      #elif ENABLED(AUTO_BED_LEVELING_3POINT)
+
+        points[index].z = measured_z;
 
       #elif ENABLED(AUTO_BED_LEVELING_BILINEAR)
 
@@ -506,10 +515,6 @@ inline void gcode_G29(void) {
           }
         #endif
 
-      #elif ENABLED(AUTO_BED_LEVELING_3POINT)
-
-        points[abl_probe_index].z = measured_z;
-
       #endif
     }
 
@@ -520,7 +525,7 @@ inline void gcode_G29(void) {
     #if ABL_GRID
 
       // Skip any unreachable points
-      while (abl_probe_index < abl2) {
+      while (abl_probe_index < abl_points) {
 
         // Set xCount, yCount based on abl_probe_index, with zig-zag
         PR_OUTER_VAR = abl_probe_index / PR_INNER_END;
@@ -547,7 +552,7 @@ inline void gcode_G29(void) {
       }
 
       // Is there a next point to move to?
-      if (abl_probe_index < abl2) {
+      if (abl_probe_index < abl_points) {
         bedlevel.manual_goto_xy(xProbe, yProbe); // Can be used here too!
         #if HAS_SOFTWARE_ENDSTOPS
           // Disable software endstops to allow manual adjustment
@@ -571,9 +576,10 @@ inline void gcode_G29(void) {
     #elif ENABLED(AUTO_BED_LEVELING_3POINT)
 
       // Probe at 3 arbitrary points
-      if (abl_probe_index < 3) {
+      if (abl_probe_index < abl_points) {
         xProbe = points[abl_probe_index].x;
         yProbe = points[abl_probe_index].y;
+        bedlevel.manual_goto_xy(xProbe, yProbe);
         #if HAS_SOFTWARE_ENDSTOPS
           // Disable software endstops to allow manual adjustment
           // If G29 is not completed, they will not be re-enabled
@@ -664,9 +670,9 @@ inline void gcode_G29(void) {
 
             mean += measured_z;
             eqnBVector[abl_probe_index] = measured_z;
-            eqnAMatrix[abl_probe_index + 0 * abl2] = xProbe;
-            eqnAMatrix[abl_probe_index + 1 * abl2] = yProbe;
-            eqnAMatrix[abl_probe_index + 2 * abl2] = 1;
+            eqnAMatrix[abl_probe_index + 0 * abl_points] = xProbe;
+            eqnAMatrix[abl_probe_index + 1 * abl_points] = yProbe;
+            eqnAMatrix[abl_probe_index + 2 * abl_points] = 1;
 
             incremental_LSF(&lsf_results, xProbe, yProbe, measured_z);
 
@@ -774,7 +780,7 @@ inline void gcode_G29(void) {
       plane_equation_coefficients[1] = -lsf_results.B;  // but that is not yet tested.
       plane_equation_coefficients[2] = -lsf_results.D;
 
-      mean /= abl2;
+      mean /= abl_points;
 
       if (verbose_level) {
         SERIAL_MV("Eqn coefficients: a: ", plane_equation_coefficients[0], 8);
@@ -812,8 +818,8 @@ inline void gcode_G29(void) {
           for (uint8_t xx = 0; xx < abl_grid_points_x; xx++) {
             int ind = indexIntoAB[xx][yy];
             float diff = eqnBVector[ind] - mean,
-                  x_tmp = eqnAMatrix[ind + 0 * abl2],
-                  y_tmp = eqnAMatrix[ind + 1 * abl2],
+                  x_tmp = eqnAMatrix[ind + 0 * abl_points],
+                  y_tmp = eqnAMatrix[ind + 1 * abl_points],
                   z_tmp = 0;
 
             apply_rotation_xyz(bedlevel.matrix, x_tmp, y_tmp, z_tmp);
@@ -836,8 +842,8 @@ inline void gcode_G29(void) {
           for (int8_t yy = abl_grid_points_y - 1; yy >= 0; yy--) {
             for (uint8_t xx = 0; xx < abl_grid_points_x; xx++) {
               int ind = indexIntoAB[xx][yy];
-              float x_tmp = eqnAMatrix[ind + 0 * abl2],
-                    y_tmp = eqnAMatrix[ind + 1 * abl2],
+              float x_tmp = eqnAMatrix[ind + 0 * abl_points],
+                    y_tmp = eqnAMatrix[ind + 1 * abl_points],
                     z_tmp = 0;
 
               apply_rotation_xyz(bedlevel.matrix, x_tmp, y_tmp, z_tmp);
