@@ -49,9 +49,11 @@
       hasS = ms > 0;
     }
 
+    const bool has_message = !hasP && !hasS && args && *args;
+
     #if ENABLED(ULTIPANEL)
 
-      if (!hasP && !hasS && args && *args)
+      if (has_message)
         lcd_setstatus(args, true);
       else {
         LCD_MESSAGEPGM(MSG_USERWAIT);
@@ -62,14 +64,14 @@
 
     #elif ENABLED(NEXTION)
 
-      if (!hasP && !hasS && args && *args)
+      if (has_message)
         lcd_yesno(args, "", MSG_USERWAIT);
       else
         lcd_yesno(MSG_USERWAIT);
 
     #else
 
-      if (!hasP && !hasS && args && *args)
+      if (has_message)
         SERIAL_LT(ECHO, args);
 
     #endif
@@ -83,8 +85,12 @@
       watch_t watch(ms);
       while (!watch.elapsed() && printer.isWaitForUser()) printer.idle();
     }
-    else
-      while (printer.isWaitForUser()) printer.idle();
+    else {
+      #if ENABLED(ULTIPANEL)
+        if (lcd_detected())
+      #endif
+        while (printer.isWaitForUser()) printer.idle();
+    }
 
     IS_SD_PRINTING ? LCD_MESSAGEPGM(MSG_RESUMING) : LCD_MESSAGEPGM(WELCOME_MSG);
 
