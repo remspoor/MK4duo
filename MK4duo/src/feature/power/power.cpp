@@ -68,7 +68,7 @@
     bool Power::is_power_needed() {
 
       #if HEATER_COUNT > 0
-        LOOP_HEATER() if (heaters[h].target_temperature > 0) return true;
+        if (thermalManager.heaters_isON()) return true;
       #endif
 
       #if FAN_COUNT > 0

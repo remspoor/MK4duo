@@ -522,6 +522,8 @@ void Printer::idle(const bool ignore_stepper_queue/*=false*/) {
 
   commands.get_available();
 
+  handle_safety_watch();
+
   if (max_inactivity_watch.stopwatch && max_inactivity_watch.elapsed()) {
     SERIAL_LMT(ER, MSG_KILL_INACTIVE_TIME, parser.command_ptr);
     kill(PSTR(MSG_KILLED));
@@ -821,6 +823,22 @@ void Printer::handle_interrupt_events() {
     default:
       break;
   }
+}
+
+/**
+ * Turn off heating after 30 minutes of inactivity
+ */
+void Printer::handle_safety_watch() {
+
+  static watch_t safety_watch(30 * 60 * 1000UL);
+
+  if (safety_watch.isRunning() && (IS_SD_PRINTING || print_job_counter.isRunning() || !thermalManager.heaters_isON()))
+    safety_watch.stop();
+  else if (!safety_watch.isRunning() && thermalManager.heaters_isON())
+    safety_watch.start();
+  else if (safety_watch.isRunning() && safety_watch.elapsed())
+    thermalManager.disable_all_heaters();
+
 }
 
 /**

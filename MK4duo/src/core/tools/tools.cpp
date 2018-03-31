@@ -642,13 +642,18 @@
               OUT_WRITE(SOL4_PIN, HIGH);
               break;
           #endif
+          #if HAS_SOLENOID_5 && EXTRUDERS > 5
+            case 5:
+              OUT_WRITE(SOL5_PIN, HIGH);
+              break;
+          #endif
         default:
           SERIAL_LM(ER, MSG_INVALID_SOLENOID);
           break;
       }
     }
 
-    void Tools::enable_solenoid_on_active_extruder() { enable_solenoid(tools.active_extruder); }
+    void Tools::enable_solenoid_on_active_extruder() { enable_solenoid(active_extruder); }
 
     void Tools::disable_all_solenoids() {
       OUT_WRITE(SOL0_PIN, LOW);
@@ -663,6 +668,9 @@
       #endif
       #if HAS_SOLENOID_4 && EXTRUDERS > 4
         OUT_WRITE(SOL4_PIN, LOW);
+      #endif
+      #if HAS_SOLENOID_5 && EXTRUDERS > 5
+        OUT_WRITE(SOL5_PIN, LOW);
       #endif
     }
 

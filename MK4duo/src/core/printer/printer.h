@@ -313,6 +313,8 @@ class Printer {
 
     static void handle_interrupt_events();
 
+    static void handle_safety_watch();
+
     static void bracket_probe_move(const bool before);
 
     #if ENABLED(TEMP_STAT_LEDS)

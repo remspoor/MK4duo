@@ -35,7 +35,7 @@ struct watch_t {
 
   FORCE_INLINE void start() { this->startwatch = millis(); }
   FORCE_INLINE void stop()  { this->startwatch = 0; }
-  FORCE_INLINE bool isRunning() { this->startwatch != 0; }
+  FORCE_INLINE bool isRunning() { return this->startwatch; }
 
   FORCE_INLINE bool elapsed(const millis_t period=0) {
     const millis_t  now = millis(),

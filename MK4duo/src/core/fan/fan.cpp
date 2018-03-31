@@ -80,9 +80,11 @@
 
     // Check for Controller fan
     if (TEST(autoMonitored, 7)) {
-      LOOP_HEATER() {
-        if (heaters[h].isON()) controller_fan_watch.start();
-      }
+
+      // Check Heaters
+      if (thermalManager.heaters_isON()) controller_fan_watch.start();
+
+      // Check Motors
       if (X_ENABLE_READ == X_ENABLE_ON || Y_ENABLE_READ == Y_ENABLE_ON || Z_ENABLE_READ == Z_ENABLE_ON
         || E0_ENABLE_READ == E_ENABLE_ON // If any of the drivers are enabled...
         #if DRIVER_EXTRUDERS > 1

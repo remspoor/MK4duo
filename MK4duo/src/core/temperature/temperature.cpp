@@ -543,6 +543,9 @@ void Temperature::PID_autotune(Heater *act, const float temp, const uint8_t ncyc
   disable_all_heaters();
 }
 
+/**
+ * Switch off all heaters, set all target temperatures to 0
+ */
 void Temperature::disable_all_heaters() {
 
   #if HAS_TEMP_HOTEND && ENABLED(AUTOTEMP)
@@ -574,6 +577,16 @@ void Temperature::disable_all_heaters() {
 
   pid_pointer = 255;
 
+}
+
+/**
+ * Check if there are heaters on
+ */
+bool Temperature::heaters_isON() {
+  #if HEATER_COUNT > 0
+    LOOP_HEATER() if (heaters[h].isON()) return true;
+  #endif
+  return false;
 }
 
 #if ENABLED(FILAMENT_SENSOR)
