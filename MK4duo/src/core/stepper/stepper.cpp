@@ -548,7 +548,6 @@ void Stepper::isr() {
 
   // Take multiple steps per interrupt (For high speed moves)
   bool all_steps_done = false;
-  uint32_t driversStepping = 0;
   for (uint8_t step = step_loops; step--;) {
 
     #define _COUNTER(AXIS) counter_## AXIS
@@ -578,21 +577,13 @@ void Stepper::isr() {
 
     #if HAS_X_STEP
       PULSE_START(X);
-      //counter_X += current_block->steps[X_AXIS];
-      //if (counter_X > 0) driversStepping |= HAL::GetDriversBitmap(X_AXIS);
     #endif
     #if HAS_Y_STEP
       PULSE_START(Y);
-      //counter_Y += current_block->steps[Y_AXIS];
-      //if (counter_Y > 0) driversStepping |= HAL::GetDriversBitmap(Y_AXIS);
     #endif
     #if HAS_Z_STEP
       PULSE_START(Z);
-      //counter_Z += current_block->steps[Z_AXIS];
-      //if (counter_Z > 0) driversStepping |= HAL::GetDriversBitmap(Z_AXIS);
     #endif
-
-    //HAL::StepDriversHigh(driversStepping);
 
     #if ENABLED(LIN_ADVANCE)
 
@@ -689,8 +680,6 @@ void Stepper::isr() {
     #if HAS_Z_STEP
       PULSE_STOP(Z);
     #endif
-
-    //HAL::StepDriversLow();
 
     #if HAS_EXTRUDERS && DISABLED(LIN_ADVANCE)
       #if ENABLED(COLOR_MIXING_EXTRUDER)
@@ -1014,8 +1003,6 @@ void Stepper::isr() {
 #endif // ENABLED(LIN_ADVANCE)
 
 void Stepper::init() {
-
-  //HAL::DriverBits_init();
 
   // Init Digipot Motor Current
   #if HAS_DIGIPOTSS || HAS_MOTOR_CURRENT_PWM
