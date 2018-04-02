@@ -118,7 +118,7 @@
    */
   inline void gcode_G33(void) {
 
-    const uint8_t   MaxCalibrationPoints = 10;
+    const uint8_t MaxCalibrationPoints = 10;
 
     uint8_t iteration = 0;
 
@@ -137,8 +137,8 @@
     }
 
     const uint8_t probe_points  = parser.intval('P', 7);
-    if (!WITHIN(probe_points, 1, 7)) {
-      SERIAL_EM("?(P)oints is implausible (1 to 7).");
+    if (!WITHIN(probe_points, 1, 10)) {
+      SERIAL_EM("?(P)oints is implausible (1 to 10).");
       return;
     }
 
