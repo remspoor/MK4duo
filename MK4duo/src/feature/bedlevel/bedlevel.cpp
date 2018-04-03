@@ -252,36 +252,20 @@
 
       if (z_fade_height == zfh) return;
 
-      const bool level_active = leveling_active;
-
-      #if ENABLED(AUTO_BED_LEVELING_UBL)
-        if (level_active) set_bed_leveling_enabled(false);  // turn off before changing fade height for proper apply/unapply leveling to maintain current_position
-      #endif
+      const bool leveling_was_active = leveling_active;
+      set_bed_leveling_enabled(false);
 
       z_fade_height = zfh > 0 ? zfh : 0;
       inverse_z_fade_height = RECIPROCAL(z_fade_height);
       force_fade_recalc();
 
-      if (level_active) {
+      if (leveling_was_active) {
         const float oldpos[] = {
           mechanics.current_position[X_AXIS],
           mechanics.current_position[Y_AXIS],
           mechanics.current_position[Z_AXIS]
         };
-
-        #if ENABLED(AUTO_BED_LEVELING_UBL)
-          set_bed_leveling_enabled(true);  // turn back on after changing fade height
-        #else
-          mechanics.set_current_from_steppers_for_axis(
-            #if ABL_PLANAR
-              ALL_AXES
-            #else
-              Z_AXIS
-            #endif
-          );
-          mechanics.sync_plan_position();
-        #endif
-
+        set_bed_leveling_enabled(true);
         if (do_report && memcmp(oldpos, mechanics.current_position, sizeof(oldpos)))
           mechanics.report_current_position();
       }

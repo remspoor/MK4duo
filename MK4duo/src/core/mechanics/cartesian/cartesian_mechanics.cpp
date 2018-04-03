@@ -98,7 +98,7 @@
 
     #if ENABLED(DEBUG_LEVELING_FEATURE)
       if (printer.debugLeveling()) {
-        SERIAL_EM(">>> gcode_G28");
+        SERIAL_EM(">>> G28");
         log_machine_info();
       }
     #endif
@@ -120,9 +120,7 @@
 
     // Disable the leveling matrix before homing
     #if HAS_LEVELING
-      #if ENABLED(AUTO_BED_LEVELING_UBL)
-        const bool ubl_state_at_entry = bedlevel.leveling_active;
-      #endif
+      const bool leveling_was_active = bedlevel.leveling_active;
       bedlevel.set_bed_leveling_enabled(false);
     #endif
 
@@ -169,44 +167,30 @@
     set_destination_to_current();
 
     #if Z_HOME_DIR > 0  // If homing away from BED do Z first
-
-      if (home_all || homeZ) {
-        homeaxis(Z_AXIS);
-        #if ENABLED(DEBUG_LEVELING_FEATURE)
-          if (printer.debugLeveling()) DEBUG_POS("> homeaxis(Z_AXIS)", current_position);
-        #endif
-      }
-
-    #else
-
-      const float z_homing_height = printer.isZHomed() ? MIN_Z_HEIGHT_FOR_HOMING : 0;
-
-      if (z_homing_height && (home_all || homeX || homeY)) {
-        // Raise Z before homing any other axes and z is not already high enough (never lower z)
-        destination[Z_AXIS] = z_homing_height;
-        if (destination[Z_AXIS] > current_position[Z_AXIS]) {
-          #if ENABLED(DEBUG_LEVELING_FEATURE)
-            if (printer.debugLeveling())
-              SERIAL_EMV("Raise Z (before homing) to ", destination[Z_AXIS]);
-          #endif
-          do_blocking_move_to_z(destination[Z_AXIS]);
-        }
-      }
-
+      if (home_all || homeZ) homeaxis(Z_AXIS);
     #endif
+
+    const float z_homing_height = printer.isZHomed() ? MIN_Z_HEIGHT_FOR_HOMING : 0;
+
+    if (z_homing_height && (home_all || homeX || homeY)) {
+      // Raise Z before homing any other axes and z is not already high enough (never lower z)
+      destination[Z_AXIS] = z_homing_height;
+      if (destination[Z_AXIS] > current_position[Z_AXIS]) {
+        #if ENABLED(DEBUG_LEVELING_FEATURE)
+          if (printer.debugLeveling())
+            SERIAL_EMV("Raise Z (before homing) to ", destination[Z_AXIS]);
+        #endif
+        do_blocking_move_to_z(destination[Z_AXIS]);
+      }
+    }
 
     #if ENABLED(QUICK_HOME)
       if (home_all || (homeX && homeY)) quick_home_xy();
     #endif
 
     #if ENABLED(HOME_Y_BEFORE_X)
-      // Home Y
-      if (home_all || homeY) {
-        homeaxis(Y_AXIS);
-        #if ENABLED(DEBUG_LEVELING_FEATURE)
-          if (printer.debugLeveling()) DEBUG_POS("> homeY", current_position);
-        #endif
-      }
+      // Home Y (before X)
+      if (home_all || homeY) homeaxis(Y_AXIS);
     #endif
 
     // Home X
@@ -230,19 +214,11 @@
       #else
         homeaxis(X_AXIS);
       #endif
-      #if ENABLED(DEBUG_LEVELING_FEATURE)
-        if (printer.debugLeveling()) DEBUG_POS("> homeX", current_position);
-      #endif
     }
 
     #if DISABLED(HOME_Y_BEFORE_X)
-      // Home Y
-      if (home_all || homeY) {
-        homeaxis(Y_AXIS);
-        #if ENABLED(DEBUG_LEVELING_FEATURE)
-          if (printer.debugLeveling()) DEBUG_POS("> homeY", current_position);
-        #endif
-      }
+      // Home Y (after X)
+      if (home_all || homeY) homeaxis(Y_AXIS);
     #endif
 
     // Home Z last if homing towards the bed
@@ -253,16 +229,12 @@
         #else
           homeaxis(Z_AXIS);
         #endif // !Z_SAFE_HOMING
-        #if ENABLED(DEBUG_LEVELING_FEATURE)
-          if (printer.debugLeveling()) DEBUG_POS("> (home_all || homeZ) > final", current_position);
-        #endif
       } // home_all || homeZ
       #if HOMING_Z_WITH_PROBE && Z_PROBE_AFTER_PROBING > 0
         probe.move_z_after_probing();
       #endif
     #elif ENABLED(DOUBLE_Z_HOMING)
-      if (home_all || homeZ)
-        double_home_z();
+      if (home_all || homeZ) double_home_z();
     #endif
 
     sync_plan_position();
@@ -279,8 +251,8 @@
       mechanics.Nextion_gfx_clear();
     #endif
 
-    #if ENABLED(AUTO_BED_LEVELING_UBL)
-      bedlevel.set_bed_leveling_enabled(ubl_state_at_entry);
+    #if HAS_LEVELING
+      bedlevel.set_bed_leveling_enabled(leveling_was_active);
     #endif
 
     printer.clean_up_after_endstop_or_probe_move();
@@ -297,7 +269,7 @@
     mechanics.report_current_position();
 
     #if ENABLED(DEBUG_LEVELING_FEATURE)
-      if (printer.debugLeveling()) SERIAL_EM("<<< gcode_G28");
+      if (printer.debugLeveling()) SERIAL_EM("<<< G28");
     #endif
 
   }

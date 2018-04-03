@@ -531,7 +531,7 @@
 
     #if ENABLED(DEBUG_LEVELING_FEATURE)
       if (printer.debugLeveling()) {
-        SERIAL_EM(">>> gcode_G28");
+        SERIAL_EM(">>> G28");
         log_machine_info();
       }
     #endif
@@ -553,9 +553,7 @@
 
     // Disable the leveling matrix before homing
     #if HAS_LEVELING
-      #if ENABLED(AUTO_BED_LEVELING_UBL)
-        const bool ubl_state_at_entry = bedlevel.leveling_active;
-      #endif
+      const bool leveling_was_active = bedlevel.leveling_active;
       bedlevel.set_bed_leveling_enabled(false);
     #endif
 
@@ -649,8 +647,8 @@
       mechanics.Nextion_gfx_clear();
     #endif
 
-    #if ENABLED(AUTO_BED_LEVELING_UBL)
-      bedlevel.set_bed_leveling_enabled(ubl_state_at_entry);
+    #if HAS_LEVELING
+      bedlevel.set_bed_leveling_enabled(leveling_was_active);
     #endif
 
     printer.clean_up_after_endstop_or_probe_move();
@@ -667,7 +665,7 @@
     mechanics.report_current_position();
 
     #if ENABLED(DEBUG_LEVELING_FEATURE)
-      if (printer.debugLeveling()) SERIAL_EM("<<< gcode_G28");
+      if (printer.debugLeveling()) SERIAL_EM("<<< G28");
     #endif
 
     return true;
