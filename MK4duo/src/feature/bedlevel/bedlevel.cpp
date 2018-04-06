@@ -81,12 +81,11 @@
         rx = dx + X_TILT_FULCRUM;
         ry = dy + Y_TILT_FULCRUM;
 
-      #else
+      #elif HAS_MESH
 
         #if ENABLED(ENABLE_LEVELING_FADE_HEIGHT)
           const float fade_scaling_factor = fade_scaling_factor_for_z(rz);
-          if (!fade_scaling_factor) return;
-        #elif HAS_MESH
+        #else
           constexpr float fade_scaling_factor = 1.0;
         #endif
 
@@ -95,16 +94,16 @@
         #endif
 
         rz += (
-          #if ENABLED(AUTO_BED_LEVELING_UBL)
-            ubl.get_z_correction(rx, ry) * fade_scaling_factor
-          #elif ENABLED(MESH_BED_LEVELING)
+          #if ENABLED(MESH_BED_LEVELING)
             mbl.get_z(rx, ry
               #if ENABLED(ENABLE_LEVELING_FADE_HEIGHT)
                 , fade_scaling_factor
               #endif
             )
+          #elif ENABLED(AUTO_BED_LEVELING_UBL)
+            fade_scaling_factor ? fade_scaling_factor * ubl.get_z_correction(rx, ry) : 0.0
           #elif ENABLED(AUTO_BED_LEVELING_BILINEAR)
-            abl.bilinear_z_offset(raw) * fade_scaling_factor
+            fade_scaling_factor ? fade_scaling_factor * abl.bilinear_z_offset(raw) : 0.0
           #else
             0
           #endif
@@ -129,26 +128,25 @@
         raw[X_AXIS] = dx + X_TILT_FULCRUM;
         raw[Y_AXIS] = dy + Y_TILT_FULCRUM;
 
-      #else
+      #elif HAS_MESH
 
         #if ENABLED(ENABLE_LEVELING_FADE_HEIGHT)
           const float fade_scaling_factor = fade_scaling_factor_for_z(raw[Z_AXIS]);
-          if (!fade_scaling_factor) return;
         #elif HAS_MESH
           constexpr float fade_scaling_factor = 1.0;
         #endif
 
         raw[Z_AXIS] -= (
-          #if ENABLED(AUTO_BED_LEVELING_UBL)
-            ubl.get_z_correction(raw[X_AXIS], raw[Y_AXIS]) * fade_scaling_factor
-          #elif ENABLED(MESH_BED_LEVELING)
+          #if ENABLED(MESH_BED_LEVELING)
             mbl.get_z(raw[X_AXIS], raw[Y_AXIS]
               #if ENABLED(ENABLE_LEVELING_FADE_HEIGHT)
                 , fade_scaling_factor
               #endif
             )
+          #elif ENABLED(AUTO_BED_LEVELING_UBL)
+            fade_scaling_factor ? fade_scaling_factor * ubl.get_z_correction(raw[X_AXIS], raw[Y_AXIS]) : 0.0
           #elif ENABLED(AUTO_BED_LEVELING_BILINEAR)
-            abl.bilinear_z_offset(raw) * fade_scaling_factor
+            fade_scaling_factor ? fade_scaling_factor * abl.bilinear_z_offset(raw) : 0.0
           #else
             0
           #endif

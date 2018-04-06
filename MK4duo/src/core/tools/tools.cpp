@@ -100,9 +100,9 @@
           #else // !DUAL_X_CARRIAGE
 
             #if HAS_DONDOLO
-              // Always raise by at least 0.3
+              // Always raise by at least 1 to avoid workpiece
               const float z_diff  = hotend_offset[Z_AXIS][active_extruder] - hotend_offset[Z_AXIS][tmp_extruder];
-              mechanics.current_position[Z_AXIS] += (z_diff > 0.0 ? z_diff : 0.0) + 0.3;
+              mechanics.current_position[Z_AXIS] += (z_diff > 0.0 ? z_diff : 0.0) + 1;
               planner.buffer_line_kinematic(mechanics.current_position, mechanics.max_feedrate_mm_s[Z_AXIS], active_extruder);
               stepper.synchronize();
               move_extruder_servo(tmp_extruder);
@@ -135,7 +135,12 @@
           #endif // !DUAL_X_CARRIAGE
 
           #if HAS_LEVELING
+            // Restore leveling to re-establish the logical position
             bedlevel.set_bed_leveling_enabled(leveling_was_active);
+          #endif
+
+          #if HAS_DONDOLO
+            mechanics.current_position[Z_AXIS] -= zdiff;
           #endif
 
           // Tell the planner the new "current position"
@@ -147,15 +152,13 @@
             constexpr bool safe_to_move = true;
           #endif
 
-          #if HAS_DONDOLO
-            mechanics.destination[Z_AXIS] += z_diff;  // Include the Z restore with the "move back"
-          #endif
-
           // Raise, move, and lower again
           if (safe_to_move && !no_move && printer.isRunning()) {
-            // Do a small lift to avoid the workpiece in the move back (below)
-            mechanics.current_position[Z_AXIS] += 1.0;
-            planner.buffer_line_kinematic(mechanics.current_position, mechanics.max_feedrate_mm_s[Z_AXIS], active_extruder);
+            #if !HAS_DONDOLO
+              // Do a small lift to avoid the workpiece in the move back (below)
+              mechanics.current_position[Z_AXIS] += 1.0;
+              planner.buffer_line_kinematic(mechanics.current_position, mechanics.max_feedrate_mm_s[Z_AXIS], active_extruder);
+            #endif
             #if ENABLED(DEBUG_LEVELING_FEATURE)
               if (printer.debugLeveling()) DEBUG_POS("Move back", mechanics.destination);
             #endif
