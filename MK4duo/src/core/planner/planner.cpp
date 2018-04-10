@@ -135,6 +135,10 @@ void Planner::calculate_trapezoid_for_block(block_t* const block, const float &e
   NOLESS(initial_rate, MINIMAL_STEP_RATE);
   NOLESS(final_rate, MINIMAL_STEP_RATE);
 
+  #if ENABLED(BEZIER_JERK_CONTROL)
+    uint32_t cruise_rate = initial_rate;
+  #endif
+
   const int32_t accel = block->acceleration_steps_per_s2;
 
           // Steps required for acceleration, deceleration to/from nominal rate
@@ -152,16 +156,36 @@ void Planner::calculate_trapezoid_for_block(block_t* const block, const float &e
     NOLESS(accelerate_steps, 0); // Check limits due to numerical round-off
     accelerate_steps = min((uint32_t)accelerate_steps, block->step_event_count);//(We can cast here to unsigned, because the above line ensures that we are above zero)
     plateau_steps = 0;
+
+    #if ENABLED(BEZIER_JERK_CONTROL)
+      // We won't reach the cruising rate. Let's calculate the speed we will reach
+      cruise_rate = final_speed(initial_rate, accel, accelerate_steps);
+    #endif
   }
+  #if ENABLED(BEZIER_JERK_CONTROL)
+    else // We have some plateau time, so the cruise rate will be the nominal rate
+      cruise_rate = block->nominal_rate;
+  #endif
 
   // block->accelerate_until = accelerate_steps;
   // block->decelerate_after = accelerate_steps+plateau_steps;
+
+  #if ENABLED(BEZIER_JERK_CONTROL)
+    // Jerk controlled speed requires to express speed versus time, NOT steps
+    int32_t acceleration_time = ((float)(cruise_rate - initial_rate) / accel) * HAL_TIMER_RATE,
+            deceleration_time = ((float)(cruise_rate - final_rate) / accel) * HAL_TIMER_RATE;
+  #endif
 
   CRITICAL_SECTION_START
     if (!TEST(block->flag, BLOCK_BIT_BUSY)) { // Don't update variables if block is busy.
       block->accelerate_until = accelerate_steps;
       block->decelerate_after = accelerate_steps + plateau_steps;
       block->initial_rate = initial_rate;
+      #if ENABLED(BEZIER_JERK_CONTROL)
+        block->acceleration_time = acceleration_time;
+        block->deceleration_time = deceleration_time;
+        block->cruise_rate = cruise_rate;
+      #endif
       block->final_rate = final_rate;
     }
   CRITICAL_SECTION_END
@@ -1118,7 +1142,9 @@ void Planner::check_axes_activity() {
   }
   block->acceleration_steps_per_s2 = accel;
   block->acceleration = accel / steps_per_mm;
-  block->acceleration_rate = (long)(accel * (HAL_ACCELERATION_RATE));
+  #if DISABLED(BEZIER_JERK_CONTROL)
+    block->acceleration_rate = (long)(accel * (HAL_ACCELERATION_RATE));
+  #endif
   #if ENABLED(LIN_ADVANCE)
     if (block->use_advance_lead) {
       block->advance_speed = (HAL_TIMER_RATE) / (extruder_advance_K * block->e_D_ratio * block->acceleration * mechanics.axis_steps_per_mm[E_AXIS_N]);

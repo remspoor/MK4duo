@@ -42,11 +42,12 @@
  * - Extruder run-out prevention
  * - Extruder Advance Linear Pressure Control
  * MOTION FEATURES:
+ * - Workspace offsets
+ * - Bézier Jerk Control
  * - Software endstops
  * - Endstops only for homing
  * - Abort on endstop hit feature
  * - G38.2 and G38.3 Probe Target
- * - Scad Mesh Output
  * - R/C Servo
  * - Late Z axis
  * - Ahead slowdown
@@ -104,6 +105,7 @@
  * - Advanced Pause Park
  * - G20/G21 Inch mode support
  * - Report JSON-style response
+ * - Scad Mesh Output
  * - M43 command for pins info and testing
  * - Extend capabilities report
  * - Watchdog
@@ -359,7 +361,7 @@
  * when the target temperature is less than IDLE_OOZING_MINTEMP and    *
  * the actual temperature is greater than IDLE_OOZING_MINTEMP.         *
  *                                                                     *
- * PS: Always remember to set your extruder target temperature to 0Â°C  *
+ * PS: Always remember to set your extruder target temperature to 0°C  *
  * before shutdown the printer if you enable this feature.             *
  *                                                                     *
  * Uncomment IDLE OOZING PREVENT to enable this feature                *
@@ -442,6 +444,19 @@
 
 
 /**************************************************************************
+ ************************ Bézier Jerk Control *****************************
+ **************************************************************************
+ *                                                                        *
+ * This option eliminates vibration during printing by fitting a Bézier   *
+ * curve to move acceleration, producing much smoother direction changes. *
+ * A 32-bit processor is required.                                        *
+ *                                                                        *
+ **************************************************************************/
+//#define BEZIER_JERK_CONTROL
+/**************************************************************************/
+
+
+/**************************************************************************
  *************************** Software endstops ****************************
  **************************************************************************/
 // If enabled, axis won't move to coordinates less than MIN POS.
@@ -494,24 +509,6 @@
 // minimum distance in mm that will produce a move
 // (determined using the print statement in check_move)
 #define G38_MINIMUM_MOVE 0.0275
-/**************************************************************************/
-
-
-/**************************************************************************
- ************************* Scad Mesh Output *******************************
- **************************************************************************
- *                                                                        *
- * Enable if you prefer your output in JSON format                        *
- * suitable for SCAD or JavaScript mesh visualizers.                      *
- *                                                                        *
- * Visualize meshes in OpenSCAD using the included script.                *
- *                                                                        *
- * scad/MK4duoMesh.scad                                                   *
- *                                                                        *
- * By Scott Latherine @Thinkyhead                                         *
- *                                                                        *
- **************************************************************************/
-//#define SCAD_MESH_OUTPUT
 /**************************************************************************/
 
 
@@ -1207,7 +1204,7 @@
 //#define USE_SMALL_INFOFONT
 
 // Enable this option and reduce the value to optimize screen updates.
-// The normal delay is 10Âµs. Use the lowest value that still gives a reliable display.
+// The normal delay is 10µs. Use the lowest value that still gives a reliable display.
 //#define DOGM_SPI_DELAY_US 5
 
 // Swap the CW/CCW indicators in the graphics overlay
@@ -1746,7 +1743,7 @@
  * or if using a very fast CPU.                                        *
  *                                                                     *
  ***********************************************************************/
-// (Âµs) The smallest stepper pulse allowed
+// (µs) The smallest stepper pulse allowed
 #define MINIMUM_STEPPER_PULSE 0
 /***********************************************************************/
 
@@ -2131,6 +2128,24 @@
  *****************************************************************************************/
 //#define JSON_OUTPUT
 /*****************************************************************************************/
+
+
+/**************************************************************************
+ ************************* Scad Mesh Output *******************************
+ **************************************************************************
+ *                                                                        *
+ * Enable if you prefer your output in JSON format                        *
+ * suitable for SCAD or JavaScript mesh visualizers.                      *
+ *                                                                        *
+ * Visualize meshes in OpenSCAD using the included script.                *
+ *                                                                        *
+ * scad/MK4duoMesh.scad                                                   *
+ *                                                                        *
+ * By Scott Latherine @Thinkyhead                                         *
+ *                                                                        *
+ **************************************************************************/
+//#define SCAD_MESH_OUTPUT
+/**************************************************************************/
 
 
 /*****************************************************************************************

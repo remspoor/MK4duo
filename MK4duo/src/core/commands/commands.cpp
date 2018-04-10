@@ -142,8 +142,8 @@ void Commands::get_serial() {
       char *command = serial_line_buffer;
 
       while (*command == ' ') command++;                // Skip leading spaces
-
       char *npos = (*command == 'N') ? command : NULL;  // Require the N parameter to start the line
+
       if (npos) {
 
         bool M110 = strstr_P(command, PSTR("M110")) != NULL;

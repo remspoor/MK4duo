@@ -1,5 +1,6 @@
 ### Version 4.3.6 Development
 * Make class Mechanics to static
+* Add Bézier Jerk Control for 32-bit processor
 * Fix and clear code
 
 ### Version 4.3.5 Stable
