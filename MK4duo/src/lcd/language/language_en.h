@@ -54,6 +54,9 @@
 #ifndef MSG_LCD_ENDSTOPS
   #define MSG_LCD_ENDSTOPS                    _UxGT("Endstops") // Max length 8 characters
 #endif
+#ifndef MSG_LCD_SOFT_ENDSTOPS
+  #define MSG_LCD_SOFT_ENDSTOPS               _UxGT("Soft Endstops")
+#endif
 #ifndef MSG_MAIN
   #define MSG_MAIN                            _UxGT("Main")
 #endif
@@ -1017,9 +1020,6 @@
   #ifndef MSG_INFO_COMPLETED_PRINTS
     #define MSG_INFO_COMPLETED_PRINTS         _UxGT("Completed")
   #endif
-  #ifndef MSG_INFO_PRINT_TIME
-    #define MSG_INFO_PRINT_TIME               _UxGT("Total print time")
-  #endif
   #ifndef MSG_INFO_PRINT_LONGEST
     #define MSG_INFO_PRINT_LONGEST            _UxGT("Longest job time")
   #endif
@@ -1032,9 +1032,6 @@
   #endif
   #ifndef MSG_INFO_COMPLETED_PRINTS
     #define MSG_INFO_COMPLETED_PRINTS         _UxGT("Completed")
-  #endif
-  #ifndef MSG_INFO_PRINT_TIME
-    #define MSG_INFO_PRINT_TIME               _UxGT("Total")
   #endif
   #ifndef MSG_INFO_PRINT_LONGEST
     #define MSG_INFO_PRINT_LONGEST            _UxGT("Longest")

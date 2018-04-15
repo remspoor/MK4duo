@@ -1,5 +1,5 @@
 /**
- * MK4duo 3D Commands Firmware
+ * MK4duo Firmware for 3D Printer, Laser and CNC
  *
  * Based on Marlin, Sprinter and grbl
  * Copyright (C) 2011 Camiel Gubbels / Erik van der Zalm
@@ -37,7 +37,7 @@ Commands commands;
 
 /**
  * GCode line number handling. Hosts may opt to include line numbers when
- * sending commands to Marlin, and lines will be checked for sequentiality.
+ * sending commands to MK4duo, and lines will be checked for sequentiality.
  * M110 N<int> sets the current line number.
  */
 long  Commands::gcode_N             = 0,

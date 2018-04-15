@@ -220,7 +220,6 @@
 
   /**
    * kinematics routines and auto tune matrix scaling parameters:
-   * see https://github.com/LVD-AC/Marlin-AC/tree/1.1.x-AC/documentation for  
    *  - formulae for approximative forward kinematics in the end-stop displacement matrix
    *  - definition of the matrix scaling parameters
    */
@@ -487,7 +486,6 @@
 
         /**
          * convergence matrices:
-         * see https://github.com/LVD-AC/Marlin-AC/tree/1.1.x-AC/documentation for  
          *  - definition of the matrix scaling parameters
          *  - matrices for 4 and 7 point calibration
          */
