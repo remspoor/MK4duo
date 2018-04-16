@@ -1951,6 +1951,74 @@ void Planner::buffer_line_kinematic(const float cart[XYZE], const float &fr_mm_s
 }
 
 /**
+ * Directly set the planner XYZ position (and stepper positions)
+ * converting mm (or angles for SCARA) into steps.
+ *
+ * On CORE machines stepper ABC will be translated from the given XYZ.
+ */
+void Planner::_set_position_mm(const float &a, const float &b, const float &c, const float &e) {
+
+  const int32_t na = position[X_AXIS] = LROUND(a * mechanics.axis_steps_per_mm[X_AXIS]),
+                nb = position[Y_AXIS] = LROUND(b * mechanics.axis_steps_per_mm[Y_AXIS]),
+                nc = position[Z_AXIS] = LROUND(c * mechanics.axis_steps_per_mm[Z_AXIS]),
+                ne = position[E_AXIS] = LROUND(e * mechanics.axis_steps_per_mm[E_INDEX]);
+
+  #if ENABLED(LIN_ADVANCE)
+    position_float[X_AXIS] = a;
+    position_float[Y_AXIS] = b;
+    position_float[Z_AXIS] = c;
+    position_float[E_AXIS] = e;
+  #endif
+
+  stepper.set_position(na, nb, nc, ne);
+  previous_nominal_speed = 0.0; // Resets planner junction speeds. Assumes start from rest.
+  ZERO(previous_speed);
+
+}
+
+void Planner::set_position_mm(ARG_X, ARG_Y, ARG_Z, const float &e) {
+  #if PLANNER_LEVELING
+    bedlevel.apply_leveling(rx, ry, rz);
+  #endif
+  _set_position_mm(rx, ry, rz, e);
+}
+
+void Planner::set_position_mm(const AxisEnum axis, const float &v) {
+  #if EXTRUDERS > 1
+    const uint8_t axis_index = axis + (axis == E_AXIS ? tools.active_extruder : 0);
+  #else
+    const uint8_t axis_index = axis;
+  #endif
+
+  position[axis] = LROUND(v * mechanics.axis_steps_per_mm[axis_index]);
+  #if ENABLED(LIN_ADVANCE)
+    position_float[axis] = v;
+  #endif
+  stepper.set_position(axis, position[axis]);
+  previous_speed[axis] = 0.0;
+}
+
+void Planner::set_position_mm_kinematic(const float (&cart)[XYZE]) {
+  #if PLANNER_LEVELING
+    float raw[XYZ] = { cart[X_AXIS], cart[Y_AXIS], cart[Z_AXIS] };
+    bedlevel.apply_leveling(raw);
+  #else
+    const float (&raw)[XYZE] = cart;
+  #endif
+  #if IS_KINEMATIC
+    mechanics.Transform(raw);
+    _set_position_mm(mechanics.delta[A_AXIS], mechanics.delta[B_AXIS], mechanics.delta[C_AXIS], cart[E_AXIS]);
+  #else
+    _set_position_mm(raw[X_AXIS], raw[Y_AXIS], raw[Z_AXIS], cart[E_AXIS]);
+  #endif
+}
+
+/**
+ * Setters for planner position (also setting stepper position).
+ */
+
+
+/**
  * Sync from the stepper positions. (e.g., after an interrupted move)
  */
 void Planner::sync_from_steppers() {

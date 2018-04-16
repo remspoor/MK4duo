@@ -153,12 +153,6 @@ class Planner {
   public: /** Public Parameters */
 
     /**
-     * The current position of the tool in absolute steps
-     * Recalculated if any axis_steps_per_mm are changed by gcode
-     */
-    static int32_t position[NUM_AXIS];
-
-    /**
      * The move buffer, calculated in stepper steps
      *
      * block_buffer is a ring buffer...
@@ -186,6 +180,12 @@ class Planner {
     #endif
 
   private: /** Private Parameters */
+
+    /**
+     * The current position of the tool in absolute steps
+     * Recalculated if any axis_steps_per_mm are changed by gcode
+     */
+    static int32_t position[NUM_AXIS];
 
     /**
      * Speed of previous path line segment
@@ -294,9 +294,20 @@ class Planner {
      */
     static void buffer_line_kinematic(const float cart[XYZE], const float &fr_mm_s, const uint8_t extruder, const float millimeters=0.0);
 
-    FORCE_INLINE static void zero_previous_nominal_speed() { previous_nominal_speed = 0.0; } // Resets planner junction speeds. Assumes start from rest.
-    FORCE_INLINE static void zero_previous_speed(const AxisEnum axis) { previous_speed[axis] = 0.0; }
-    FORCE_INLINE static void zero_previous_speed() { ZERO(previous_speed); }
+    /**
+     * Set the planner.position and individual stepper positions.
+     * Used by G92, G28, G29, and other procedures.
+     *
+     * Multiplies by axis_steps_per_mm[] and does necessary conversion
+     *
+     * Clears previous speed values.
+     */
+    static void _set_position_mm(const float &a, const float &b, const float &c, const float &e);
+    static void set_position_mm(ARG_X, ARG_Y, ARG_Z, const float &e);
+    static void set_position_mm(const AxisEnum axis, const float &v);
+    static void set_position_mm_kinematic(const float (&cart)[XYZE]);
+    FORCE_INLINE static void set_z_position_mm(const float &z) { set_position_mm(AxisEnum(Z_AXIS), z); }
+    FORCE_INLINE static void set_e_position_mm(const float &e) { set_position_mm(AxisEnum(E_AXIS), e); }
 
     /**
      * Sync from the stepper positions. (e.g., after an interrupted move)

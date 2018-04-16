@@ -687,7 +687,7 @@ void Printer::idle(const bool ignore_stepper_queue/*=false*/) {
       mechanics.current_position[E_AXIS] += EXTRUDER_RUNOUT_EXTRUDE;
       planner.buffer_line_kinematic(mechanics.current_position, MMM_TO_MMS(EXTRUDER_RUNOUT_SPEED), tools.active_extruder);
       mechanics.current_position[E_AXIS] = olde;
-      mechanics.set_e_position_mm(olde);
+      planner.set_e_position_mm(olde);
       stepper.synchronize();
       #if ENABLED(DONDOLO_SINGLE_MOTOR)
         E0_ENABLE_WRITE(oldstatus);
@@ -985,7 +985,7 @@ void Printer::setup_pinout() {
         #endif
       ;
       mechanics.feedrate_mm_s = IDLE_OOZING_FEEDRATE;
-      mechanics.set_e_position_mm(mechanics.current_position[E_AXIS]);
+      planner.set_e_position_mm(mechanics.current_position[E_AXIS]);
       mechanics.prepare_move_to_destination();
       mechanics.feedrate_mm_s = old_feedrate_mm_s;
       IDLE_OOZING_retracted[tools.active_extruder] = true;
@@ -1003,7 +1003,7 @@ void Printer::setup_pinout() {
       ;
 
       mechanics.feedrate_mm_s = IDLE_OOZING_RECOVER_FEEDRATE;
-      mechanics.set_e_position_mm(mechanics.current_position[E_AXIS]);
+      planner.set_e_position_mm(mechanics.current_position[E_AXIS]);
       mechanics.prepare_move_to_destination();
       mechanics.feedrate_mm_s = old_feedrate_mm_s;
       IDLE_OOZING_retracted[tools.active_extruder] = false;

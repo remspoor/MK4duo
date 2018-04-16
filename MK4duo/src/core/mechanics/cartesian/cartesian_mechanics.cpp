@@ -39,17 +39,6 @@
               Cartesian_Mechanics::base_home_pos[XYZ] = { X_HOME_POS, Y_HOME_POS, Z_HOME_POS },
               Cartesian_Mechanics::max_length[XYZ]    = { X_MAX_LENGTH, Y_MAX_LENGTH, Z_MAX_LENGTH };
 
-  #if ENABLED(DUAL_X_CARRIAGE)
-    DualXMode Cartesian_Mechanics::dual_x_carriage_mode          = DEFAULT_DUAL_X_CARRIAGE_MODE;
-    float     Cartesian_Mechanics::inactive_hotend_x_pos         = X2_MAX_POS,                   // used in mode 0 & 1
-              Cartesian_Mechanics::raised_parked_position[NUM_AXIS],                             // used in mode 1
-              Cartesian_Mechanics::duplicate_hotend_x_offset     = DEFAULT_DUPLICATION_X_OFFSET; // used in mode 2
-    int16_t   Cartesian_Mechanics::duplicate_hotend_temp_offset  = 0;                            // used in mode 2
-    millis_t  Cartesian_Mechanics::delayed_move_time             = 0;                            // used in mode 1
-    bool      Cartesian_Mechanics::active_hotend_parked          = false,                        // used in mode 1 & 2
-              Cartesian_Mechanics::hotend_duplication_enabled    = false;                        // used in mode 2
-  #endif
-
   /** Private Parameters */
   #if ENABLED(HYSTERESIS)
     float   Cartesian_Mechanics::m_hysteresis_axis_shift[XYZE]    = { 0.0 },
@@ -275,97 +264,47 @@
   }
 
   /**
-   * Prepare a single move and get ready for the next one
+   * Prepare a linear move in a Cartesian setup.
+   *
+   * When a mesh-based leveling system is active, moves are segmented
+   * according to the configuration of the leveling system.
+   *
+   * Returns true if current_position[] was set to destination[]
    */
   bool Cartesian_Mechanics::prepare_move_to_destination_mech_specific() {
-    #if ENABLED(DUAL_X_CARRIAGE)
-      if (prepare_move_to_destination_dualx() || prepare_move_to_destination_cartesian()) return true;
-    #else
-      if (prepare_move_to_destination_cartesian()) return true;
+
+    #if ENABLED(LASER) && ENABLED(LASER_FIRE_E)
+      if (current_position[E_AXIS] < destination[E_AXIS] && ((current_position[X_AXIS] != destination [X_AXIS]) || (current_position[Y_AXIS] != destination [Y_AXIS])))
+        laser.status = LASER_ON;
+      else
+        laser.status = LASER_OFF;
     #endif
 
-    set_current_to_destination();
+    #if HAS_MESH
+      if (bedlevel.leveling_active) {
+        #if ENABLED(AUTO_BED_LEVELING_UBL)
+          ubl.line_to_destination_cartesian(MMS_SCALED(feedrate_mm_s), tools.active_extruder);
+          return true;
+        #else
+          /**
+           * For MBL and ABL-BILINEAR only segment moves when X or Y are involved.
+           * Otherwise fall through to do a direct single move.
+           */
+          if (current_position[X_AXIS] != destination[X_AXIS] || current_position[Y_AXIS] != destination[Y_AXIS]) {
+            #if ENABLED(MESH_BED_LEVELING)
+              mbl.line_to_destination(MMS_SCALED(feedrate_mm_s));
+            #elif ENABLED(AUTO_BED_LEVELING_BILINEAR)
+              abl.bilinear_line_to_destination(MMS_SCALED(feedrate_mm_s));
+            #endif
+            return true;
+          }
+        #endif
+      }
+    #endif // HAS_MESH
+
+    line_to_destination(MMS_SCALED(feedrate_mm_s));
     return false;
   }
-
-  #if ENABLED(DUAL_X_CARRIAGE)
-
-    /**
-     * Prepare a linear move in a dual X axis setup
-     */
-    bool Cartesian_Mechanics::prepare_move_to_destination_dualx() {
-      if (active_hotend_parked) {
-        switch (dual_x_carriage_mode) {
-          case DXC_FULL_CONTROL_MODE:
-            break;
-          case DXC_AUTO_PARK_MODE:
-            if (current_position[E_AXIS] == destination[E_AXIS]) {
-              // This is a travel move (with no extrusion)
-              // Skip it, but keep track of the current position
-              // (so it can be used as the start of the next non-travel move)
-              if (delayed_move_time != 0xFFFFFFFFUL) {
-                set_current_to_destination();
-                NOLESS(raised_parked_position[Z_AXIS], destination[Z_AXIS]);
-                delayed_move_time = millis();
-                return true;
-              }
-            }
-            // unpark extruder: 1) raise, 2) move into starting XY position, 3) lower
-            for (uint8_t i = 0; i < 3; i++)
-              planner.buffer_line(
-                i == 0 ? raised_parked_position[X_AXIS] : current_position[X_AXIS],
-                i == 0 ? raised_parked_position[Y_AXIS] : current_position[Y_AXIS],
-                i == 2 ? current_position[Z_AXIS] : raised_parked_position[Z_AXIS],
-                current_position[E_AXIS],
-                i == 1 ? PLANNER_XY_FEEDRATE() : max_feedrate_mm_s[Z_AXIS],
-                tools.active_extruder
-              );
-            delayed_move_time = 0;
-            active_hotend_parked = false;
-            #if ENABLED(DEBUG_LEVELING_FEATURE)
-              if (printer.debugLeveling()) SERIAL_EM("Clear active_hotend_parked");
-            #endif
-            break;
-          case DXC_DUPLICATION_MODE:
-            if (tools.active_extruder == 0) {
-              #if ENABLED(DEBUG_LEVELING_FEATURE)
-                if (printer.debugLeveling()) {
-                  SERIAL_MV("Set planner X", inactive_hotend_x_pos);
-                  SERIAL_EMV(" ... Line to X", current_position[X_AXIS] + duplicate_hotend_x_offset);
-                }
-              #endif
-              // move duplicate extruder into correct duplication position.
-              set_position_mm(
-                inactive_hotend_x_pos,
-                current_position[Y_AXIS],
-                current_position[Z_AXIS],
-                current_position[E_AXIS]
-              );
-              planner.buffer_line(
-                current_position[X_AXIS] + duplicate_hotend_x_offset,
-                current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS],
-                max_feedrate_mm_s[X_AXIS], 1
-              );
-              sync_plan_position();
-              stepper.synchronize();
-              hotend_duplication_enabled = true;
-              active_hotend_parked = false;
-              #if ENABLED(DEBUG_LEVELING_FEATURE)
-                if (printer.debugLeveling()) SERIAL_EM("Set hotend_duplication_enabled\nClear active_hotend_parked");
-              #endif
-            }
-            else {
-              #if ENABLED(DEBUG_LEVELING_FEATURE)
-                if (printer.debugLeveling()) SERIAL_EM("Active extruder not 0");
-              #endif
-            }
-            break;
-        }
-      }
-      return false;
-    }
-
-  #endif
 
   void Cartesian_Mechanics::homeaxis(const AxisEnum axis) {
 
@@ -487,47 +426,6 @@
         SERIAL_CHR(')'); SERIAL_EOL();
       }
     #endif
-  }
-
-  /**
-   * Prepare a linear move in a Cartesian setup.
-   * Bed Leveling will be applied to the move if enabled.
-   *
-   * Returns true if current_position[] was set to destination[]
-   */
-  bool Cartesian_Mechanics::prepare_move_to_destination_cartesian() {
-
-    #if ENABLED(LASER) && ENABLED(LASER_FIRE_E)
-      if (current_position[E_AXIS] < destination[E_AXIS] && ((current_position[X_AXIS] != destination [X_AXIS]) || (current_position[Y_AXIS] != destination [Y_AXIS])))
-        laser.status = LASER_ON;
-      else
-        laser.status = LASER_OFF;
-    #endif
-
-    #if HAS_MESH
-      if (bedlevel.leveling_active) {
-        #if ENABLED(AUTO_BED_LEVELING_UBL)
-          ubl.line_to_destination_cartesian(MMS_SCALED(feedrate_mm_s), tools.active_extruder);
-          return true;
-        #else
-          /**
-           * For MBL and ABL-BILINEAR only segment moves when X or Y are involved.
-           * Otherwise fall through to do a direct single move.
-           */
-          if (current_position[X_AXIS] != destination[X_AXIS] || current_position[Y_AXIS] != destination[Y_AXIS]) {
-            #if ENABLED(MESH_BED_LEVELING)
-              mbl.line_to_destination(MMS_SCALED(feedrate_mm_s));
-            #elif ENABLED(AUTO_BED_LEVELING_BILINEAR)
-              abl.bilinear_line_to_destination(MMS_SCALED(feedrate_mm_s));
-            #endif
-            return true;
-          }
-        #endif
-      }
-    #endif // HAS_MESH
-
-    line_to_destination(MMS_SCALED(feedrate_mm_s));
-    return false;
   }
 
   #if ENABLED(QUICK_HOME)
@@ -741,21 +639,6 @@
       }
     #endif
   }
-
-  #if ENABLED(DUAL_X_CARRIAGE)
-
-    float Cartesian_Mechanics::x_home_pos(const int extruder) {
-      if (extruder == 0)
-        return base_home_pos[X_AXIS];
-      else
-        // In dual carriage mode the extruder offset provides an override of the
-        // second X-carriage offset when homed - otherwise X2_HOME_POS is used.
-        // This allow soft recalibration of the second extruder offset position without firmware reflash
-        // (through the M218 command).
-        return tools.hotend_offset[X_AXIS][1] > 0 ? tools.hotend_offset[X_AXIS][1] : X2_HOME_POS;
-    }
-
-  #endif
 
   #if ENABLED(HYSTERESIS)
 

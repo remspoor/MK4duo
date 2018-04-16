@@ -78,11 +78,12 @@
       static void init();
 
       /**
-       * Set the planner.position and individual stepper positions.
-       * Used by G92, G28, G29, and other procedures.
+       * sync_plan_position_kinematic
+       *
+       * Set the planner/stepper positions directly from current_position with
+       * kinematic translation. Used for homing axes and cartesian/core syncing.
        */
-      void set_position_mm(ARG_X, ARG_Y, ARG_Z, const float &e) override;
-      void set_position_mm(const float (&cart)[XYZE]) override;
+      static void sync_plan_position_kinematic();
 
       /**
        * Get the stepper positions in the cartesian_position[] array.

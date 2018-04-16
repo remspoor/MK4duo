@@ -68,6 +68,13 @@
     recalc_delta_settings();
   }
 
+  void Delta_Mechanics::sync_plan_position_kinematic() {
+    #if ENABLED(DEBUG_LEVELING_FEATURE)
+      if (printer.debugLeveling()) DEBUG_POS("sync_plan_position_kinematic", current_position);
+    #endif
+    planner.set_position_mm_kinematic(current_position);
+  }
+
   // Return true if the given point is within the printable area
   bool Delta_Mechanics::position_is_reachable(const float &rx, const float &ry) {
     return HYPOT2(rx, ry) <= sq(delta_print_radius);
@@ -76,21 +83,6 @@
   bool Delta_Mechanics::position_is_reachable_by_probe(const float &rx, const float &ry) {
     return position_is_reachable(rx, ry)
         && position_is_reachable(rx - probe.offset[X_AXIS], ry - probe.offset[Y_AXIS]);
-  }
-
-  void Delta_Mechanics::set_position_mm(ARG_X, ARG_Y, ARG_Z, const float &e) {
-    _set_position_mm(rx, ry, rz, e);
-  }
-
-  void Delta_Mechanics::set_position_mm(const float (&cart)[XYZE]) {
-    #if PLANNER_LEVELING
-      float raw[XYZ] = { cart[X_AXIS], cart[Y_AXIS], cart[Z_AXIS] };
-      bedlevel.apply_leveling(raw);
-    #else
-      const float (&raw)[XYZE] = cart;
-    #endif
-    Transform(raw);
-    _set_position_mm(delta[A_AXIS], delta[B_AXIS], delta[C_AXIS], cart[E_AXIS]);
   }
 
   /**
@@ -583,7 +575,7 @@
 
     // Init the current position of all carriages to 0,0,0
     ZERO(current_position);
-    mechanics.set_position_mm(current_position[A_AXIS], current_position[B_AXIS], current_position[C_AXIS], current_position[E_AXIS]);
+    mechanics.sync_plan_position();
 
     // Disable stealthChop if used. Enable diag1 pin on driver.
     #if ENABLED(SENSORLESS_HOMING)
@@ -623,7 +615,7 @@
     // give the impression that they are the same.
     LOOP_XYZ(i) set_axis_is_at_home((AxisEnum)i);
 
-    sync_plan_position();
+    sync_plan_position_kinematic();
 
     #if ENABLED(DEBUG_LEVELING_FEATURE)
       if (printer.debugLeveling()) DEBUG_POS("<<< home_delta", current_position);

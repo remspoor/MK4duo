@@ -45,6 +45,17 @@ float Mechanics::feedrate_mm_s                            = MMM_TO_MMS(1500.0),
       Mechanics::destination[XYZE]                        = { 0.0 },
       Mechanics::stored_position[NUM_POSITON_SLOTS][XYZE] = { { 0.0 } };
 
+#if ENABLED(DUAL_X_CARRIAGE)
+  DualXMode Mechanics::dual_x_carriage_mode         = DEFAULT_DUAL_X_CARRIAGE_MODE;
+  float     Mechanics::inactive_hotend_x_pos        = X2_MAX_POS,                   // used in mode 0 & 1
+            Mechanics::raised_parked_position[NUM_AXIS],                            // used in mode 1
+            Mechanics::duplicate_hotend_x_offset    = DEFAULT_DUPLICATION_X_OFFSET; // used in mode 2
+  int16_t   Mechanics::duplicate_hotend_temp_offset = 0;                            // used in mode 2
+  millis_t  Mechanics::delayed_move_time            = 0;                            // used in mode 1
+  bool      Mechanics::active_hotend_parked         = false,                        // used in mode 1 & 2
+            Mechanics::hotend_duplication_enabled   = false;                        // used in mode 2
+#endif
+
 int16_t Mechanics::feedrate_percentage       = 100;
 
 const float Mechanics::homing_feedrate_mm_s[XYZ] = { MMM_TO_MMS(HOMING_FEEDRATE_X), MMM_TO_MMS(HOMING_FEEDRATE_Y), MMM_TO_MMS(HOMING_FEEDRATE_Z) },
@@ -72,61 +83,6 @@ millis_t Mechanics::min_segment_time_us = 0;
 #if ENABLED(BABYSTEPPING)
   int Mechanics::babystepsTodo[XYZ] = { 0 };
 #endif
-
-/**
- * Directly set the planner XYZ position (and stepper positions)
- * converting mm into steps.
- */
-void Mechanics::_set_position_mm(const float &a, const float &b, const float &c, const float &e) {
-
-  planner.position[X_AXIS] = LROUND(a * axis_steps_per_mm[X_AXIS]),
-  planner.position[Y_AXIS] = LROUND(b * axis_steps_per_mm[Y_AXIS]),
-  planner.position[Z_AXIS] = LROUND(c * axis_steps_per_mm[Z_AXIS]),
-  planner.position[E_AXIS] = LROUND(e * axis_steps_per_mm[E_INDEX]);
-
-  #if ENABLED(LIN_ADVANCE)
-    planner.position_float[X_AXIS] = a;
-    planner.position_float[Y_AXIS] = b;
-    planner.position_float[Z_AXIS] = c;
-    planner.position_float[E_AXIS] = e;
-  #endif
-
-  stepper.set_position(planner.position[X_AXIS], planner.position[Y_AXIS], planner.position[Z_AXIS], planner.position[E_AXIS]);
-  planner.zero_previous_nominal_speed();
-  planner.zero_previous_speed();
-
-}
-void Mechanics::set_position_mm(const AxisEnum axis, const float &v) {
-
-  #if EXTRUDERS > 1
-    const uint8_t axis_index = axis + (axis == E_AXIS ? tools.active_extruder : 0);
-  #else
-    const uint8_t axis_index = axis;
-  #endif
-
-  planner.position[axis] = LROUND(v * axis_steps_per_mm[axis_index]);
-  #if ENABLED(LIN_ADVANCE)
-    planner.position_float[axis] = v;
-  #endif
-  stepper.set_position(axis, planner.position[axis]);
-  planner.zero_previous_speed(axis);
-
-}
-void Mechanics::set_position_mm(ARG_X, ARG_Y, ARG_Z, const float &e) {
-  #if PLANNER_LEVELING
-    bedlevel.apply_leveling(rx, ry, rz);
-  #endif
-  _set_position_mm(rx, ry, rz, e);
-}
-void Mechanics::set_position_mm(const float (&cart)[XYZE]) {
-  #if PLANNER_LEVELING
-    float raw[XYZ] = { cart[X_AXIS], cart[Y_AXIS], cart[Z_AXIS] };
-    bedlevel.apply_leveling(raw);
-  #else
-    const float (&raw)[XYZE] = cart;
-  #endif
-  _set_position_mm(raw[X_AXIS], raw[Y_AXIS], raw[Z_AXIS], cart[E_AXIS]);
-}
 
 /**
  * Get the stepper positions in the cartesian_position[] array.
@@ -190,6 +146,10 @@ void Mechanics::line_to_destination(float fr_mm_s) {
  */
 void Mechanics::prepare_move_to_destination() {
   endstops.clamp_to_software_endstops(destination);
+
+  #if ENABLED(DUAL_X_CARRIAGE)
+    if (dual_x_carriage_unpark()) return;
+  #endif
 
   if (!printer.debugSimulation()) { // Simulation Mode no movement
     if (
@@ -284,10 +244,10 @@ void Mechanics::sync_plan_position() {
   #if ENABLED(DEBUG_LEVELING_FEATURE)
     if (printer.debugLeveling()) DEBUG_POS("sync_plan_position", current_position);
   #endif
-  mechanics.set_position_mm(current_position);
+  planner.set_position_mm(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
 }
 void Mechanics::sync_plan_position_e() {
-  set_e_position_mm(current_position[E_AXIS]);
+  planner.set_e_position_mm(current_position[E_AXIS]);
 }
 
 /**
@@ -312,7 +272,7 @@ void Mechanics::reset_acceleration_rates() {
  */
 void Mechanics::refresh_positioning() {
   LOOP_XYZE_N(i) steps_to_mm[i] = 1.0 / axis_steps_per_mm[i];
-  mechanics.set_position_mm(current_position);
+  planner.set_position_mm_kinematic(current_position);
   reset_acceleration_rates();
 }
 
@@ -361,7 +321,7 @@ void Mechanics::do_homing_move(const AxisEnum axis, const float distance, const 
   // Tell the planner we're at Z=0
   current_position[axis] = 0;
 
-  mechanics.set_position_mm(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
+  sync_plan_position();
   current_position[axis] = distance;
   planner.buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], fr_mm_s ? fr_mm_s : homing_feedrate_mm_s[axis], tools.active_extruder);
 
@@ -515,6 +475,98 @@ bool Mechanics::position_is_reachable_by_probe(const float &rx, const float &ry)
       && WITHIN(rx, X_MIN_BED - 0.001, X_MAX_BED + 0.001)
       && WITHIN(ry, Y_MIN_BED - 0.001, Y_MAX_BED + 0.001);
 }
+
+#if ENABLED(DUAL_X_CARRIAGE)
+
+  float Mechanics::x_home_pos(const int extruder) {
+    if (extruder == 0)
+      return base_home_pos[X_AXIS];
+    else
+      // In dual carriage mode the extruder offset provides an override of the
+      // second X-carriage offset when homed - otherwise X2_HOME_POS is used.
+      // This allow soft recalibration of the second extruder offset position without firmware reflash
+      // (through the M218 command).
+      return tools.hotend_offset[X_AXIS][1] > 0 ? tools.hotend_offset[X_AXIS][1] : X2_HOME_POS;
+  }
+
+  /**
+   * Prepare a linear move in a dual X axis setup
+   *
+   * Return true if current_position[] was set to destination[]
+   */
+  bool Cartesian_Mechanics::dual_x_carriage_unpark() {
+    if (active_hotend_parked) {
+      switch (dual_x_carriage_mode) {
+        case DXC_FULL_CONTROL_MODE:
+          break;
+        case DXC_AUTO_PARK_MODE:
+          if (current_position[E_AXIS] == destination[E_AXIS]) {
+            // This is a travel move (with no extrusion)
+            // Skip it, but keep track of the current position
+            // (so it can be used as the start of the next non-travel move)
+            if (delayed_move_time != 0xFFFFFFFFUL) {
+              set_current_to_destination();
+              NOLESS(raised_parked_position[Z_AXIS], destination[Z_AXIS]);
+              delayed_move_time = millis();
+              return true;
+            }
+          }
+          // unpark extruder: 1) raise, 2) move into starting XY position, 3) lower
+          for (uint8_t i = 0; i < 3; i++)
+            planner.buffer_line(
+              i == 0 ? raised_parked_position[X_AXIS] : current_position[X_AXIS],
+              i == 0 ? raised_parked_position[Y_AXIS] : current_position[Y_AXIS],
+              i == 2 ? current_position[Z_AXIS] : raised_parked_position[Z_AXIS],
+              current_position[E_AXIS],
+              i == 1 ? PLANNER_XY_FEEDRATE() : max_feedrate_mm_s[Z_AXIS],
+              tools.active_extruder
+            );
+          delayed_move_time = 0;
+          active_hotend_parked = false;
+          #if ENABLED(DEBUG_LEVELING_FEATURE)
+            if (printer.debugLeveling()) SERIAL_EM("Clear active_hotend_parked");
+          #endif
+          break;
+        case DXC_DUPLICATION_MODE:
+          if (tools.active_extruder == 0) {
+            #if ENABLED(DEBUG_LEVELING_FEATURE)
+              if (printer.debugLeveling()) {
+                SERIAL_MV("Set planner X", inactive_hotend_x_pos);
+                SERIAL_EMV(" ... Line to X", current_position[X_AXIS] + duplicate_hotend_x_offset);
+              }
+            #endif
+            // move duplicate extruder into correct duplication position.
+            planner.set_position_mm(
+              inactive_hotend_x_pos,
+              current_position[Y_AXIS],
+              current_position[Z_AXIS],
+              current_position[E_AXIS]
+            );
+            planner.buffer_line(
+              current_position[X_AXIS] + duplicate_hotend_x_offset,
+              current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS],
+              max_feedrate_mm_s[X_AXIS], 1
+            );
+            sync_plan_position();
+            stepper.synchronize();
+            hotend_duplication_enabled = true;
+            active_hotend_parked = false;
+            #if ENABLED(DEBUG_LEVELING_FEATURE)
+              if (printer.debugLeveling()) SERIAL_EM("Set hotend_duplication_enabled\nClear active_hotend_parked");
+            #endif
+          }
+          else {
+            #if ENABLED(DEBUG_LEVELING_FEATURE)
+              if (printer.debugLeveling()) SERIAL_EM("Active extruder not 0");
+            #endif
+          }
+          break;
+      }
+    }
+    return false;
+  }
+
+#endif // ENABLED(DUAL_X_CARRIAGE)
 
 #if ENABLED(ARC_SUPPORT)
 
