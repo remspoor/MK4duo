@@ -770,7 +770,7 @@ static void lcd_implementation_status_screen() {
         lcd_put_u8str(ftostr12ns(filament_width_meas));
         lcd_put_u8str_rom(PSTR(" V"));
         lcd_put_u8str(itostr3(100.0 * (
-          parser.volumetric_enabled
+          printer.isVolumetric()
             ? tools.volumetric_area_nominal / tools.volumetric_multiplier[FILAMENT_SENSOR_EXTRUDER_NUM]
             : tools.volumetric_multiplier[FILAMENT_SENSOR_EXTRUDER_NUM]
         )
