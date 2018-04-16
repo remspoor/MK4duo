@@ -1069,7 +1069,8 @@
     switch(Vyes.getValue()) {
       #if HAS_SDSUPPORT
         case 1: // Stop Print
-          card.stopSDPrint();
+          printer.setAbortSDprinting(true);
+          lcd_setstatusPGM(PSTR(MSG_PRINT_ABORTED), -1);
           Pprinter.show();
           break;
         case 2: // Upload Firmware

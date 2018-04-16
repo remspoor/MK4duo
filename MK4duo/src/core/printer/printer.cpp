@@ -285,6 +285,10 @@ void Printer::setup() {
   #endif
 
   if (!eeprom_loaded) lcd_eeprom_allert();
+
+  #if HAS_SDSUPPORT
+    card.checkautostart(false);
+  #endif
 }
 
 /**
@@ -302,14 +306,22 @@ void Printer::loop() {
 
   printer.keepalive(NotBusy);
 
-  commands.get_available();
-
   #if HAS_SDSUPPORT
-    card.checkautostart(false);
+    if (isAbortSDprinting()) {
+      setAbortSDprinting(false);
+      card.stopSDPrint();
+      commands.clear_queue();
+      stepper.quickstop_stepper();
+      print_job_counter.stop();
+      thermalManager.disable_all_heaters();
+      #if FAN_COUNT > 0
+        LOOP_FAN() fans[f].Speed = 0;
+      #endif
+    }
   #endif
 
+  commands.get_available();
   commands.advance_queue();
-
   endstops.report_state();
   idle();
 }

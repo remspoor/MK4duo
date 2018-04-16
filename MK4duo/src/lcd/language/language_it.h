@@ -203,13 +203,13 @@
 #define MSG_ACC                             _UxGT("Accel")
 #define MSG_JERK                            _UxGT("Jerk")
 #if IS_KINEMATIC
-  #define MSG_VX_JERK                       _UxGT("Va-jerk")
-  #define MSG_VY_JERK                       _UxGT("Vb-jerk")
-  #define MSG_VZ_JERK                       _UxGT("Vc-jerk")
+  #define MSG_VA_JERK                       _UxGT("Va-jerk")
+  #define MSG_VB_JERK                       _UxGT("Vb-jerk")
+  #define MSG_VC_JERK                       _UxGT("Vc-jerk")
 #else
-  #define MSG_VX_JERK                       _UxGT("Vx-jerk")
-  #define MSG_VY_JERK                       _UxGT("Vy-jerk")
-  #define MSG_VZ_JERK                       _UxGT("Vz-jerk")
+  #define MSG_VA_JERK                       _UxGT("Vx-jerk")
+  #define MSG_VB_JERK                       _UxGT("Vy-jerk")
+  #define MSG_VC_JERK                       _UxGT("Vz-jerk")
 #endif
 #define MSG_VE_JERK                         _UxGT("Ve-jerk")
 #define MSG_VELOCITY                        _UxGT("Velocità")
@@ -222,13 +222,13 @@
 #define MSG_A_TRAVEL                        _UxGT("A-Spostamento")
 #define MSG_STEPS_PER_MM                    _UxGT("Passi/mm")
 #if IS_KINEMATIC
-  #define MSG_XSTEPS                        _UxGT("Apassi/mm")
-  #define MSG_YSTEPS                        _UxGT("Bpassi/mm")
-  #define MSG_ZSTEPS                        _UxGT("Cpassi/mm")
+  #define MSG_ASTEPS                        _UxGT("Apassi/mm")
+  #define MSG_BSTEPS                        _UxGT("Bpassi/mm")
+  #define MSG_CSTEPS                        _UxGT("Cpassi/mm")
 #else
-  #define MSG_XSTEPS                        _UxGT("Xpassi/mm")
-  #define MSG_YSTEPS                        _UxGT("Ypassi/mm")
-  #define MSG_ZSTEPS                        _UxGT("Zpassi/mm")
+  #define MSG_ASTEPS                        _UxGT("Xpassi/mm")
+  #define MSG_BSTEPS                        _UxGT("Ypassi/mm")
+  #define MSG_CSTEPS                        _UxGT("Zpassi/mm")
 #endif
 #define MSG_ESTEPS                          _UxGT("Epassi/mm")
 #define MSG_E1STEPS                         _UxGT("E1passi/mm")
@@ -407,7 +407,6 @@
 #else // LCD_HEIGHT < 4
   // Up to 2 lines allowed
   #define MSG_FILAMENT_CHANGE_INIT_1        _UxGT("Attendere...")
-  #define MSG_FILAMENT_CHANGE_COOL_1        _UxGT("Raffreddamento...")
   #define MSG_FILAMENT_CHANGE_UNLOAD_1      _UxGT("Espulsione...")
   #define MSG_FILAMENT_CHANGE_INSERT_1      _UxGT("Inserisci e premi")
   #define MSG_FILAMENT_CHANGE_HEAT_1        _UxGT("Riscalda ugello")

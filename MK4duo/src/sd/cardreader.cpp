@@ -526,7 +526,7 @@
   }
 
   void CardReader::checkautostart(bool force) {
-    if (!force && (!autostart_stilltocheck || next_autostart_ms >= millis()))
+    if (!force && (!autostart_stilltocheck || PENDING(millis(), next_autostart_ms)))
       return;
 
     autostart_stilltocheck = false;
