@@ -238,9 +238,9 @@
           // so compensation will give the right stepper counts.
           unapply_leveling(mechanics.current_position);
 
-        mechanics.sync_plan_position();
+        mechanics.sync_plan_position_mech_specific();
 
-      #endif // ABL
+      #endif // OLD_ABL
     }
   }
 

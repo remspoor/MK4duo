@@ -960,7 +960,7 @@ inline void gcode_G29(void) {
   printer.keepalive(InHandler);
 
   if (bedlevel.leveling_active)
-    mechanics.sync_plan_position();
+    mechanics.sync_plan_position_mech_specific();
 
   #if HAS_BED_PROBE && Z_PROBE_AFTER_PROBING > 0
     probe.move_z_after_probing();

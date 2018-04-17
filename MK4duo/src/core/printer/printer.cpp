@@ -200,7 +200,7 @@ void Printer::setup() {
   #endif
 
   // Vital to init stepper/planner equivalent for current_position
-  mechanics.sync_plan_position();
+  mechanics.sync_plan_position_mech_specific();
 
   thermalManager.init();  // Initialize temperature loop
 

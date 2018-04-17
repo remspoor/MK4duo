@@ -68,9 +68,9 @@
     recalc_delta_settings();
   }
 
-  void Delta_Mechanics::sync_plan_position_kinematic() {
+  void Delta_Mechanics::sync_plan_position_mech_specific() {
     #if ENABLED(DEBUG_LEVELING_FEATURE)
-      if (printer.debugLeveling()) DEBUG_POS("sync_plan_position_kinematic", current_position);
+      if (printer.debugLeveling()) DEBUG_POS("sync_plan_position_mech_specific", current_position);
     #endif
     planner.set_position_mm_kinematic(current_position);
   }
@@ -615,7 +615,7 @@
     // give the impression that they are the same.
     LOOP_XYZ(i) set_axis_is_at_home((AxisEnum)i);
 
-    sync_plan_position_kinematic();
+    sync_plan_position_mech_specific();
 
     #if ENABLED(DEBUG_LEVELING_FEATURE)
       if (printer.debugLeveling()) DEBUG_POS("<<< home_delta", current_position);
