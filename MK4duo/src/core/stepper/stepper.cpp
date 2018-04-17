@@ -2291,7 +2291,7 @@ void Stepper::quickstop_stepper() {
   quick_stop();
   synchronize();
   mechanics.set_current_from_steppers_for_axis(ALL_AXES);
-  mechanics.sync_plan_position();
+  mechanics.sync_plan_position_mech_specific();
 }
 
 void Stepper::endstop_triggered(const AxisEnum axis) {

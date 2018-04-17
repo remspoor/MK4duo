@@ -144,7 +144,7 @@
           #endif
 
           // Tell the planner the new "current position"
-          mechanics.sync_plan_position();
+          mechanics.sync_plan_position_mech_specific();
 
           #if ENABLED(DELTA)
             const bool safe_to_move = mechanics.current_position[Z_AXIS] < mechanics.delta_clip_start_height - 1;

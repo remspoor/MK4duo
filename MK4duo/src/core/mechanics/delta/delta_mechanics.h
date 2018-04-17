@@ -78,12 +78,12 @@
       static void init();
 
       /**
-       * sync_plan_position_kinematic
+       * sync_plan_position_mech_specific
        *
        * Set the planner/stepper positions directly from current_position with
        * kinematic translation. Used for homing axes and cartesian/core syncing.
        */
-      static void sync_plan_position_kinematic();
+      static void sync_plan_position_mech_specific();
 
       /**
        * Get the stepper positions in the cartesian_position[] array.

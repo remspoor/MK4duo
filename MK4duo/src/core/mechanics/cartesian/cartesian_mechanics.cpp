@@ -72,6 +72,13 @@
 
   }
 
+  void Cartesian_Mechanics::sync_plan_position_mech_specific() {
+    #if ENABLED(DEBUG_LEVELING_FEATURE)
+      if (printer.debugLeveling()) DEBUG_POS("sync_plan_position_mech_specific", current_position);
+    #endif
+    planner.sync_plan_position();
+  }
+
   /**
    * Home Cartesian
    */

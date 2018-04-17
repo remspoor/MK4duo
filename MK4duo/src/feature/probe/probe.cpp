@@ -231,7 +231,7 @@ bool Probe::move_to_z(const float z, const float fr_mm_m) {
     #endif
 
     // Tell the planner where we actually are
-    mechanics.sync_plan_position();
+    mechanics.sync_plan_position_mech_specific();
   }
 
   #if ENABLED(DEBUG_LEVELING_FEATURE)
