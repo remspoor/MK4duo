@@ -209,7 +209,16 @@
             unapply_leveling(mechanics.current_position);
           }
         #else
-          leveling_active = enable;                     // just flip the bit, current_position will be wrong until next move.
+          // UBL equivalents for apply/unapply_leveling
+          const float (&pos)[XYZE] = mechanics.current_position;
+          if (leveling_active) {
+            mechanics.current_position[Z_AXIS] += ubl.get_z_correction(pos[X_AXIS], pos[Y_AXIS]);
+            leveling_active = false;
+          }
+          else {
+            leveling_active = true;
+            mechanics.current_position[Z_AXIS] -= ubl.get_z_correction(pos[X_AXIS], pos[Y_AXIS]);
+          }
         #endif
 
       #else // OLD_ABL

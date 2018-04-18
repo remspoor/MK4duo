@@ -479,7 +479,7 @@ inline void gcode_G29(void) {
         enable_soft_endstops = endstops.isSoftEndstop();
       #endif
       // Move close to the bed before the first point
-      mechanics.do_blocking_move_to_z(Z_MIN_POS);
+      mechanics.do_blocking_move_to_z(0);
     }
     else {
 
