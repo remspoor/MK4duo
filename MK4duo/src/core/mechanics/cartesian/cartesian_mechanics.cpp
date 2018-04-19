@@ -76,7 +76,7 @@
     #if ENABLED(DEBUG_LEVELING_FEATURE)
       if (printer.debugLeveling()) DEBUG_POS("sync_plan_position_mech_specific", current_position);
     #endif
-    planner.sync_plan_position();
+    sync_plan_position();
   }
 
   /**
@@ -500,7 +500,7 @@
         destination[Y_AXIS] -= probe.offset[Y_AXIS];
       #endif
 
-      if (position_is_reachable(destination[X_AXIS], destination[Y_AXIS])) {
+      if (mechanics.position_is_reachable(destination[X_AXIS], destination[Y_AXIS])) {
 
         #if ENABLED(DEBUG_LEVELING_FEATURE)
           if (printer.debugLeveling()) DEBUG_POS("Z_SAFE_HOMING", destination);
@@ -559,7 +559,7 @@
         destination[Y_AXIS] -= probe.offset[Y_AXIS];
       #endif
 
-      if (position_is_reachable(destination[X_AXIS], destination[Y_AXIS])) {
+      if (mechanics.position_is_reachable(destination[X_AXIS], destination[Y_AXIS])) {
 
         #if ENABLED(DEBUG_LEVELING_FEATURE)
           if (printer.debugLeveling()) DEBUG_POS("DOUBLE_Z_HOMING", destination);
