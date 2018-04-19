@@ -1761,7 +1761,7 @@ void kill_screen(const char* lcd_msg) {
       if (!lcd_wait_for_move) {
         #if MANUAL_PROBE_HEIGHT > 0 && DISABLED(MESH_BED_LEVELING)
           // Display "Done" screen and wait for moves to complete
-          line_to_z(Z_MIN_POS + MANUAL_PROBE_HEIGHT);
+          line_to_z(MANUAL_PROBE_HEIGHT);
           lcd_synchronize(PSTR(MSG_LEVEL_BED_DONE));
         #endif
         lcd_goto_previous_menu_no_defer();
@@ -2844,13 +2844,17 @@ void kill_screen(const char* lcd_msg) {
       #if IS_KINEMATIC
         manual_move_offset += diff;
         // Limit only when trying to move towards the limit
-        if ((int32_t)encoderPosition < 0) NOLESS(manual_move_offset, min - mechanics.current_position[axis]);
-        if ((int32_t)encoderPosition > 0) NOMORE(manual_move_offset, max - mechanics.current_position[axis]);
+        if ((int32_t)encoderPosition < 0)
+          NOLESS(manual_move_offset, min - mechanics.current_position[axis]);
+        if ((int32_t)encoderPosition > 0)
+          NOMORE(manual_move_offset, max - mechanics.current_position[axis]);
       #else
         mechanics.current_position[axis] += diff;
         // Limit only when trying to move towards the limit
-        if ((int32_t)encoderPosition < 0) NOLESS(mechanics.current_position[axis], min);
-        if ((int32_t)encoderPosition > 0) NOMORE(mechanics.current_position[axis], max);
+        if ((int32_t)encoderPosition < 0)
+          NOLESS(mechanics.current_position[axis], min);
+        if ((int32_t)encoderPosition > 0)
+          NOMORE(mechanics.current_position[axis], max);
       #endif
 
       manual_move_to_current(axis);
@@ -5011,24 +5015,6 @@ void lcd_init() {
   #if ENABLED(ULTIPANEL)
     encoderDiff = 0;
   #endif
-}
-
-int16_t lcd_strlen(const char* s) {
-  int16_t i = 0, j = 0;
-  while (s[i]) {
-    if (PRINTABLE(s[i])) j++;
-    i++;
-  }
-  return j;
-}
-
-int16_t lcd_strlen_P(const char* s) {
-  int16_t j = 0;
-  while (pgm_read_byte(s)) {
-    if (PRINTABLE(pgm_read_byte(s))) j++;
-    s++;
-  }
-  return j;
 }
 
 bool lcd_blink() {

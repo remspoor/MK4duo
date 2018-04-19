@@ -96,6 +96,8 @@
             // For the initial G29 S2 save software endstop state
             enable_soft_endstops = endstops.isSoftEndstop();
           #endif
+          // Move close to the bed before the first point
+          mechanics.do_blocking_move_to_z(0);
         }
         else {
           // For G29 S2 after adjusting Z.
@@ -119,7 +121,7 @@
         }
         else {
           // One last "return to the bed" (as originally coded) at completion
-          mechanics.current_position[Z_AXIS] = Z_MIN_POS + MANUAL_PROBE_HEIGHT;
+          mechanics.current_position[Z_AXIS] = MANUAL_PROBE_HEIGHT;
           mechanics.line_to_current_position();
           stepper.synchronize();
 
@@ -133,7 +135,7 @@
           bedlevel.set_bed_leveling_enabled(true);
 
           #if ENABLED(MESH_G28_REST_ORIGIN)
-            mechanics.current_position[Z_AXIS] = Z_MIN_POS;
+            mechanics.current_position[Z_AXIS] = 0;
             mechanics.set_destination_to_current();
             mechanics.line_to_destination(mechanics.homing_feedrate_mm_s[Z_AXIS]);
             stepper.synchronize();

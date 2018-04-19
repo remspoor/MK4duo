@@ -90,24 +90,24 @@ FORCE_INLINE void _draw_axis_label(const AxisEnum axis, const char* const pstr, 
 inline void lcd_implementation_status_message(const bool blink) {
   #if ENABLED(STATUS_MESSAGE_SCROLLING)
     static bool last_blink = false;
-    const uint8_t slen = lcd_strlen(lcd_status_message);
+    const uint8_t slen = utf8_strlen(lcd_status_message);
     const char *stat = lcd_status_message + status_scroll_pos;
     if (slen <= LCD_WIDTH)
-      lcd_put_u8str(stat);                                      // The string isn't scrolling
+      lcd_put_u8str(stat);                                          // The string isn't scrolling
     else {
       if (status_scroll_pos <= slen - LCD_WIDTH)
-        lcd_put_u8str(stat);                                    // The string fills the screen
+        lcd_put_u8str(stat);                                        // The string fills the screen
       else {
         uint8_t chars = LCD_WIDTH;
-        if (status_scroll_pos < slen) {                         // First string still visible
-          lcd_put_u8str(stat);                                  // The string leaves space
-          chars -= slen - status_scroll_pos;                    // Amount of space left
+        if (status_scroll_pos < slen) {                             // First string still visible
+          lcd_put_u8str(stat);                                      // The string leaves space
+          chars -= slen - status_scroll_pos;                        // Amount of space left
         }
         lcd_put_wchar('.');                                         // Always at 1+ spaces left, draw a dot
         if (--chars) {
-          if (status_scroll_pos < slen + 1)                     // Draw a second dot if there's space
+          if (status_scroll_pos < slen + 1)                         // Draw a second dot if there's space
             --chars, lcd_put_wchar('.');
-          if (chars) lcd_put_u8str(lcd_status_message, chars);  // Print a second copy of the message
+          if (chars) lcd_put_u8str_max(lcd_status_message, chars);  // Print a second copy of the message
         }
       }
       if (last_blink != blink) {

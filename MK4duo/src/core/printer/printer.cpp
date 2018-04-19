@@ -346,7 +346,7 @@ void Printer::check_periodical_actions() {
     // Event 1.0 Second
     if (--cycle_1000ms == 0) {
       cycle_1000ms = 10;
-      if (isAutoreportTemp()) {
+      if (!isSuspendAutoreport() && isAutoreportTemp()) {
         thermalManager.report_temperatures();
         SERIAL_EOL();
       }
@@ -1034,7 +1034,7 @@ void Printer::setDebugLevel(const uint8_t newLevel) {
    * while the machine is not accepting
    */
   void Printer::keepalive(const MK4duoBusyState state) {
-    if (host_keepalive_watch.stopwatch && host_keepalive_watch.elapsed()) {
+    if (!isSuspendAutoreport() && host_keepalive_watch.stopwatch && host_keepalive_watch.elapsed()) {
       switch (state) {
         case InHandler:
         case InProcess:
