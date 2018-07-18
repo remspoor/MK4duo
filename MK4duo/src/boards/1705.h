@@ -150,7 +150,7 @@
 #define SDPOWER_PIN                NoPin
 #define SD_DETECT_PIN              60
 #define SDSS                       59
-#define KILL_PIN                   NoPin
+#define KILL_PIN                   A9
 #define DEBUG_PIN                  NoPin
 #define SUICIDE_PIN                NoPin
 
@@ -160,7 +160,9 @@
 
 
 //###UNKNOWN_PINS
-#define EEPROM_SD
+//#define EEPROM_SD
+#define EEPROM_I2C
+#define E2END 0x1FFF
 #define MAX6675_SS_PIN    65
 #define MAX31855_SS0_PIN  65
 #define MAX31855_SS1_PIN  52
