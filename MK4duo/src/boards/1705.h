@@ -161,6 +161,8 @@
 
 //###UNKNOWN_PINS
 //#define EEPROM_SD
+//#define SPI_SPEED SPI_EIGHTH_SPEED
+#define SOFTWARE_SPI
 #define EEPROM_I2C
 #define E2END 0x1FFF
 #define MAX6675_SS_PIN    65

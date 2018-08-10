@@ -747,7 +747,7 @@
 #define HOME_BEFORE_FILAMENT_CHANGE         // Ensure homing has been completed prior to parking for filament change
 #define FILAMENT_LOAD_UNLOAD_GCODES         // Add M701/M702 Load/Unload G-codes, plus Load/Unload in the LCD Prepare menu.
 #define FILAMENT_UNLOAD_ALL_EXTRUDERS       // Allow M702 to unload all extruders above a minimum target temp (as set by M302)
-#define INCH_MODE_SUPPORT
+//#define INCH_MODE_SUPPORT
 #define JSON_OUTPUT
 //#define SCAD_MESH_OUTPUT
 #define PINS_DEBUGGING
@@ -1381,7 +1381,7 @@
 "eventled": "1",
 "jsonoutput": "1",
 "testmode": "1",
-"inchmodesupport": "1",
+"inchmodesupport": "0",
 "blockbuffersize": 32,
 "bufsize": 8,
 "nozzlecleanfeature": "1",
@@ -1420,7 +1420,7 @@
 "filamentchangenosteppertimeout": "1",
 "filamentchangeparkheadonpause": "1",
 "filamentchangehomebefore": "1",
-"filamentchangegcodes": "0",
+"filamentchangegcodes": "1",
 "filamentchangeallextruder": "1",
 "Xmotor": {
   "name": "X motor",
