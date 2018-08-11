@@ -21,21 +21,21 @@
  */
 
 /**
- * core_mechanics.h
+ * cartesian_mechanics.h
  *
  * Copyright (C) 2016 Alberto Cotronei @MagoKimbra
  */
 
-#ifndef _CORE_MECHANICS_H_
-#define _CORE_MECHANICS_H_
+#ifndef _CARTESIAN_MECHANICS_H_
+#define _CARTESIAN_MECHANICS_H_
 
-#if IS_CORE
+#if IS_CARTESIAN
 
-  class Core_Mechanics: public Mechanics {
+  class Cartesian_Mechanics : public Mechanics {
 
     public: /** Constructor */
 
-      Core_Mechanics() {}
+      Cartesian_Mechanics() {}
 
     public: /** Public Parameters */
 
@@ -44,12 +44,23 @@
                           base_home_pos[XYZ],
                           max_length[XYZ];
 
+      #if ENABLED(DUAL_X_CARRIAGE)
+        static DualXMode  dual_x_carriage_mode;
+        static float      inactive_hotend_x_pos,            // used in mode 0 & 1
+                          raised_parked_position[NUM_AXIS], // used in mode 1
+                          duplicate_hotend_x_offset;        // used in mode 2
+        static int16_t    duplicate_hotend_temp_offset;     // used in mode 2
+        static millis_t   delayed_move_time;                // used in mode 1
+        static bool       active_hotend_parked,             // used in mode 1 & 2
+                          hotend_duplication_enabled;       // used in mode 2
+      #endif
+
     public: /** Public Function */
 
       /**
-       * Initialize Core parameters
+       * Initialize Factory parameters
        */
-      static void init();
+      static void factory_parameters();
 
       /**
        * sync_plan_position_mech_specific
@@ -61,18 +72,6 @@
 
       /**
        * Home all axes according to settings
-       *
-       * Parameters
-       *
-       *  None  Home to all axes with no parameters.
-       *        With QUICK_HOME enabled XY will home together, then Z.
-       *
-       * Cartesian parameters
-       *
-       *  X   Home to the X endstop
-       *  Y   Home to the Y endstop
-       *  Z   Home to the Z endstop
-       *
        */
       static void home(const bool homeX=false, const bool homeY=false, const bool homeZ=false);
 
@@ -89,12 +88,28 @@
       /**
        * Set an axis' current position to its home position (after homing).
        *
-       * For Core robots this applies one-to-one when an
+       * For Cartesian robots this applies one-to-one when an
        * individual axis has been homed.
        *
        * Callers must sync the planner position after calling this!
        */
       static void set_axis_is_at_home(const AxisEnum axis);
+
+      /**
+       * Prepare a linear move in a dual X axis setup
+       */
+      #if ENABLED(DUAL_X_CARRIAGE)
+        static float  x_home_pos(const int extruder);
+        static bool   dual_x_carriage_unpark();
+        FORCE_INLINE static int x_home_dir(const uint8_t extruder) { return extruder ? X2_HOME_DIR : X_HOME_DIR; }
+      #endif
+
+      /**
+       * Print mechanics parameters in memory
+       */
+      #if DISABLED(DISABLE_M503)
+        static void print_parameters();
+      #endif
 
     private: /** Private Function */
 
@@ -102,6 +117,14 @@
        *  Home axis
        */
       static void homeaxis(const AxisEnum axis);
+
+      /**
+       * Prepare a linear move in a Cartesian setup.
+       * Bed Leveling will be applied to the move if enabled.
+       *
+       * Returns true if current_position[] was set to destination[]
+       */
+      static bool prepare_move_to_destination_cartesian();
 
       #if ENABLED(QUICK_HOME)
         static void quick_home_xy();
@@ -117,8 +140,8 @@
 
   };
 
-  extern Core_Mechanics mechanics;
+  extern Cartesian_Mechanics mechanics;
 
-#endif // IS_CORE
+#endif // IS_CARTESIAN
 
-#endif /* _CORE_MECHANICS_H_ */
+#endif /* _CARTESIAN_MECHANICS_H_ */

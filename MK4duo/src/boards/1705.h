@@ -160,17 +160,16 @@
 
 
 //###UNKNOWN_PINS
-//#define EEPROM_SD
 //#define SPI_SPEED SPI_EIGHTH_SPEED
-#define SOFTWARE_SPI
-#define EEPROM_I2C
-#define E2END 0x1FFF
-#define MAX6675_SS_PIN    65
-#define MAX31855_SS0_PIN  65
-#define MAX31855_SS1_PIN  52
-#define MAX31855_SS2_PIN  51
-#define MAX31855_SS3_PIN  50
-#define ENC424_SS_PIN     61
+//#define SOFTWARE_SPI
+#define WIRE_PORT              2
+#define E2END                 0x1FFF
+#define MAX6675_SS_PIN        65
+#define MAX31855_SS0_PIN      65
+#define MAX31855_SS1_PIN      52
+#define MAX31855_SS2_PIN      51
+#define MAX31855_SS3_PIN      50
+#define ENC424_SS_PIN         61
 #define HAVE_MCU_TEMPERATURE
 //@@@
 

@@ -466,8 +466,8 @@ void Stepper::init() {
 
   #endif // HAS_EXT_ENCODER
 
-  // Init Stepper ISR to 122 Hz for quick starting
-  HAL_timer_start(STEPPER_TIMER, 122);
+  // Init Stepper ISR to 128 Hz for quick starting
+  HAL_timer_start(STEPPER_TIMER, 128);
 
   ENABLE_STEPPER_INTERRUPT();
 
@@ -475,6 +475,15 @@ void Stepper::init() {
   sei();
 
   set_directions(); // Init directions to last_direction_bits = 0
+}
+
+void Stepper::factory_parameters() {
+  constexpr bool tmpdir[] = { INVERT_X_DIR, INVERT_Y_DIR, INVERT_Z_DIR, INVERT_E0_DIR, INVERT_E1_DIR, INVERT_E2_DIR, INVERT_E3_DIR, INVERT_E4_DIR, INVERT_E5_DIR };
+  LOOP_XYZE_N(axis) setStepDir((AxisEnum)axis, tmpdir[axis]);
+
+  direction_delay = DIRECTION_STEPPER_DELAY;
+  minimum_pulse   = MINIMUM_STEPPER_PULSE;
+  maximum_rate    = MAXIMUM_STEPPER_RATE;
 }
 
 /**
@@ -1084,7 +1093,7 @@ int32_t Stepper::triggered_position(const AxisEnum axis) {
         case 8: WRITE(E5_MS1_PIN, ms1); break;
       #endif
     }
-    #if !MB(ALLIGATOR) && !MB(ALLIGATOR_V3)
+    #if !MB(ALLIGATOR_R2) && !MB(ALLIGATOR_R3)
       if (ms2 >= 0) switch (driver) {
         #if HAS_X_MICROSTEPS
           case 0: WRITE(X_MS2_PIN, ms2); break;
@@ -1126,7 +1135,7 @@ int32_t Stepper::triggered_position(const AxisEnum axis) {
       case 4: microstep_ms(driver,  MICROSTEP4); break;
       case 8: microstep_ms(driver,  MICROSTEP8); break;
       case 16: microstep_ms(driver, MICROSTEP16); break;
-      #if MB(ALLIGATOR) || MB(ALLIGATOR_V3)
+      #if MB(ALLIGATOR_R2) || MB(ALLIGATOR_R3)
         case 32: microstep_ms(driver, MICROSTEP32); break;
       #endif
     }
@@ -1855,7 +1864,7 @@ void Stepper::start_X_step() {
       X2_STEP_WRITE(!INVERT_X_STEP_PIN);
     #endif
   #elif ENABLED(DUAL_X_CARRIAGE)
-    if (mechanics.hotend_duplication_enabled || ALWAYS) {
+    if (mechanics.hotend_duplication_enabled) {
       X_STEP_WRITE(!INVERT_X_STEP_PIN);
       X2_STEP_WRITE(!INVERT_X_STEP_PIN);
     }
@@ -1955,7 +1964,7 @@ void Stepper::set_X_dir(const bool dir) {
     X_DIR_WRITE(dir);
     X2_DIR_WRITE((dir) != INVERT_X2_VS_X_DIR);
   #elif ENABLED(DUAL_X_CARRIAGE)
-    if (mechanics.hotend_duplication_enabled || ALWAYS) {
+    if (mechanics.hotend_duplication_enabled) {
       X_DIR_WRITE(dir);
       X2_DIR_WRITE(dir);
     }
@@ -3008,7 +3017,8 @@ void Stepper::_set_position(const int32_t &a, const int32_t &b, const int32_t &c
       const uint8_t old_dir = _READ_DIR(AXIS);          \
       _ENABLE(AXIS);                                    \
       _APPLY_DIR(AXIS, _INVERT_DIR(AXIS)^DIR^INVERT);   \
-      DELAY_NS(400); /* DRV8825 */                      \
+      if (direction_delay >= 50)                        \
+        HAL::delayNanoseconds(direction_delay);         \
       _SAVE_START;                                      \
       _APPLY_STEP(AXIS)(!_INVERT_STEP_PIN(AXIS), true); \
       _PULSE_WAIT;                                      \
@@ -3080,7 +3090,8 @@ void Stepper::_set_position(const int32_t &a, const int32_t &b, const int32_t &c
           Y_DIR_WRITE(isStepDir(Y_AXIS) ^ z_direction);
           Z_DIR_WRITE(isStepDir(Z_AXIS) ^ z_direction);
 
-          DELAY_NS(400); // DRV8825
+          if (direction_delay >= 50)
+            HAL::delayNanoseconds(direction_delay);
 
           _SAVE_START;
 
@@ -3177,7 +3188,7 @@ void Stepper::_set_position(const int32_t &a, const int32_t &b, const int32_t &c
       SET_OUTPUT(E5_MS1_PIN);
     #endif
 
-    #if !MB(ALLIGATOR) && !MB(ALLIGATOR_V3)
+    #if !MB(ALLIGATOR_R2) && !MB(ALLIGATOR_R3)
       #if HAS_X_MICROSTEPS
         SET_OUTPUT(X_MS2_PIN);
       #endif

@@ -132,8 +132,6 @@ HAL::~HAL() {
   // dtor
 }
 
-bool HAL::execute_100ms = false;
-
 // do any hardware-specific initialization here
 void HAL::hwSetup(void) {
 
@@ -219,7 +217,7 @@ uint16_t AnalogInReadPin(const pin_t r_pin) {
 // Initialize ADC channels
 void HAL::analogStart(void) {
 
-  #if MB(ALLIGATOR) || MB(ALLIGATOR_V3)
+  #if MB(ALLIGATOR_R2) || MB(ALLIGATOR_R3)
     PIO_Configure(
       g_APinDescription[58].pPort,
       g_APinDescription[58].ulPinType,
@@ -230,7 +228,7 @@ void HAL::analogStart(void) {
       g_APinDescription[59].ulPinType,
       g_APinDescription[59].ulPin,
       g_APinDescription[59].ulPinConfiguration);
-  #endif // MB(ALLIGATOR) || MB(ALLIGATOR_V3)
+  #endif // MB(ALLIGATOR_R2) || MB(ALLIGATOR_R3)
 
   // ensure we can write to ADC registers
   ADC->ADC_WPMR = 0x41444300u;    // ADC_WPMR_WPKEY(0);
@@ -436,8 +434,7 @@ void HAL::analogWrite(pin_t pin, uint32_t ulValue, const uint16_t freq/*=1000*/)
 
     // Map value to Timer ranges 0..255 => 0..TC
     ulValue = mapResolution(ulValue, writeResolution, TC_RESOLUTION);
-    ulValue = ulValue * TC;
-    ulValue = ulValue / TC_MAX_DUTY_CYCLE;
+    ulValue *= TC / TC_MAX_DUTY_CYCLE;
 
     // Setup Timer for this pin
     ETCChannel channel = pinDesc.ulTCChannel;
@@ -509,7 +506,8 @@ void HAL::analogWrite(pin_t pin, uint32_t ulValue, const uint16_t freq/*=1000*/)
  */
 void HAL::Tick() {
 
-  static uint8_t  cycle_100ms = 0;
+  static millis_t cycle_check_temp = 0;
+  millis_t now = millis();
 
   if (!printer.isRunning()) return;
 
@@ -521,11 +519,11 @@ void HAL::Tick() {
     LOOP_FAN() fans[f].SetHardwarePwm();
   #endif
 
-  // Calculation cycle approximate a 100ms
-  cycle_100ms++;
-  if (cycle_100ms >= 100) {
-    cycle_100ms = 0;
-    execute_100ms = true;
+  // Calculation cycle temp a 100ms
+  if (ELAPSED(now, cycle_check_temp)) {
+    cycle_check_temp = now + 100UL;
+    // Temperature Spin
+    thermalManager.spin();
   }
 
   // read analog values

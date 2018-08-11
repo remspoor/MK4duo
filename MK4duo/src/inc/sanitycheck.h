@@ -57,25 +57,22 @@
 #endif
 
 // Alligatorboard
-#if MB(ALLIGATOR) || MB(ALLIGATOR_V3)
+#if MB(ALLIGATOR_R2) || MB(ALLIGATOR_R3)
   #if DISABLED(UI_VOLTAGE_LEVEL)
     #error "DEPENDENCY ERROR: Missing setting UI_VOLTAGE_LEVEL."
   #endif
 #endif
 
 // Other sanitycheck files
-#include "../core/temperature/sanitycheck.h"
+#include "../core/eeprom/sanitycheck.h"
+#include "../core/endstop/sanitycheck.h"
+#include "../core/fan/sanitycheck.h"
 #include "../core/heater/sanitycheck.h"
 #include "../core/heater/sensor/sanitycheck.h"
-#include "../core/fan/sanitycheck.h"
-#include "../core/stepper/sanitycheck.h"
-#include "../core/tools/sanitycheck.h"
-#include "../core/endstop/sanitycheck.h"
 #include "../core/mechanics/sanitycheck.h"
-#include "../core/mechanics/cartesian/sanitycheck.h"
-#include "../core/mechanics/core/sanitycheck.h"
-#include "../core/mechanics/delta/sanitycheck.h"
-#include "../core/mechanics/scara/sanitycheck.h"
+#include "../core/stepper/sanitycheck.h"
+#include "../core/temperature/sanitycheck.h"
+#include "../core/tools/sanitycheck.h"
 
 #include "../lcd/sanitycheck.h"
 #include "../sd/sanitycheck.h"

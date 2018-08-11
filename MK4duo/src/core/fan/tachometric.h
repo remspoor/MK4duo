@@ -21,55 +21,45 @@
  */
 
 /**
- * dhtsensor.h
+ * tachometric.h
  *
  * Copyright (C) 2017 Alberto Cotronei @MagoKimbra
  */
 
-#ifndef _DHTSENSOR_H_
-#define _DHTSENSOR_H_
+#ifndef _TACHOMETRIC_H_
+#define _TACHOMETRIC_H_
 
-#if ENABLED(DHT_SENSOR)
+#if FAN_COUNT > 0 && ENABLED(TACHOMETRIC)
 
-  // Define types of sensors.
-  #define DHT11 11
-  #define DHT21 21
-  #define DHT22 22
-
-  class DhtSensor {
+  class Tachometric {
 
     public: /** Constructor */
 
-      DhtSensor() {}
+      Tachometric();
 
     public: /** Public Parameters */
 
-      static pin_t    pin;
-      static uint8_t  type;
-
-      static float    Temperature,
-                      Humidity;
+      pin_t   pin;
 
     private: /** Private Parameters */
 
-      static enum SensorState {
-        Init,
-        Wait_250ms,
-        Wait_20ms,
-        Read
-      } state;
-  
+      static constexpr uint32_t MaxInterruptCount = 32;  // number of tacho interrupts that we average over
+
+      uint32_t InterruptCount;          // accessed only in ISR, so no need to declare it volatile
+      volatile millis_t LastResetTime,  // time (microseconds) at which we last reset the interrupt count, accessed inside and outside ISR
+                        Interval;       // written by ISR, read outside the ISR
+
     public: /** Public Function */
 
-      static void init();
-      static void change_type(const uint8_t dhtType);
-      static void print_parameters();
-      static void spin();
+      void init(const uint8_t tacho);
+      void Interrupt();
+
+      uint32_t GetRPM();
 
   };
 
-  extern DhtSensor dhtsensor;
+  extern Tachometric tachometrics[FAN_COUNT];
 
-#endif // ENABLED(DHT_SENSOR)
+#endif // FAN_COUNT > 0 && ENABLED(TACHOMETRIC)
 
-#endif /* _DHTSENSOR_H_ */
+#endif /* _TACHOMETRIC_H_ */

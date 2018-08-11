@@ -62,6 +62,8 @@
 
   void Tools::change(const uint8_t tmp_extruder, const float fr_mm_s/*=0.0*/, bool no_move/*=false*/) {
 
+    planner.synchronize();
+
     #if ENABLED(COLOR_MIXING_EXTRUDER) && MIXING_VIRTUAL_TOOLS > 1
 
       mixing_tool_change(tmp_extruder);
@@ -83,7 +85,7 @@
             no_move = true;
           }
 
-          // Save current position to mechanics.destination, for use later
+          // Save current position to destination, for use later
           mechanics.set_destination_to_current();
 
           #if HAS_LEVELING
@@ -103,7 +105,6 @@
               const float z_diff  = hotend_offset[Z_AXIS][active_extruder] - hotend_offset[Z_AXIS][tmp_extruder];
               mechanics.current_position[Z_AXIS] += (z_diff > 0.0 ? z_diff : 0.0) + 1;
               planner.buffer_line_kinematic(mechanics.current_position, mechanics.max_feedrate_mm_s[Z_AXIS], active_extruder);
-              planner.synchronize();
               move_extruder_servo(tmp_extruder);
             #endif
 
@@ -158,6 +159,9 @@
             #endif
             // Move back to the original (or tweaked) position
             mechanics.do_blocking_move_to(mechanics.destination[X_AXIS], mechanics.destination[Y_AXIS], mechanics.destination[Z_AXIS]);
+            #if ENABLED(DUAL_X_CARRIAGE)
+              mechanics.active_hotend_parked = false;
+            #endif
           }
           #if HAS_DONDOLO
             else {
@@ -195,7 +199,16 @@
 
     #endif // !MIXING_EXTRUDER || MIXING_VIRTUAL_TOOLS <= 1
   }
-  
+
+  void Tools::print_parameters(const uint8_t h) {
+    SERIAL_LM(CFG, "Hotend offset (unit): H<Hotend> X<offset> Y<offset> Z<offset>:");
+    SERIAL_SMV(CFG, "  M218 H", (int)h);
+    SERIAL_MV(" X", LINEAR_UNIT(tools.hotend_offset[X_AXIS][h]), 3);
+    SERIAL_MV(" Y", LINEAR_UNIT(tools.hotend_offset[Y_AXIS][h]), 3);
+    SERIAL_MV(" Z", LINEAR_UNIT(tools.hotend_offset[Z_AXIS][h]), 3);
+    SERIAL_EOL();
+  }
+
   #if ENABLED(EXT_SOLENOID)
 
     void Tools::enable_solenoid(const uint8_t e) {

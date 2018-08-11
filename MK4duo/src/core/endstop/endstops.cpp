@@ -138,7 +138,86 @@ void Endstops::init() {
 
 }
 
-// Called from HAL::Tick or Temperature ISR: Check endstop state if required
+void Endstops::factory_parameters() {
+
+  setGlobally(
+    #if ENABLED(ENDSTOPS_ONLY_FOR_HOMING)
+      (false)
+    #else
+      (true)
+    #endif
+  );
+
+  #if ENABLED(X_TWO_ENDSTOPS)
+    x_endstop_adj = 0.0f;
+  #endif
+  #if ENABLED(Y_TWO_ENDSTOPS)
+    y_endstop_adj = 0.0f;
+  #endif
+  #if ENABLED(Z_TWO_ENDSTOPS)
+    z_endstop_adj = 0.0f;
+  #endif
+  
+  #if MB(ALLIGATOR_R2) || MB(ALLIGATOR_R3)
+
+    setLogic(X_MIN, !X_MIN_ENDSTOP_LOGIC);
+    setLogic(Y_MIN, !Y_MIN_ENDSTOP_LOGIC);
+    setLogic(Z_MIN, !Z_MIN_ENDSTOP_LOGIC);
+    setLogic(X_MAX, !X_MAX_ENDSTOP_LOGIC);
+    setLogic(Y_MAX, !Y_MAX_ENDSTOP_LOGIC);
+    setLogic(Z_MAX, !Z_MAX_ENDSTOP_LOGIC);
+    setLogic(X2_MIN, !X2_MIN_ENDSTOP_LOGIC);
+    setLogic(Y2_MIN, !Y2_MIN_ENDSTOP_LOGIC);
+    setLogic(Z2_MIN, !Z2_MIN_ENDSTOP_LOGIC);
+    setLogic(X2_MAX, !X2_MAX_ENDSTOP_LOGIC);
+    setLogic(Y2_MAX, !Y2_MAX_ENDSTOP_LOGIC);
+    setLogic(Z2_MAX, !Z2_MAX_ENDSTOP_LOGIC);
+    setLogic(Z_PROBE, !Z_PROBE_ENDSTOP_LOGIC);
+    setLogic(FIL_RUNOUT, !FIL_RUNOUT_LOGIC);
+    setLogic(DOOR_OPEN_SENSOR, !DOOR_OPEN_LOGIC);
+    setLogic(POWER_CHECK_SENSOR, !POWER_CHECK_LOGIC);
+
+  #else
+
+    setLogic(X_MIN, X_MIN_ENDSTOP_LOGIC);
+    setLogic(Y_MIN, Y_MIN_ENDSTOP_LOGIC);
+    setLogic(Z_MIN, Z_MIN_ENDSTOP_LOGIC);
+    setLogic(X_MAX, X_MAX_ENDSTOP_LOGIC);
+    setLogic(Y_MAX, Y_MAX_ENDSTOP_LOGIC);
+    setLogic(Z_MAX, Z_MAX_ENDSTOP_LOGIC);
+    setLogic(X2_MIN, X2_MIN_ENDSTOP_LOGIC);
+    setLogic(Y2_MIN, Y2_MIN_ENDSTOP_LOGIC);
+    setLogic(Z2_MIN, Z2_MIN_ENDSTOP_LOGIC);
+    setLogic(X2_MAX, X2_MAX_ENDSTOP_LOGIC);
+    setLogic(Y2_MAX, Y2_MAX_ENDSTOP_LOGIC);
+    setLogic(Z2_MAX, Z2_MAX_ENDSTOP_LOGIC);
+    setLogic(Z_PROBE, Z_PROBE_ENDSTOP_LOGIC);
+    setLogic(FIL_RUNOUT, FIL_RUNOUT_LOGIC);
+    setLogic(DOOR_OPEN_SENSOR, DOOR_OPEN_LOGIC);
+    setLogic(POWER_CHECK_SENSOR, POWER_CHECK_LOGIC);
+
+  #endif
+
+  setPullup(X_MIN, ENDSTOPPULLUP_XMIN);
+  setPullup(Y_MIN, ENDSTOPPULLUP_YMIN);
+  setPullup(Z_MIN, ENDSTOPPULLUP_ZMIN);
+  setPullup(X_MAX, ENDSTOPPULLUP_XMAX);
+  setPullup(Y_MAX, ENDSTOPPULLUP_YMAX);
+  setPullup(Z_MAX, ENDSTOPPULLUP_ZMAX);
+  setPullup(X2_MIN, ENDSTOPPULLUP_X2MIN);
+  setPullup(Y2_MIN, ENDSTOPPULLUP_Y2MIN);
+  setPullup(Z2_MIN, ENDSTOPPULLUP_Z2MIN);
+  setPullup(X2_MAX, ENDSTOPPULLUP_X2MAX);
+  setPullup(Y2_MAX, ENDSTOPPULLUP_Y2MAX);
+  setPullup(Z2_MAX, ENDSTOPPULLUP_Z2MAX);
+  setPullup(Z_PROBE, ENDSTOPPULLUP_ZPROBE);
+  setPullup(FIL_RUNOUT, PULLUP_FIL_RUNOUT);
+  setPullup(DOOR_OPEN_SENSOR, PULLUP_DOOR_OPEN);
+  setPullup(POWER_CHECK_SENSOR, PULLUP_POWER_CHECK);
+
+}
+
+// Called from HAL::Tick or HAL_temp_isr. Check endstop state if required
 void Endstops::Tick() {
   #if ENABLED(PINS_DEBUGGING)
     run_monitor();  // report changes in endstop status
@@ -663,9 +742,7 @@ void Endstops::update() {
       #else
         COPY_LIVE_STATE(Z_MIN, Z2_MIN);
       #endif
-    #elif HAS_BED_PROBE && !HAS_Z_PROBE_PIN
-      UPDATE_ENDSTOP_BIT(Z, MIN);
-    #elif Z_HOME_DIR < 0
+    #else
       UPDATE_ENDSTOP_BIT(Z, MIN);
     #endif
   #endif
@@ -774,13 +851,7 @@ void Endstops::update() {
         #if ENABLED(Z_TWO_ENDSTOPS)
           PROCESS_DUAL_ENDSTOP(Z, Z2, MIN);
         #else
-          #if HAS_BED_PROBE && !HAS_Z_PROBE_PIN
-            if (isProbeEnabled()) PROCESS_ENDSTOP(Z, MIN);
-          #elif HAS_BED_PROBE && HAS_Z_PROBE_PIN
-            if (!isProbeEnabled()) PROCESS_ENDSTOP(Z, MIN);
-          #else
-            PROCESS_ENDSTOP(Z, MIN);
-          #endif
+          PROCESS_ENDSTOP(Z, MIN);
         #endif
       #endif
 

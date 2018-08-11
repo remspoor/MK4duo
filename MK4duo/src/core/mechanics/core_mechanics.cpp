@@ -26,7 +26,7 @@
  * Copyright (C) 2016 Alberto Cotronei @MagoKimbra
  */
 
-#include "../../../../MK4duo.h"
+#include "../../../MK4duo.h"
 #include "core_mechanics.h"
 
 #if IS_CORE
@@ -39,7 +39,45 @@
               Core_Mechanics::base_home_pos[XYZ]  = { X_HOME_POS, Y_HOME_POS, Z_HOME_POS },
               Core_Mechanics::max_length[XYZ]     = { X_MAX_LENGTH, Y_MAX_LENGTH, Z_MAX_LENGTH };
 
-  void Core_Mechanics::init() { }
+  /** Public Function */
+  void Core_Mechanics::factory_parameters() {
+
+    static const float    tmp1[] PROGMEM  = DEFAULT_AXIS_STEPS_PER_UNIT,
+                          tmp2[] PROGMEM  = DEFAULT_MAX_FEEDRATE;
+    static const uint32_t tmp3[] PROGMEM  = DEFAULT_MAX_ACCELERATION,
+                          tmp4[] PROGMEM  = DEFAULT_RETRACT_ACCELERATION;
+
+    LOOP_XYZE_N(i) {
+      axis_steps_per_mm[i]          = pgm_read_float(&tmp1[i < COUNT(tmp1) ? i : COUNT(tmp1) - 1]);
+      max_feedrate_mm_s[i]          = pgm_read_float(&tmp2[i < COUNT(tmp2) ? i : COUNT(tmp2) - 1]);
+      max_acceleration_mm_per_s2[i] = pgm_read_dword_near(&tmp3[i < COUNT(tmp3) ? i : COUNT(tmp3) - 1]);
+    }
+
+    for (uint8_t i = 0; i < EXTRUDERS; i++)
+      retract_acceleration[i] = pgm_read_dword_near(&tmp4[i < COUNT(tmp4) ? i : COUNT(tmp4) - 1]);
+
+    acceleration              = DEFAULT_ACCELERATION;
+    travel_acceleration       = DEFAULT_TRAVEL_ACCELERATION;
+    min_feedrate_mm_s         = DEFAULT_MINIMUMFEEDRATE;
+    min_segment_time_us       = DEFAULT_MINSEGMENTTIME;
+    min_travel_feedrate_mm_s  = DEFAULT_MINTRAVELFEEDRATE;
+
+    #if ENABLED(JUNCTION_DEVIATION)
+      junction_deviation_mm = JUNCTION_DEVIATION_MM;
+    #else
+      static const float tmp5[] PROGMEM = DEFAULT_EJERK;
+      max_jerk[X_AXIS]  = DEFAULT_XJERK;
+      max_jerk[Y_AXIS]  = DEFAULT_YJERK;
+      max_jerk[Z_AXIS]  = DEFAULT_ZJERK;
+      for (uint8_t i = 0; i < EXTRUDERS; i++)
+        max_jerk[E_AXIS + i] = pgm_read_float(&tmp5[i < COUNT(tmp5) ? i : COUNT(tmp5) - 1]);
+    #endif
+
+    #if ENABLED(WORKSPACE_OFFSETS)
+      ZERO(mechanics.home_offset);
+    #endif
+
+  }
 
   void Core_Mechanics::sync_plan_position_mech_specific() {
     #if ENABLED(DEBUG_LEVELING_FEATURE)
@@ -92,10 +130,6 @@
       tools.change(0, 0, true);
     #endif
 
-    #if ENABLED(DUAL_X_CARRIAGE)
-      hotend_duplication_enabled = false;
-    #endif
-
     printer.setup_for_endstop_or_probe_move();
     #if ENABLED(DEBUG_LEVELING_FEATURE)
       if (printer.debugLeveling()) SERIAL_EM("> endstops.setEnabled(true)");
@@ -142,27 +176,7 @@
     #endif
 
     // Home X
-    if (home_all || homeX) {
-      #if ENABLED(DUAL_X_CARRIAGE)
-        // Always home the 2nd (right) extruder first
-        tools.active_extruder = 1;
-        homeaxis(X_AXIS);
-
-        // Remember this extruder's position for later tool change
-        inactive_hotend_x_pos = current_position[X_AXIS];
-
-        // Home the 1st (left) extruder
-        tools.active_extruder = 0;
-        homeaxis(X_AXIS);
-
-        // Consider the active extruder to be parked
-        COPY_ARRAY(raised_parked_position, current_position);
-        delayed_move_time = 0;
-        active_hotend_parked = true;
-      #else
-        homeaxis(X_AXIS);
-      #endif
-    }
+    if (home_all || homeX) homeaxis(X_AXIS);
 
     #if DISABLED(HOME_Y_BEFORE_X)
       // Home Y (after X)
@@ -281,13 +295,6 @@
       }
     #endif
 
-    const int axis_home_dir = (
-      #if ENABLED(DUAL_X_CARRIAGE)
-        axis == X_AXIS ? x_home_dir(tools.active_extruder) :
-      #endif
-      home_dir[axis]
-    );
-
     // Homing Z towards the bed? Deploy the Z probe or endstop.
     #if HOMING_Z_WITH_PROBE
       if (axis == Z_AXIS && DEPLOY_PROBE()) return;
@@ -308,10 +315,21 @@
     #if ENABLED(DEBUG_LEVELING_FEATURE)
       if (printer.debugLeveling()) SERIAL_EM("Home 1 Fast:");
     #endif
-    mechanics.do_homing_move(axis, 1.5 * max_length[axis] * axis_home_dir);
+
+    #if HOMING_Z_WITH_PROBE && ENABLED(BLTOUCH)
+      // BLTOUCH needs to be deployed every time
+      if (axis == Z_AXIS && probe.set_bltouch_deployed(true)) return;
+    #endif
+
+    mechanics.do_homing_move(axis, 1.5f * max_length[axis] * home_dir[axis]);
+
+    #if HOMING_Z_WITH_PROBE && ENABLED(BLTOUCH)
+      // BLTOUCH needs to be deployed every time
+      if (axis == Z_AXIS) probe.set_bltouch_deployed(false);
+    #endif
 
     // When homing Z with probe respect probe clearance
-    const float bump = axis_home_dir * (
+    const float bump = home_dir[axis] * (
       #if HOMING_Z_WITH_PROBE
         (axis == Z_AXIS) ? MAX(Z_PROBE_BETWEEN_HEIGHT, home_bump_mm[Z_AXIS]) :
       #endif
@@ -334,11 +352,22 @@
       #if ENABLED(DEBUG_LEVELING_FEATURE)
         if (printer.debugLeveling()) SERIAL_EM("Home 2 Slow:");
       #endif
+
+      #if HOMING_Z_WITH_PROBE && ENABLED(BLTOUCH)
+        // BLTOUCH needs to be deployed every time
+        if (axis == Z_AXIS && probe.set_bltouch_deployed(true)) return;
+      #endif
+
       mechanics.do_homing_move(axis, 2 * bump, get_homing_bump_feedrate(axis));
+
+      #if HOMING_Z_WITH_PROBE && ENABLED(BLTOUCH)
+        // BLTOUCH needs to be deployed every time
+        if (axis == Z_AXIS) probe.set_bltouch_deployed(false);
+      #endif
     }
 
     #if ENABLED(X_TWO_ENDSTOPS) || ENABLED(Y_TWO_ENDSTOPS) || ENABLED(Z_TWO_ENDSTOPS)
-      const bool pos_dir = axis_home_dir > 0;
+      const bool pos_dir = home_dir[axis] > 0;
       #if ENABLED(X_TWO_ENDSTOPS)
         if (axis == X_AXIS) {
           const float adj = ABS(endstops.x_endstop_adj);
@@ -409,12 +438,6 @@
       current_position[X_AXIS] = current_position[Y_AXIS] = 0;
       sync_plan_position();
 
-      #if ENABLED(DUAL_X_CARRIAGE)
-        const int x_axis_home_dir = x_home_dir(tools.active_extruder);
-      #else
-        const int x_axis_home_dir = home_dir[X_AXIS];
-      #endif
-
       const float mlx = max_length[X_AXIS],
                   mly = max_length[Y_AXIS],
                   mlratio = mlx > mly ? mly / mlx : mlx / mly,
@@ -425,7 +448,7 @@
         sensorless_homing_per_axis(Y_AXIS);
       #endif
 
-      do_blocking_move_to_xy(1.5 * mlx * x_axis_home_dir, 1.5 * mly * home_dir[Y_AXIS], fr_mm_s);
+      do_blocking_move_to_xy(1.5 * mlx * home_dir[X_AXIS], 1.5 * mly * home_dir[Y_AXIS], fr_mm_s);
 
       endstops.validate_homing_move();
 
@@ -472,11 +495,6 @@
 
         #if ENABLED(DEBUG_LEVELING_FEATURE)
           if (printer.debugLeveling()) DEBUG_POS("Z_SAFE_HOMING", destination);
-        #endif
-
-        // This causes the carriage on Dual X to unpark
-        #if ENABLED(DUAL_X_CARRIAGE)
-          active_hotend_parked = false;
         #endif
 
         #if ENABLED(SENSORLESS_HOMING)
@@ -577,13 +595,6 @@
       endstops.update_software_endstops(axis);
     #endif
 
-    #if ENABLED(DUAL_X_CARRIAGE)
-      if (axis == X_AXIS && (tools.active_extruder == 1 || dual_x_carriage_mode == DXC_DUPLICATION_MODE)) {
-        current_position[X_AXIS] = x_home_pos(tools.active_extruder);
-        return;
-      }
-    #endif
-
     current_position[axis] = base_home_pos[axis];
 
     /**
@@ -614,5 +625,104 @@
       }
     #endif
   }
+
+  #if DISABLED(DISABLE_M503)
+
+    void Core_Mechanics::print_parameters() {
+
+      SERIAL_LM(CFG, "Steps per unit:");
+      SERIAL_SMV(CFG, "  M92 X", LINEAR_UNIT(axis_steps_per_mm[X_AXIS]), 3);
+      SERIAL_MV(" Y", LINEAR_UNIT(axis_steps_per_mm[Y_AXIS]), 3);
+      SERIAL_MV(" Z", LINEAR_UNIT(axis_steps_per_mm[Z_AXIS]), 3);
+      #if EXTRUDERS == 1
+        SERIAL_MV(" T0 E", VOLUMETRIC_UNIT(axis_steps_per_mm[E_AXIS]), 3);
+      #endif
+      SERIAL_EOL();
+      #if EXTRUDERS > 1
+        LOOP_EXTRUDER() {
+          SERIAL_SMV(CFG, "  M92 T", (int)e);
+          SERIAL_EMV(" E", VOLUMETRIC_UNIT(axis_steps_per_mm[E_AXIS + e]), 3);
+        }
+      #endif // EXTRUDERS > 1
+
+      SERIAL_LM(CFG, "Maximum feedrates (units/s):");
+      SERIAL_SMV(CFG, "  M203 X", LINEAR_UNIT(max_feedrate_mm_s[X_AXIS]), 3);
+      SERIAL_MV(" Y", LINEAR_UNIT(max_feedrate_mm_s[Y_AXIS]), 3);
+      SERIAL_MV(" Z", LINEAR_UNIT(max_feedrate_mm_s[Z_AXIS]), 3);
+      #if EXTRUDERS == 1
+        SERIAL_MV(" T0 E", VOLUMETRIC_UNIT(max_feedrate_mm_s[E_AXIS]), 3);
+      #endif
+      SERIAL_EOL();
+      #if EXTRUDERS > 1
+        LOOP_EXTRUDER() {
+          SERIAL_SMV(CFG, "  M203 T", (int)e);
+          SERIAL_EMV(" E", VOLUMETRIC_UNIT(max_feedrate_mm_s[E_AXIS + e]), 3);
+        }
+      #endif // EXTRUDERS > 1
+
+      SERIAL_LM(CFG, "Maximum Acceleration (units/s2):");
+      SERIAL_SMV(CFG, "  M201 X", LINEAR_UNIT(max_acceleration_mm_per_s2[X_AXIS]));
+      SERIAL_MV(" Y", LINEAR_UNIT(max_acceleration_mm_per_s2[Y_AXIS]));
+      SERIAL_MV(" Z", LINEAR_UNIT(max_acceleration_mm_per_s2[Z_AXIS]));
+      #if EXTRUDERS == 1
+        SERIAL_MV(" T0 E", VOLUMETRIC_UNIT(max_acceleration_mm_per_s2[E_AXIS]));
+      #endif
+      SERIAL_EOL();
+      #if EXTRUDERS > 1
+        LOOP_EXTRUDER() {
+          SERIAL_SMV(CFG, "  M201 T", (int)e);
+          SERIAL_EMV(" E", VOLUMETRIC_UNIT(max_acceleration_mm_per_s2[E_AXIS + e]));
+        }
+      #endif // EXTRUDERS > 1
+
+      SERIAL_LM(CFG, "Acceleration (units/s2): P<print_accel> V<travel_accel> T* R<retract_accel>:");
+      SERIAL_SMV(CFG,"  M204 P", LINEAR_UNIT(acceleration), 3);
+      SERIAL_MV(" V", LINEAR_UNIT(travel_acceleration), 3);
+      #if EXTRUDERS == 1
+        SERIAL_MV(" T0 R", LINEAR_UNIT(retract_acceleration[0]), 3);
+      #endif
+      SERIAL_EOL();
+      #if EXTRUDERS > 1
+        LOOP_EXTRUDER() {
+          SERIAL_SMV(CFG, "  M204 T", (int)e);
+          SERIAL_EMV(" R", LINEAR_UNIT(retract_acceleration[e]), 3);
+        }
+      #endif
+
+      SERIAL_LM(CFG, "Advanced variables: B<min_segment_time_us> S<min_feedrate> V<min_travel_feedrate>:");
+      SERIAL_SMV(CFG, " M205 B", min_segment_time_us);
+      SERIAL_MV(" S", LINEAR_UNIT(min_feedrate_mm_s), 3);
+      SERIAL_EMV(" V", LINEAR_UNIT(min_travel_feedrate_mm_s), 3);
+
+      #if ENABLED(JUNCTION_DEVIATION)
+        SERIAL_LM(CFG, "Junction Deviation: J<Junction deviation mm>:");
+        SERIAL_LMV(CFG, "  M205 J", junction_deviation_mm, 3);
+      #else
+        SERIAL_LM(CFG, "Jerk: X<max_xy_jerk> Z<max_z_jerk> T* E<max_e_jerk>:");
+        SERIAL_SMV(CFG, " M205 X", LINEAR_UNIT(max_jerk[X_AXIS]), 3);
+        SERIAL_MV(" Y", LINEAR_UNIT(max_jerk[Y_AXIS]), 3);
+        SERIAL_MV(" Z", LINEAR_UNIT(max_jerk[Z_AXIS]), 3);
+        #if EXTRUDERS == 1
+          SERIAL_MV(" T0 E", LINEAR_UNIT(max_jerk[E_AXIS]), 3);
+        #endif
+        SERIAL_EOL();
+        #if (EXTRUDERS > 1)
+          LOOP_EXTRUDER() {
+            SERIAL_SMV(CFG, "  M205 T", (int)e);
+            SERIAL_EMV(" E" , LINEAR_UNIT(max_jerk[E_AXIS + e]), 3);
+          }
+        #endif
+      #endif
+
+      #if ENABLED(WORKSPACE_OFFSETS)
+        SERIAL_LM(CFG, "Home offset:");
+        SERIAL_SMV(CFG, "  M206 X", LINEAR_UNIT(home_offset[X_AXIS]), 3);
+        SERIAL_MV(" Y", LINEAR_UNIT(home_offset[Y_AXIS]), 3);
+        SERIAL_EMV(" Z", LINEAR_UNIT(home_offset[Z_AXIS]), 3);
+      #endif
+
+    }
+
+  #endif // DISABLED(DISABLE_M503)
 
 #endif // IS_CORE

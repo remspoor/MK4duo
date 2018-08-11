@@ -26,38 +26,19 @@
  * Test configuration values for errors at compile-time.
  */
 
-#ifndef _MECH_SCARA_SANITYCHECK_H_
-#define _MECH_SCARA_SANITYCHECK_H_
+#ifndef _EEPROM_SANITYCHECK_H_
+#define _EEPROM_SANITYCHECK_H_
 
-// Configuration settings
-#if IS_SCARA
+#if ENABLED(__AVR__)
 
-  #if DISABLED(SCARA_LINKAGE_1)
-    #error "DEPENDENCY ERROR: Missing setting SCARA_LINKAGE_1."
-  #endif
-  #if DISABLED(SCARA_LINKAGE_2)
-    #error "DEPENDENCY ERROR: Missing setting SCARA_LINKAGE_2."
-  #endif
-  #if DISABLED(SCARA_OFFSET_X)
-    #error "DEPENDENCY ERROR: Missing setting SCARA_OFFSET_X."
-  #endif
-  #if DISABLED(SCARA_OFFSET_Y)
-    #error "DEPENDENCY ERROR: Missing setting SCARA_OFFSET_Y."
-  #endif
-  #if DISABLED(THETA_HOMING_OFFSET)
-    #error "DEPENDENCY ERROR: Missing setting THETA_HOMING_OFFSET."
-  #endif
-  #if DISABLED(PSI_HOMING_OFFSET)
-    #error "DEPENDENCY ERROR: Missing setting PSI_HOMING_OFFSET."
+  #if ENABLED(EEPROM_SD)
+    #error "DEPENDENCY ERROR: EEPROM_SD is not implemented for AVR processor."
   #endif
 
-  /**
-   * Babystepping
-   */
-  #if ENABLED(BABYSTEPPING)
-    #error "DEPENDENCY ERROR: BABYSTEPPING is not implemented for SCARA yet."
+  #if ENABLED(EEPROM_FLASH)
+    #error "DEPENDENCY ERROR: EEPROM_FLASH is not implemented for AVR processor."
   #endif
 
-#endif // IS_SCARA
+#endif // ENABLED(__AVR__)
 
-#endif /* _MECH_SCARA_SANITYCHECK_H_ */
+#endif /* _EEPROM_SANITYCHECK_H_ */

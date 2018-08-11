@@ -45,7 +45,8 @@
     public: /** Public Parameters */
 
       pin_t     pin;
-      uint8_t   Speed,
+      uint8_t   ID,
+                Speed,
                 min_Speed,
                 paused_Speed,
                 Kickstart,
@@ -59,8 +60,9 @@
     public: /** Public Function */
 
       void init();
-      void SetAutoMonitored(const int8_t h);
+      void setAutoMonitored(const int8_t h);
       void spin();
+      void print_parameters();
 
       FORCE_INLINE void setHWInverted(const bool onoff) {
         SET_BIT(FanFlag, fan_flag_hardware_inverted, onoff);

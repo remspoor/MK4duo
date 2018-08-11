@@ -52,7 +52,7 @@
 
   }
 
-  void Fan::SetAutoMonitored(const int8_t h) {
+  void Fan::setAutoMonitored(const int8_t h) {
     if (WITHIN(h, 0, HOTENDS - 1) || h == 7)
       SBI(autoMonitored, (uint8_t)h);
     else      
@@ -82,7 +82,7 @@
     if (TEST(autoMonitored, 7)) {
 
       // Check Heaters
-      if (thermalManager.heaters_isON()) controller_fan_watch.start();
+      if (thermalManager.heaters_isActive()) controller_fan_watch.start();
 
       // Check Motors
       if (X_ENABLE_READ == X_ENABLE_ON || Y_ENABLE_READ == Y_ENABLE_ON || Z_ENABLE_READ == Z_ENABLE_ON
@@ -112,6 +112,18 @@
       // Fan off if no steppers or heaters have been enabled for CONTROLLERFAN_SECS seconds
       Speed = controller_fan_watch.elapsed() ? CONTROLLERFAN_MIN_SPEED : CONTROLLERFAN_SPEED;
     }
+  }
+
+  void Fan::print_parameters() {
+    SERIAL_LM(CFG, "Fans: P<Fan> U<Pin> L<Min Speed> F<Freq> I<Hardware Inverted 0-1> H<Auto mode> :");
+    SERIAL_SMV(CFG, "  M106 P", (int)ID);
+    SERIAL_MV(" U", pin);
+    SERIAL_MV(" L", min_Speed);
+    SERIAL_MV(" F", freq);
+    SERIAL_MV(" I", isHWInverted());
+    LOOP_HOTEND() if (TEST(autoMonitored, h)) SERIAL_MV(" H", (int)h);
+    if (TEST(autoMonitored, 7)) SERIAL_MSG(" H7");
+    SERIAL_EOL();
   }
 
   #if HARDWARE_PWM

@@ -136,6 +136,7 @@
  *                                                                          *
  * Set driver type:                                                         *
  *  - A4988                                                                 *
+ *  - A5984                                                                 *
  *  - DRV8825                                                               *
  *  - TMC26X                                                                *
  *  - L6470                                                                 *
@@ -207,6 +208,9 @@
 #define CONTROLLERFAN_SECS           60 // How many seconds, after all motors were disabled, the fan should run
 #define CONTROLLERFAN_SPEED         255 // 255 = full speed
 #define CONTROLLERFAN_MIN_SPEED       0
+
+// Add Tachometric option for fan ONLY FOR DUE. (Add TACHOMETRIC PIN in configuration pins)
+//#define TACHOMETRIC
 /****************************************************************************/
 
 
@@ -1078,15 +1082,26 @@
  *                                                                                                                      *
  * Uncomment EEPROM SETTINGS to enable this feature.                                                                    *
  * Uncomment EEPROM CHITCHAT to enable EEPROM Serial responses.                                                         *
- * Uncomment EEPROM SD for use writing EEPROM on SD                                                                     *
+ * Uncomment EEPROM I2C if your board mount I2C EEPROM (Already enabled for cards that mount this eeprom by default)    *
+ * Uncomment EEPROM SPI if your board mount SPI EEPROM (Already enabled for cards that mount this eeprom by default)    *
+ * Uncomment EEPROM SD for use writing EEPROM on SD  (Only for DUE)                                                     *
  * Uncomment EEPROM FLASH for use writing EEPROM on Flash Memory (Only for DUE)                                         *
  *                                                                                                                      *
  ************************************************************************************************************************/
 //#define EEPROM_SETTINGS
 
-//#define EEPROM_CHITCHAT // Uncomment this to enable EEPROM Serial responses.
+// Uncomment this to enable EEPROM Serial responses.
+//#define EEPROM_CHITCHAT
+
+// Type EEPROM Hardware
+//  Caution!!! The cards that mount the eeprom by default
+//  have already enabled the correct define, do not touch this.
+//#define EEPROM_I2C
+//#define EEPROM_SPI
 //#define EEPROM_SD
 //#define EEPROM_FLASH
+
+// Disabled M503 report
 //#define DISABLE_M503
 /************************************************************************************************************************/
 
@@ -1506,7 +1521,7 @@
 // With this option MK4duo will first show your custom screen followed
 // by the standard MK4duo logo with version number and web URL.
 // We encourage you to take advantage of this new feature and we also
-// respecfully request that you retain the unmodified MK4duo boot screen.
+// respectfully request that you retain the unmodified MK4duo boot screen.
 //
 
 // Enable to show the bitmap in MK4duo/src/lcd/custom_bootscreen.h on startup.
@@ -1723,7 +1738,7 @@
  * luminance values can be set from 0 to 255.                             *
  *                                                                        *
  * *** CAUTION ***                                                        *
- *  LED Strips require a MOFSET Chip between PWM lines and LEDs,          *
+ *  LED Strips require a MOSFET Chip between PWM lines and LEDs,          *
  *  as the Arduino cannot handle the current the LEDs will require.       *
  *  Failure to follow this precaution can destroy your Arduino!           *
  * *** CAUTION ***                                                        *
@@ -1884,10 +1899,9 @@
  ******************************** Minimum stepper pulse ********************************
  ***************************************************************************************
  *                                                                                     *
- * The minimum pulse width (in µs) for stepping a stepper.                             *
+ * Minimum stepper driver pulse width (in µs)                                          *
  *  0 : Smallest possible width the MCU can produce, compatible with TMC2xxx drivers   *
- *  1 : Minimum for A4988 stepper drivers                                              *
- *  1 : Minimum for LV8729 stepper drivers                                             *
+ *  1 : Minimum for A4988, A5984, and LV8729 stepper drivers                           *
  *  2 : Minimum for DRV8825 stepper drivers                                            *
  *  3 : Minimum for TB6600 stepper drivers                                             *
  * 30 : Minimum for TB6560 stepper drivers                                             *
@@ -1919,12 +1933,11 @@
  ********************** Direction Stepper Delay ************************
  ***********************************************************************
  *                                                                     *
- * Minimum delay between changing the Direction pin in                 *
- * the Stepper driver to the stepper driver pulse edge                 *
- * expressed in nS (nanoseconds)                                       *
+ * Minimum delay after setting the stepper DIR (in ns)                 *
  *      0 : No delay at all - But, at least 10uS are expected          *
  *     50 : Minimum for TMC2xxx drivers                                *
  *    200 : Minimum for A4988 drivers                                  *
+ *    400 : Minimum for A5984 drivers                                  *
  *    500 : Minimum for LV8729 drivers (guess, no info in datasheet)   *
  *    650 : Minimum for DRV8825 drivers                                *
  *   1500 : Minimum for TB6600 drivers (guess, no info in datasheet)   *

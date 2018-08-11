@@ -1,7 +1,7 @@
 /****************************************************************************************
 * 1550
 *
-* RURAMPS4DUE      (Hotend0, Hotend1, Hotend2, Fan0, Fan1, Bed)
+* RURAMPS4DUE V1.1  (Hotend0, Hotend1, Hotend2, Fan0, Fan1, Bed)
 ****************************************************************************************/
 
 //###CHIP
@@ -14,7 +14,7 @@
 
 //###BOARD_NAME
 #if DISABLED(BOARD_NAME)
-  #define BOARD_NAME "RuRAMPS4Due"
+  #define BOARD_NAME "RuRAMPS4Due v1.1"
 #endif
 //@@@
 
@@ -59,8 +59,8 @@
 #define ORIG_SOL2_PIN              NoPin
 
 //###EXTRUDER_3
-#define ORIG_E3_STEP_PIN           14
-#define ORIG_E3_DIR_PIN            15
+#define ORIG_E3_STEP_PIN           15
+#define ORIG_E3_DIR_PIN            14
 #define ORIG_E3_ENABLE_PIN         61
 #define ORIG_E3_CS_PIN             NoPin
 #define ORIG_SOL3_PIN              NoPin
@@ -119,7 +119,7 @@
 #define ORIG_HEATER_2_PIN          11
 #define ORIG_HEATER_3_PIN          NoPin
 #define ORIG_HEATER_BED_PIN         7
-#define ORIG_HEATER_CHAMBER_PIN     6
+#define ORIG_HEATER_CHAMBER_PIN    NoPin
 #define ORIG_COOLER_PIN            NoPin
 
 //###TEMPERATURE
@@ -212,12 +212,7 @@
 
   #elif ENABLED(SPARK_FULL_GRAPHICS)
 
-    #define LCD_PINS_D4     29
-    #define LCD_PINS_ENABLE 27
-    #define LCD_PINS_RS     25
-    #define BTN_EN1         35
-    #define BTN_EN2         33
-    #define BTN_ENC         37
+    #error "Oops! SPARK_FULL_GRAPHICS not supported with RURAMPS4D."
 
   #endif // SPARK_FULL_GRAPHICS
 

@@ -171,8 +171,8 @@
       static void closeFile();
       static void printingHasFinished();
       static void chdir(const char* relpath);
-      static void ResetDefault();
-      static void PrintSettings();
+      static void reset_default();
+      static void print_settings();
       static void beginautostart();
       static void checkautostart();
       static void setroot();
@@ -196,10 +196,10 @@
       #endif
 
       #if HAS_EEPROM_SD
-        static bool open_eeprom_sd(const bool read);
+        static void open_eeprom_sd(const bool read);
         static void close_eeprom_sd();
-        static bool write_eeprom_data(const uint8_t value);
-        static uint8_t read_eeprom_data();
+        FORCE_INLINE static int16_t write_eeprom_data(void* buf, uint16_t nbyte)  { return eeprom_file.isOpen() ? eeprom_file.write(buf, nbyte) : -1; }
+        FORCE_INLINE static int16_t read_eeprom_data(void* buf, uint16_t nbyte)   { return eeprom_file.isOpen() ? eeprom_file.read(buf, nbyte) : -1; }
       #endif
 
       #if ENABLED(SD_SETTINGS)
@@ -213,7 +213,7 @@
         static void unparseKeyLine(const char* key, char* value);
         static int  KeyIndex(char* key);
       #else
-        inline static void RetrieveSettings() { ResetDefault(); }
+        inline static void RetrieveSettings() { reset_default(); }
       #endif
 
       #if ENABLED(SDCARD_SORT_ALPHA)
