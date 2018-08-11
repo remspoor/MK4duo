@@ -509,6 +509,8 @@
 #define PULLUP_POWER_CHECK true
 #define EEPROM_SETTINGS
 #define EEPROM_CHITCHAT // Uncomment this to enable EEPROM Serial responses.
+#define EEPROM_I2C
+//#define EEPROM_SPI
 //#define EEPROM_SD
 //#define EEPROM_FLASH
 //#define DISABLE_M503

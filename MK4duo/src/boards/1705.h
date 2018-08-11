@@ -161,7 +161,7 @@
 
 //###UNKNOWN_PINS
 //#define SPI_SPEED SPI_EIGHTH_SPEED
-//#define SOFTWARE_SPI
+#define SOFTWARE_SPI
 #define WIRE_PORT              2
 #define E2END                 0x1FFF
 #define MAX6675_SS_PIN        65
