@@ -146,7 +146,7 @@
             }
           #endif // PID_ADD_EXTRUSION_RATE
 
-          soft_pwm = constrain((int)pidTerm, 0, PID_MAX);
+          soft_pwm = constrain((int)pidTerm, 0, pidMax);
         }
 
         if (ELAPSED(now, cycle_1s)) {
@@ -172,21 +172,24 @@
   }
 
   void Heater::print_sensor_parameters() {
-    const int8_t heater_id = type == 0 ? ID : type;
-    SERIAL_LM(CFG, "Heater Sensor parameters: H<Heater> P<Pin> A<R25> B<BetaK> C<Steinhart-Hart C> R<Pullup> L<ADC low offset> O<ADC high offset>:");
+    const int8_t heater_id = type == 0 ? ID : -type;
+    SERIAL_LM(CFG, "Heater Sensor parameters: H<Heater> P<Pin> T<Type> A<R25> B<BetaK> C<Steinhart-Hart C> R<Pullup> L<ADC low offset> O<ADC high offset>:");
     SERIAL_SMV(CFG, "  M305 H", (int)heater_id);
     SERIAL_MV(" P", sensor.pin);
-    SERIAL_MV(" A", sensor.r25, 1);
-    SERIAL_MV(" B", sensor.beta, 1);
-    SERIAL_MV(" C", sensor.shC, 10);
-    SERIAL_MV(" R", sensor.pullupR, 1);
-    SERIAL_MV(" L", sensor.adcLowOffset);
-    SERIAL_MV(" O", sensor.adcHighOffset);
+    SERIAL_MV(" T", sensor.type);
+    if (WITHIN(sensor.type, 1, 9)) {
+      SERIAL_MV(" A", sensor.r25, 1);
+      SERIAL_MV(" B", sensor.beta, 1);
+      SERIAL_MV(" C", sensor.shC, 10);
+      SERIAL_MV(" R", sensor.pullupR, 1);
+      SERIAL_MV(" L", sensor.adcLowOffset);
+      SERIAL_MV(" O", sensor.adcHighOffset);
+    }
     SERIAL_EOL();
   }
 
   void Heater::print_heater_parameters() {
-    const int8_t heater_id = type == IS_HOTEND ? ID : type;
+    const int8_t heater_id = type == IS_HOTEND ? ID : -type;
     SERIAL_LM(CFG, "Heater parameters: H<Heater> P<Pin> A<Pid Drive Min> B<Pid Drive Max> C<Pid Max> L<Min Temp> O<Max Temp> U<Use Pid 0-1> I<Hardware Inverted 0-1>:");
     SERIAL_SMV(CFG, "  M306 H", (int)heater_id);
     SERIAL_MV(" P", pin);
@@ -201,7 +204,7 @@
   }
 
   void Heater::print_PID_parameters() {
-    const int8_t heater_id = type == IS_HOTEND ? ID : type;
+    const uint8_t heater_id = type == IS_HOTEND ? ID : -1;
     if (isUsePid()) {
       SERIAL_SM(CFG, "Heater PID parameters: H<Heater> P<Proportional> I<Integral> D<Derivative>");
       #if ENABLED(PID_ADD_EXTRUSION_RATE)
@@ -227,8 +230,8 @@
     void Heater::print_AD595_parameters() {
       SERIAL_LM(CFG, "AD595 or AD8495 parameters: H<Hotend> O<Offset> S<Gain>:");
       SERIAL_SMV(CFG, "  M595 H", (int)ID);
-      SERIAL_MV(" O", heaters[h].sensor.ad595_offset);
-      SERIAL_MV(" S", heaters[h].sensor.ad595_gain);
+      SERIAL_MV(" O", sensor.ad595_offset);
+      SERIAL_MV(" S", sensor.ad595_gain);
       SERIAL_EOL();
     }
   #endif

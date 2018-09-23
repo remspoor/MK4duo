@@ -289,7 +289,7 @@
     ++did_pause_print;
 
     // Pause the print job and timer
-    #if HAS_SDSUPPORT
+    #if HAS_SD_SUPPORT
       if (IS_SD_PRINTING) {
         card.pauseSDPrint();
         ++did_pause_print;
@@ -305,7 +305,7 @@
 
     // Initial retract before move to filament change position
     if (retract && !thermalManager.tooColdToExtrude(ACTIVE_HOTEND))
-      do_pause_e_move(retract, PAUSE_PARK_RETRACT_FEEDRATE);
+      do_pause_e_move(-retract, PAUSE_PARK_RETRACT_FEEDRATE);
 
     // Park the nozzle by moving up by z_lift and then moving to (x_pos, y_pos)
     Nozzle::park(2, park_point);
@@ -522,7 +522,7 @@
 
     --did_pause_print;
 
-    #if HAS_SDSUPPORT
+    #if HAS_SD_SUPPORT
       if (did_pause_print) {
         card.startFileprint();
         --did_pause_print;

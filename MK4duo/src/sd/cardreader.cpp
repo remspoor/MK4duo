@@ -22,7 +22,7 @@
 
 #include "../../MK4duo.h"
 
-#if HAS_SDSUPPORT
+#if HAS_SD_SUPPORT
 
   #if ENABLED(ARDUINO_ARCH_SAM)
     #include <avr/dtostrf.h>
@@ -122,14 +122,6 @@
   void CardReader::mount() {
     setOK(false);
     if (root.isOpen()) root.close();
-
-    #if ENABLED(SDEXTRASLOW)
-      #define SPI_SPEED SPI_QUARTER_SPEED
-    #elif ENABLED(SDSLOW)
-      #define SPI_SPEED SPI_HALF_SPEED
-    #else
-      #define SPI_SPEED SPI_FULL_SPEED
-    #endif
 
     if (!fat.begin(SDSS, SPI_SPEED)
       #if ENABLED(LCD_SDSS) && (LCD_SDSS != SDSS)
@@ -689,7 +681,7 @@
 
         settings_file.sync();
         settings_file.close();
-        SERIAL_LM(ECHO, " Statistics stored");
+        SERIAL_LM(ECHO, "Statistics stored");
       }
 
     }
@@ -753,7 +745,7 @@
       }
 
       print_job_counter.loaded = true;
-      SERIAL_LM(ECHO, " Statistics retrived");
+      SERIAL_LM(ECHO, "Statistics retrived");
 
     }
 

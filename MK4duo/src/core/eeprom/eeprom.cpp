@@ -38,10 +38,10 @@
 
 #include "../../../MK4duo.h"
 
-#define EEPROM_VERSION "MKV50"
+#define EEPROM_VERSION "MKV51"
 
 /**
- * MKV50 EEPROM Layout:
+ * MKV51 EEPROM Layout:
  *
  *  Version                                                     (char x6)
  *  EEPROM Checksum                                             (uint16_t)
@@ -152,6 +152,9 @@
  * DOGLCD:
  *  M250  C               lcd_contrast                                  (uint16_t)
  *
+ * SERVO ANGLES:
+ *  M281  P   LU          servo.angle                                   (int x2)
+ *
  * FWRETRACT:
  *  M209  S               fwretract.autoretract_enabled                 (bool)
  *  M207  S               fwretract.retract_length                      (float)
@@ -176,7 +179,7 @@
  *  M569  R               stepper.maximum_rate                  (uint32_t)
  *
  * ALLIGATOR:
- *  M906  XYZ T0-4 E      Motor current                         (float x7)
+ *  M906  XYZ T0-4 E      Motor current                         (uint16_t x7)
  *
  * TRINAMIC:
  *  M906  X               stepperX current                      (uint16_t)
@@ -312,13 +315,13 @@ void EEPROM::Postprocess() {
 
 #if HAS_EEPROM
 
-  #define EEPROM_READ_START()   int eeprom_index = EEPROM_OFFSET; eeprom_error = MemoryStore::access_start(true)
-  #define EEPROM_WRITE_START()  int eeprom_index = EEPROM_OFFSET; eeprom_error = MemoryStore::access_start(false)
-  #define EEPROM_READ_FINISH()  eeprom_error = MemoryStore::access_finish(true)
-  #define EEPROM_WRITE_FINISH() eeprom_error = MemoryStore::access_finish(false)
+  #define EEPROM_READ_START()   int eeprom_index = EEPROM_OFFSET; eeprom_error = memorystore.access_start(true)
+  #define EEPROM_WRITE_START()  int eeprom_index = EEPROM_OFFSET; eeprom_error = memorystore.access_start(false)
+  #define EEPROM_READ_FINISH()  eeprom_error = memorystore.access_finish(true)
+  #define EEPROM_WRITE_FINISH() eeprom_error = memorystore.access_finish(false)
   #define EEPROM_SKIP(VAR)      eeprom_index += sizeof(VAR)
-  #define EEPROM_WRITE(VAR)     MemoryStore::write_data(eeprom_index, (uint8_t*)&VAR, sizeof(VAR), &working_crc)
-  #define EEPROM_READ(VAR)      MemoryStore::read_data(eeprom_index, (uint8_t*)&VAR, sizeof(VAR), &working_crc)
+  #define EEPROM_WRITE(VAR)     memorystore.write_data(eeprom_index, (uint8_t*)&VAR, sizeof(VAR), &working_crc)
+  #define EEPROM_READ(VAR)      memorystore.read_data(eeprom_index, (uint8_t*)&VAR, sizeof(VAR), &working_crc)
 
   const char version[6] = EEPROM_VERSION;
 
@@ -513,6 +516,10 @@ void EEPROM::Postprocess() {
 
     #if HAS_LCD_CONTRAST
       EEPROM_WRITE(lcd_contrast);
+    #endif
+
+    #if HAS_SERVOS
+      LOOP_SERVO() EEPROM_WRITE(servo[s].angle);
     #endif
 
     #if ENABLED(FWRETRACT)
@@ -996,6 +1003,10 @@ void EEPROM::Postprocess() {
         EEPROM_READ(lcd_contrast);
       #endif
 
+      #if HAS_SERVOS
+        LOOP_SERVO() EEPROM_READ(servo[s].angle);
+      #endif
+
       #if ENABLED(FWRETRACT)
         EEPROM_READ(fwretract.autoretract_enabled);
         EEPROM_READ(fwretract.retract_length);
@@ -1184,8 +1195,8 @@ void EEPROM::Postprocess() {
 
       if (working_crc == stored_crc) {
         #if ENABLED(EEPROM_CHITCHAT)
-          SERIAL_VAL(version);
-          SERIAL_MV(" stored settings retrieved (", eeprom_index - (EEPROM_OFFSET));
+          SERIAL_ST(ECHO, version);
+          SERIAL_MV(" Stored settings retrieved (", eeprom_index - (EEPROM_OFFSET));
           SERIAL_MV(" bytes; crc ", working_crc);
           SERIAL_EM(")");
         #endif
@@ -1238,13 +1249,13 @@ void EEPROM::Postprocess() {
           #endif
         }
       #endif
+
+      EEPROM_READ_FINISH();
     }
 
     #if ENABLED(EEPROM_CHITCHAT)
       Print_Settings();
     #endif
-
-    EEPROM_READ_FINISH();
 
     return !eeprom_error;
   }
@@ -1258,6 +1269,8 @@ void EEPROM::Postprocess() {
         SERIAL_EM(" mesh slots available.");
       }
     #endif
+
+    const uint16_t EEPROM::meshes_end = memorystore.capacity() - 129;
 
     uint16_t EEPROM::calc_num_meshes() {
       return (meshes_end - meshes_start_index()) / sizeof(ubl.z_values);
@@ -1274,7 +1287,7 @@ void EEPROM::Postprocess() {
         if (!WITHIN(slot, 0, a - 1)) {
           #if ENABLED(EEPROM_CHITCHAT)
             ubl_invalid_slot(a);
-            SERIAL_MV("E2END=", E2END);
+            SERIAL_MV("E2END=", (int)(memorystore.capacity() - 1));
             SERIAL_MV(" meshes_end=", (int)meshes_end);
             SERIAL_EMV(" slot=", slot);
           #endif
@@ -1284,7 +1297,7 @@ void EEPROM::Postprocess() {
         uint16_t crc = 0;
         int pos = mesh_slot_offset(slot);
 
-        const bool status = MemoryStore::write_data(pos, (uint8_t *)&ubl.z_values, sizeof(ubl.z_values), &crc);
+        const bool status = memorystore.write_data(pos, (uint8_t *)&ubl.z_values, sizeof(ubl.z_values), &crc);
 
         if (status)
           SERIAL_MSG("?Unable to save mesh data.\n");
@@ -1318,9 +1331,9 @@ void EEPROM::Postprocess() {
         uint16_t crc = 0;
         uint8_t * const dest = into ? (uint8_t*)into : (uint8_t*)&ubl.z_values;
 
-        MemoryStore::access_start(true);
-        const bool status = MemoryStore::read_data(pos, dest, sizeof(ubl.z_values), &crc);
-        MemoryStore::access_finish(true);
+        memorystore.access_start(true);
+        const bool status = memorystore.read_data(pos, dest, sizeof(ubl.z_values), &crc);
+        memorystore.access_finish(true);
 
         if (status)
           SERIAL_MSG("?Unable to load mesh data.\n");
@@ -1383,7 +1396,7 @@ void EEPROM::Factory_Settings() {
   }
 
   #if MB(ALLIGATOR_R2) || MB(ALLIGATOR_R3)
-    constexpr float tmp8[] = { float(X_CURRENT / 1000), float(Y_CURRENT / 1000), float(Z_CURRENT / 1000), float(E0_CURRENT / 1000), float(E1_CURRENT / 1000), float(E2_CURRENT / 1000), float(E3_CURRENT /1000) };
+    constexpr uint16_t tmp8[] = { X_CURRENT, Y_CURRENT, Z_CURRENT, E0_CURRENT, E1_CURRENT, E2_CURRENT, E3_CURRENT };
     for (uint8_t i = 0; i < 3 + DRIVER_EXTRUDERS; i++)
       externaldac.motor_current[i] = tmp8[i < COUNT(tmp8) ? i : COUNT(tmp8) - 1];
   #endif
@@ -1430,6 +1443,22 @@ void EEPROM::Factory_Settings() {
     lcd_contrast = DEFAULT_LCD_CONTRAST;
   #endif
 
+  #if HAS_SERVOS
+
+    #if HAS_DONDOLO
+      constexpr int16_t angles[] = { DONDOLO_SERVOPOS_E0, DONDOLO_SERVOPOS_E1 };
+      servo[DONDOLO_SERVO_INDEX].angle[0] = angles[0];
+      servo[DONDOLO_SERVO_INDEX].angle[0] = angles[1];
+    #endif
+
+    #if HAS_Z_SERVO_PROBE
+      constexpr uint8_t z_probe_angles[2] = Z_SERVO_ANGLES;
+      servo[Z_PROBE_SERVO_NR].angle[0] = z_probe_angles[0];
+      servo[Z_PROBE_SERVO_NR].angle[1] = z_probe_angles[1];
+    #endif
+
+  #endif
+  
   #if ENABLED(PID_ADD_EXTRUSION_RATE)
     tools.lpq_len = 20; // default last-position-queue size
   #endif
@@ -1805,8 +1834,6 @@ void EEPROM::Factory_Settings() {
      * Announce current units, in case inches are being displayed
      */
     SERIAL_STR(CFG);
-    SERIAL_EOL();
-
     #if ENABLED(INCH_MODE_SUPPORT)
       SERIAL_MSG("  G2");
       SERIAL_CHR(parser.linear_unit_factor == 1 ? '1' : '0');
@@ -1882,6 +1909,10 @@ void EEPROM::Factory_Settings() {
     #if HAS_LCD_CONTRAST
       SERIAL_LM(CFG, "LCD Contrast:");
       SERIAL_LMV(CFG, "  M250 C", lcd_contrast);
+    #endif
+
+    #if HAS_SERVOS
+      LOOP_SERVO() servo[s].print_parameters();
     #endif
 
     /**
@@ -2002,13 +2033,12 @@ void EEPROM::Factory_Settings() {
       /**
        * Volumetric extrusion M200
        */
-      if (!forReplay) {
-        SERIAL_SM(CFG, "Filament settings:");
-        if (printer.isVolumetric())
-          SERIAL_EOL();
-        else
-          SERIAL_EM(" Disabled");
-      }
+      SERIAL_SM(CFG, "Filament settings:");
+      if (printer.isVolumetric())
+        SERIAL_EOL();
+      else
+        SERIAL_EM(" Disabled");
+
       #if EXTRUDERS == 1
         SERIAL_LMV(CFG, "  M200 T0 D", tools.filament_size[0], 3);
       #elif EXTRUDERS > 1
@@ -2047,28 +2077,30 @@ void EEPROM::Factory_Settings() {
      * Alligator current drivers M906
      */
     #if MB(ALLIGATOR_R2) || MB(ALLIGATOR_R3)
-      SERIAL_LM(CFG, "Motor current:");
-      SERIAL_SMV(CFG, "  M906 X", externaldac.motor_current[X_AXIS], 2);
-      SERIAL_MV(" Y", externaldac.motor_current[Y_AXIS], 2);
-      SERIAL_MV(" Z", externaldac.motor_current[Z_AXIS], 2);
+
+      SERIAL_LM(CFG, "Motor current (mA):");
+      SERIAL_SMV(CFG, "  M906 X", externaldac.motor_current[X_AXIS]);
+      SERIAL_MV(" Y", externaldac.motor_current[Y_AXIS]);
+      SERIAL_MV(" Z", externaldac.motor_current[Z_AXIS]);
       #if EXTRUDERS == 1
-        SERIAL_MV(" T0 E", externaldac.motor_current[E_AXIS], 2);
+        SERIAL_MV(" T0 E", externaldac.motor_current[E_AXIS]);
       #endif
       SERIAL_EOL();
       #if DRIVER_EXTRUDERS > 1
         for (uint8_t i = 0; i < DRIVER_EXTRUDERS; i++) {
           SERIAL_SMV(CFG, "  M906 T", i);
-          SERIAL_EMV(" E", externaldac.motor_current[E_AXIS + i], 2);
+          SERIAL_EMV(" E", externaldac.motor_current[E_AXIS + i]);
         }
-      #endif // DRIVER_EXTRUDERS > 1
-    #endif // ALLIGATOR_R2 || 
+      #endif
+
+    #endif // ALLIGATOR_R2 || ALLIGATOR_R3
 
     #if HAS_TRINAMIC
 
       /**
        * TMC2130 or TMC2208 stepper driver current
        */
-      SERIAL_LM(CFG, "Stepper driver current:");
+      SERIAL_LM(CFG, "Stepper driver current (mA):");
       SERIAL_SM(CFG, "  M906");
       #if X_IS_TRINAMIC
         SERIAL_MV(" X", stepperX.getCurrent());
@@ -2225,7 +2257,7 @@ void EEPROM::Factory_Settings() {
       #endif // EXTRUDERS != 1
     #endif // ADVANCED_PAUSE_FEATURE
 
-    #if HAS_SDSUPPORT
+    #if HAS_SD_SUPPORT
       card.print_settings();
     #endif
 

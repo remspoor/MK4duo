@@ -90,8 +90,8 @@
   }
 
   void Scara_Mechanics::sync_plan_position_mech_specific() {
-    #if ENABLED(DEBUG_LEVELING_FEATURE)
-      if (printer.debugLeveling()) DEBUG_POS("sync_plan_position_mech_specific", current_position);
+    #if ENABLED(DEBUG_FEATURE)
+      if (printer.debugFeature()) DEBUG_POS("sync_plan_position_mech_specific", current_position);
     #endif
     planner.set_position_mm_kinematic(current_position);
   }
@@ -268,8 +268,8 @@
   void Scara_Mechanics::do_blocking_move_to(const float rx, const float ry, const float rz, const float &fr_mm_s /*=0.0*/) {
     const float old_feedrate_mm_s = feedrate_mm_s;
 
-    #if ENABLED(DEBUG_LEVELING_FEATURE)
-      if (printer.debugLeveling()) print_xyz(PSTR(">>> do_blocking_move_to"), NULL, rx, ry, rz);
+    #if ENABLED(DEBUG_FEATURE)
+      if (printer.debugFeature()) print_xyz(PSTR(">>> do_blocking_move_to"), NULL, rx, ry, rz);
     #endif
 
     const float z_feedrate = fr_mm_s ? fr_mm_s : homing_feedrate_mm_s[Z_AXIS];
@@ -296,8 +296,8 @@
 
     feedrate_mm_s = old_feedrate_mm_s;
 
-    #if ENABLED(DEBUG_LEVELING_FEATURE)
-      if (printer.debugLeveling()) SERIAL_ECHOLNPGM("<<< do_blocking_move_to");
+    #if ENABLED(DEBUG_FEATURE)
+      if (printer.debugFeature()) SERIAL_EM("<<< do_blocking_move_to");
     #endif
 
     planner.synchronize();
@@ -424,8 +424,8 @@
     #endif
 
     printer.setup_for_endstop_or_probe_move();
-    #if ENABLED(DEBUG_LEVELING_FEATURE)
-      if (printer.debugLeveling()) SERIAL_EM("> endstops.setEnabled(true)");
+    #if ENABLED(DEBUG_FEATURE)
+      if (printer.debugFeature()) SERIAL_EM("> endstops.setEnabled(true)");
     #endif
     endstops.setEnabled(true); // Enable endstops for next homing move
 
@@ -437,8 +437,8 @@
       COPY_ARRAY(lastpos, mechanics.current_position);
     }
 
-    #if ENABLED(DEBUG_LEVELING_FEATURE)
-      if (printer.debugLeveling()) DEBUG_POS(">>> home_scara", current_position);
+    #if ENABLED(DEBUG_FEATURE)
+      if (printer.debugFeature()) DEBUG_POS(">>> home_scara", current_position);
     #endif
 
     const bool  homeA = parser.seen('X'),
@@ -450,29 +450,29 @@
     // Home A
     if (home_all || homeA) {
       homeaxis(A_AXIS);
-      #if ENABLED(DEBUG_LEVELING_FEATURE)
-        if (printer.debugLeveling()) DEBUG_POS("> homeA", current_position);
+      #if ENABLED(DEBUG_FEATURE)
+        if (printer.debugFeature()) DEBUG_POS("> homeA", current_position);
       #endif
     }
 
     // Home B
     if (home_all || homeB) {
       homeaxis(B_AXIS);
-      #if ENABLED(DEBUG_LEVELING_FEATURE)
-        if (printer.debugLeveling()) DEBUG_POS("> homeB", current_position);
+      #if ENABLED(DEBUG_FEATURE)
+        if (printer.debugFeature()) DEBUG_POS("> homeB", current_position);
       #endif
     }
     
     // Home Z
     if (home_all || homeZ) {
       homeaxis(Z_AXIS);
-      #if ENABLED(DEBUG_LEVELING_FEATURE)
-        if (printer.debugLeveling()) DEBUG_POS("> homeZ", current_position);
+      #if ENABLED(DEBUG_FEATURE)
+        if (printer.debugFeature()) DEBUG_POS("> homeZ", current_position);
       #endif
     }
 
-    #if ENABLED(DEBUG_LEVELING_FEATURE)
-      if (printer.debugLeveling()) DEBUG_POS("<<< home_scara", current_position);
+    #if ENABLED(DEBUG_FEATURE)
+      if (printer.debugFeature()) DEBUG_POS("<<< home_scara", current_position);
     #endif
     sync_plan_position();
     endstops.setNotHoming();
@@ -505,16 +505,16 @@
 
     report_current_position();
 
-    #if ENABLED(DEBUG_LEVELING_FEATURE)
-      if (printer.debugLeveling()) SERIAL_EM("<<< G28");
+    #if ENABLED(DEBUG_FEATURE)
+      if (printer.debugFeature()) SERIAL_EM("<<< G28");
     #endif
 
   }
 
   void Scara_Mechanics::do_homing_move(const AxisEnum axis, const float distance, const float fr_mm_s/*=0.0*/) {
 
-    #if ENABLED(DEBUG_LEVELING_FEATURE)
-      if (printer.debugLeveling()) {
+    #if ENABLED(DEBUG_FEATURE)
+      if (printer.debugFeature()) {
         SERIAL_MV(">>> do_homing_move(", axis_codes[axis]);
         SERIAL_MV(", ", distance);
         SERIAL_MSG(", ");
@@ -529,14 +529,18 @@
       }
     #endif
 
-    #if HOMING_Z_WITH_PROBE && ENABLED(BLTOUCH)
-      const bool deploy_bltouch = (axis == Z_AXIS && distance < 0.0);
-      if (deploy_bltouch) probe.set_bltouch_deployed(true);
-    #endif
+    const bool is_home_dir = (home_dir[axis] > 0) == (distance > 0);
 
-    #if QUIET_PROBING
-      if (axis == Z_AXIS) probe.probing_pause(true);
-    #endif
+    if (is_home_dir) {
+      #if HOMING_Z_WITH_PROBE && ENABLED(BLTOUCH)
+        const bool deploy_bltouch = (axis == Z_AXIS && distance < 0.0);
+        if (deploy_bltouch) probe.set_bltouch_deployed(true);
+      #endif
+
+      #if QUIET_PROBING
+        if (axis == Z_AXIS) probe.probing_pause(true);
+      #endif
+    }
 
     // Tell the planner we're at Z=0
     current_position[axis] = 0;
@@ -548,18 +552,20 @@
 
     planner.synchronize();
 
-    #if QUIET_PROBING
-      if (axis == Z_AXIS) probe.probing_pause(false);
-    #endif
+    if (is_home_dir) {
+      #if QUIET_PROBING
+        if (axis == Z_AXIS) probe.probing_pause(false);
+      #endif
 
-    #if HOMING_Z_WITH_PROBE && ENABLED(BLTOUCH)
-      if (deploy_bltouch) probe.set_bltouch_deployed(false);
-    #endif
+      #if HOMING_Z_WITH_PROBE && ENABLED(BLTOUCH)
+        if (deploy_bltouch) probe.set_bltouch_deployed(false);
+      #endif
 
-    endstops.validate_homing_move();
+      endstops.validate_homing_move();
+    }
 
-    #if ENABLED(DEBUG_LEVELING_FEATURE)
-      if (printer.debugLeveling()) {
+    #if ENABLED(DEBUG_FEATURE)
+      if (printer.debugFeature()) {
         SERIAL_MV("<<< do_homing_move(", axis_codes[axis]);
         SERIAL_CHR(')'); SERIAL_EOL();
       }
@@ -576,10 +582,10 @@
    * Callers must sync the planner position after calling this!
    */ 
   void Scara_Mechanics::set_axis_is_at_home(const AxisEnum axis) {
-    #if ENABLED(DEBUG_LEVELING_FEATURE)
-      if (printer.debugLeveling()) {
-        SERIAL_ECHOPAIR(">>> set_axis_is_at_home(", axis_codes[axis]);
-        SERIAL_CHAR(')');
+    #if ENABLED(DEBUG_FEATURE)
+      if (printer.debugFeature()) {
+        SERIAL_MV(">>> set_axis_is_at_home(", axis_codes[axis]);
+        SERIAL_CHR(')');
         SERIAL_EOL();
       }
     #endif
@@ -630,23 +636,23 @@
 
           current_position[Z_AXIS] -= probe.offset[Z_AXIS];
 
-          #if ENABLED(DEBUG_LEVELING_FEATURE)
-            if (printer.debugLeveling()) {
+          #if ENABLED(DEBUG_FEATURE)
+            if (printer.debugFeature()) {
               SERIAL_EM("*** Z HOMED WITH PROBE ***");
               SERIAL_EMV("> zprobe_zoffset = ", probe.offset[Z_AXIS]);
             }
           #endif
 
-        #elif ENABLED(DEBUG_LEVELING_FEATURE)
+        #elif ENABLED(DEBUG_FEATURE)
 
-          if (printer.debugLeveling()) SERIAL_EM("*** Z HOMED TO ENDSTOP ***");
+          if (printer.debugFeature()) SERIAL_EM("*** Z HOMED TO ENDSTOP ***");
 
         #endif
       }
     #endif
 
-    #if ENABLED(DEBUG_LEVELING_FEATURE)
-      if (printer.debugLeveling()) {
+    #if ENABLED(DEBUG_FEATURE)
+      if (printer.debugFeature()) {
         DEBUG_POS("", current_position);
         SERIAL_MT("<<< set_axis_is_at_home(", axis_codes[axis]);
         SERIAL_CHR(')');
@@ -676,8 +682,8 @@
    */
   void Scara_Mechanics::prepare_uninterpolated_move_to_destination(const float fr_mm_s=0.0) {
 
-    #if ENABLED(DEBUG_LEVELING_FEATURE)
-      if (printer.debugLeveling()) DEBUG_POS("prepare_uninterpolated_move_to_destination", destination);
+    #if ENABLED(DEBUG_FEATURE)
+      if (printer.debugFeature()) DEBUG_POS("prepare_uninterpolated_move_to_destination", destination);
     #endif
 
     if ( current_position[X_AXIS] == destination[X_AXIS]
@@ -1038,8 +1044,8 @@
     // Only Z homing (with probe) is permitted
     if (axis != Z_AXIS) { BUZZ(100, 880); return; }
 
-    #if ENABLED(DEBUG_LEVELING_FEATURE)
-      if (printer.debugLeveling()) {
+    #if ENABLED(DEBUG_FEATURE)
+      if (printer.debugFeature()) {
         SERIAL_MV(">>> homeaxis(", axis_codes[axis]);
         SERIAL_CHR(')'); SERIAL_EOL();
       }
@@ -1051,8 +1057,8 @@
     #endif
 
     // Fast move towards endstop until triggered
-    #if ENABLED(DEBUG_LEVELING_FEATURE)
-      if (printer.debugLeveling()) SERIAL_EM("Home 1 Fast:");
+    #if ENABLED(DEBUG_FEATURE)
+      if (printer.debugFeature()) SERIAL_EM("Home 1 Fast:");
     #endif
 
     // Fast move towards endstop until triggered
@@ -1069,14 +1075,14 @@
     // If a second homing move is configured...
     if (bump) {
       // Move away from the endstop by the axis HOME_BUMP_MM
-      #if ENABLED(DEBUG_LEVELING_FEATURE)
-        if (printer.debugLeveling()) SERIAL_EM("Move Away:");
+      #if ENABLED(DEBUG_FEATURE)
+        if (printer.debugFeature()) SERIAL_EM("Move Away:");
       #endif
       mechanics.do_homing_move(axis, -bump);
 
       // Slow move towards endstop until triggered
-      #if ENABLED(DEBUG_LEVELING_FEATURE)
-        if (printer.debugLeveling()) SERIAL_EM("Home 2 Slow:");
+      #if ENABLED(DEBUG_FEATURE)
+        if (printer.debugFeature()) SERIAL_EM("Home 2 Slow:");
       #endif
       mechanics.do_homing_move(axis, 2 * bump, get_homing_bump_feedrate(axis));
     }
@@ -1094,8 +1100,8 @@
       fwretract.hop_amount = 0.0;
     #endif
 
-    #if ENABLED(DEBUG_LEVELING_FEATURE)
-      if (printer.debugLeveling()) {
+    #if ENABLED(DEBUG_FEATURE)
+      if (printer.debugFeature()) {
         SERIAL_MV("<<< homeaxis(", axis_codes[axis]);
         SERIAL_CHR(')'); SERIAL_EOL();
       }

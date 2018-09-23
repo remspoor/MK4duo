@@ -291,6 +291,17 @@
 #endif
 
 /**
+ * SPI_SPEED
+ */
+#if ENABLED(SDEXTRASLOW)
+  #define SPI_SPEED 2
+#elif ENABLED(SDSLOW)
+  #define SPI_SPEED 1
+#else
+  #define SPI_SPEED 0
+#endif
+
+/**
  * SD DETECT
  */
 #if ENABLED(SD_DISABLED_DETECT)
@@ -591,7 +602,7 @@
 #define HAS_EEPROM          (ENABLED(EEPROM_SETTINGS))
 
 // SD support
-#define HAS_SDSUPPORT       (ENABLED(SDSUPPORT))
+#define HAS_SD_SUPPORT      (ENABLED(SDSUPPORT))
 #if ENABLED(SDSUPPORT)
   #define SD_MAX_FOLDER_DEPTH 5     // Maximum folder depth
   // Number of VFAT entries used. Each entry has 13 UTF-16 characters
